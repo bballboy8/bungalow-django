@@ -33,7 +33,10 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "channels",
-    "messaging"
+    "messaging",
+    "django_celery_beat",
+    "django_celery_results",
+    "core",
 ]
 
 MIDDLEWARE = [
@@ -65,7 +68,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "bungalowbe.wsgi.application"
-ASGI_APPLICATION = 'bungalowbe.asgi.application'
+ASGI_APPLICATION = "bungalowbe.asgi.application"
 
 
 DATABASES = {
@@ -79,12 +82,15 @@ DATABASES = {
     }
 }
 
+# Redis settings
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
     },
 }
-
 
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -105,7 +111,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Kolkata"
 
 USE_I18N = True
 
@@ -118,15 +124,80 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 import platform
+
 current_platform = platform.system()
-if current_platform == 'Darwin':  # macOS
-    GDAL_LIBRARY_PATH = config('GDAL_LIBRARY_PATH_MAC')
-    GEOS_LIBRARY_PATH = config('GEOS_LIBRARY_PATH_MAC')
-elif current_platform == 'Linux':  # Ubuntu
-    GDAL_LIBRARY_PATH = config('GDAL_LIBRARY_PATH_LINUX')
-    GEOS_LIBRARY_PATH = config('GEOS_LIBRARY_PATH_LINUX')
-elif current_platform == 'Windows': # Windows
-    GDAL_LIBRARY_PATH = config('GDAL_LIBRARY_PATH_WINDOWS')
-    GEOS_LIBRARY_PATH = config('GEOS_LIBRARY_PATH_WINDOWS')
+if current_platform == "Darwin":  # macOS
+    GDAL_LIBRARY_PATH = config("GDAL_LIBRARY_PATH_MAC")
+    GEOS_LIBRARY_PATH = config("GEOS_LIBRARY_PATH_MAC")
+elif current_platform == "Linux":  # Ubuntu
+    GDAL_LIBRARY_PATH = config("GDAL_LIBRARY_PATH_LINUX")
+    GEOS_LIBRARY_PATH = config("GEOS_LIBRARY_PATH_LINUX")
+elif current_platform == "Windows":  # Windows
+    GDAL_LIBRARY_PATH = config("GDAL_LIBRARY_PATH_WINDOWS")
+    GEOS_LIBRARY_PATH = config("GEOS_LIBRARY_PATH_WINDOWS")
 else:
     raise RuntimeError(f"Unsupported platform: {current_platform}")
+
+CELERY_BROKER_URL = "redis://127.0.0.1:6379"
+CELERY_ACCEPT_CONTENT = ["application/json"]
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_BACKEND = "django-db"
+CELERY_TIMEZONE = "Asia/Kolkata"
+
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": f"redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+
+CELERY_WORKER_POOL = "solo"
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+import os
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "celery_task": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": os.path.join(BASE_DIR, "celery_task.log"),
+            "formatter": "verbose",
+        },
+        "celery_beat": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": os.path.join(BASE_DIR, "celery_beat.log"),
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "celery": {
+            "handlers": ["celery_task"],
+            "level": "INFO",
+            "propagate": True,
+        },
+        "celery.beat": {
+            "handlers": ["celery_beat"],
+            "level": "INFO",
+            "propagate": True,
+        },
+    },
+}

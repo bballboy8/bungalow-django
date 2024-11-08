@@ -193,8 +193,7 @@ def fetch_and_process_records(auth_token, bbox, start_time, end_time):
         return
     features = records.get("features", [])
     download_and_upload_images(features, "thumbnails")
-    features = convert_to_model_params(features)
-    process_database_catalog(features)
+    process_database_catalog(convert_to_model_params(features))
 
 
 def main(START_DATE, END_DATE, BBOX):

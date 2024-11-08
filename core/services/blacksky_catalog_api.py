@@ -7,6 +7,14 @@ from decouple import config
 from core.serializers import SatelliteCaptureCatalogSerializer
 from datetime import datetime
 from django.contrib.gis.geos import Polygon
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from core.utils import  save_image_in_s3_and_get_url
+from botocore.exceptions import NoCredentialsError
+import numpy as np
+from rasterio.transform import from_bounds
+from rasterio.io import MemoryFile
+from io import BytesIO
+from PIL import Image
 
 columns = shutil.get_terminal_size().columns
 
@@ -51,6 +59,96 @@ def process_database_catalog(features):
     else:
         print(serializer.errors)
 
+def get_polygon_bounding_box(polygon):
+    """Extracts the bounding box from a polygon's coordinates."""
+    min_lon = min([point[0] for point in polygon['coordinates'][0]])
+    max_lon = max([point[0] for point in polygon['coordinates'][0]])
+    min_lat = min([point[1] for point in polygon['coordinates'][0]])
+    max_lat = max([point[1] for point in polygon['coordinates'][0]])
+
+    return min_lon, min_lat, max_lon, max_lat
+
+def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=None):
+    img = Image.open(BytesIO(content))
+    img_array = np.array(img)
+
+    # Define the transform based on polygon bounds
+    if polygon:
+        min_lon, min_lat, max_lon, max_lat = get_polygon_bounding_box(polygon)
+        transform = from_bounds(min_lon, min_lat, max_lon, max_lat, img_array.shape[1], img_array.shape[0])
+    else:
+        print("Polygon bounds not provided.")
+        return False
+
+    # Step 3: Convert to GeoTIFF and save to S3
+    with MemoryFile() as memfile:
+        with memfile.open(
+            driver='GTiff',
+            height=img_array.shape[0],
+            width=img_array.shape[1],
+            count=img_array.shape[2] if len(img_array.shape) == 3 else 1,
+            dtype=img_array.dtype,
+            crs='EPSG:4326',
+            transform=transform
+        ) as dst:
+            if len(img_array.shape) == 2:  # Grayscale
+                dst.write(img_array, 1)
+            else:  # RGB or multi-channel
+                for i in range(img_array.shape[2]):
+                    dst.write(img_array[:, :, i], i + 1)
+
+        # Upload the GeoTIFF to S3
+        geotiff_url = save_image_in_s3_and_get_url(memfile.read(), filename, tiff_folder, "tif")
+        print(f"Uploaded GeoTIFF for feature {filename} to {geotiff_url}")
+        return geotiff_url
+
+
+
+def upload_to_s3(feature, folder="thumbnails"):
+    """Downloads an image from the URL in the feature and uploads it to S3."""
+    try:
+        url = feature.get("assets", {}).get("browseUrl", {}).get("href")
+        headers = {"Content-Type": "application/json", "Authorization": AUTH_TOKEN}
+        response = requests.get(url, headers=headers, stream=True)
+        response.raise_for_status()
+        filename = feature.get("id")
+        content = response.content  
+        response_url = save_image_in_s3_and_get_url(content, filename, folder)
+        response_geotiff = geotiff_conversion_and_s3_upload(content, filename, "geotiffs", feature.get("geometry"))
+        print(f"Uploaded image for feature {feature.get('id')} to {response_url}, {response_geotiff}")
+        return True
+
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to download {url}: {e}")
+        return False
+    except NoCredentialsError:
+        print("S3 credentials not available")
+        return False
+    except Exception as e:
+        print(f"Failed to upload {url}: {e}")
+        return False
+
+
+def download_and_upload_images(features, path, max_workers=5):
+    """Download images from URLs in features and upload them to S3."""
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(upload_to_s3, feature, path): feature
+            for feature in features
+        }
+
+        for future in as_completed(futures):
+            feature = futures[future]
+            try:
+                result = future.result()
+                if result:
+                    pass
+                else:
+                    print(f"Failed to upload image for feature {feature.get('id')}")
+            except Exception as e:
+                print(f"Exception occurred for feature {feature.get('id')}: {e}")
+
 
 def convert_to_model_params(features):
     response = []
@@ -94,6 +192,7 @@ def fetch_and_process_records(auth_token, bbox, start_time, end_time):
     if records is None:
         return
     features = records.get("features", [])
+    download_and_upload_images(features, "thumbnails")
     features = convert_to_model_params(features)
     process_database_catalog(features)
 
@@ -131,5 +230,5 @@ def run_blacksky_catalog_api():
     BBOX = "-180,-90,180,90"
     print(f"Generated BBOX: {BBOX}")
     START_DATE = "2024-10-25"
-    END_DATE = "2024-10-26"
+    END_DATE = "2024-10-27"
     main(START_DATE, END_DATE, BBOX)

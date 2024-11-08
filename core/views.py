@@ -17,12 +17,13 @@ class UploadImageView(APIView):
     def post(self, request):
         image = request.FILES.get("image")
         image_id = request.data.get("id")
+        folder = request.data.get("folder") or "thumbnails"
         extension = request.data.get("extension")
 
         if not image or not image_id:
             return Response({"error": "Image and ID are required."}, status=status.HTTP_400_BAD_REQUEST)        
 
-        url = save_image_in_s3_and_get_url(image, image_id, extension)
+        url = save_image_in_s3_and_get_url(image, image_id, folder, extension)
         if url == "AWS credentials not available.":
             return Response({"error": "AWS credentials not available."}, status=status.HTTP_403_FORBIDDEN)
 

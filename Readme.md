@@ -46,3 +46,4 @@ Project is setup and ready to be used.
 <!-- Celery pm2 or screen -->
 1. Process:  celery -A bungalowbe.celery worker -l info
 2. Process:  celery -A bungalowbe beat -l info
+

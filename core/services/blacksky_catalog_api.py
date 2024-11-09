@@ -36,6 +36,7 @@ def get_blacksky_collections(
     auth_token,
     bbox=None,
     datetime_range=None,
+    last_scene_id=None,
 ):
     """
     Fetches collections from the BlackSky API.
@@ -46,9 +47,10 @@ def get_blacksky_collections(
     params = {
         "bbox": bbox,
         "time": datetime_range,
+        "limit": 300,
     }
-    print(f"Fetching data from BlackSky API with params: {params}")
-
+    if last_scene_id:
+        params["searchAfterId"] = last_scene_id
     try:
         response = requests.get(url, params=params, headers=headers)
         return response.json()
@@ -83,8 +85,10 @@ def process_database_catalog(features, start_time, end_time):
         print(f"Total invalid records: {len(invalid_features)}")
 
     try:
-        last_acquisition_datetime = (valid_features[-1]["acquisition_datetime"])
-        last_acquisition_datetime = datetime.strftime(last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z")
+        last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
+        last_acquisition_datetime = datetime.strftime(
+            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+        )
     except Exception as e:
         print(f"Error in last_acquisition_datetime: {e}")
         last_acquisition_datetime = end_time
@@ -204,12 +208,11 @@ def download_and_upload_images(features, path, max_workers=5):
 def convert_to_model_params(features):
     response = []
     for feature in features:
-        print(feature)
         try:
             location_polygon = Polygon(feature["geometry"]["coordinates"][0], srid=4326)
             model_params = {
                 "acquisition_datetime": datetime.fromisoformat(
-                    feature["properties"]["datetime"].replace('Z', '+00:00')
+                    feature["properties"]["datetime"].replace("Z", "+00:00")
                 ),
                 "cloud_cover": feature["properties"]["cloudPercent"],
                 "vendor_id": feature["id"],
@@ -237,21 +240,38 @@ def convert_to_model_params(features):
     return response
 
 
-def fetch_and_process_records(auth_token, bbox, start_time, end_time):
+def fetch_and_process_records(auth_token, bbox, start_time, end_time, last_scene_id):
     """Fetches records from the BlackSky API and processes them."""
-    records = get_blacksky_collections(
-        auth_token, bbox=bbox, datetime_range=f"{start_time}/{end_time}"
-    )
-    if records is None:
-        return
-    features = records.get("features", [])
-    # download_and_upload_images(features, "thumbnails")
-    converted_features = convert_to_model_params(features)
-    print(converted_features,"converted_features")
+    all_records = []
+    last_record_scene_id = last_scene_id
+    while True:
+        if last_record_scene_id:
+            records = get_blacksky_collections(
+                auth_token,
+                bbox=bbox,
+                datetime_range=f"{start_time}/{end_time}",
+                last_scene_id=last_record_scene_id,
+            )
+        else:
+            records = get_blacksky_collections(
+                auth_token, bbox=bbox, datetime_range=f"{start_time}/{end_time}"
+            )
+        if not records.get("features", []):
+            break
+
+        all_records.extend(records.get("features", []))
+        last_record = records.get("features", [])[-1]
+        last_record_scene_id = last_record.get("id")
+
+    if not all_records:
+        return 0
+    download_and_upload_images(all_records, "thumbnails")
+    converted_features = convert_to_model_params(all_records)
     process_database_catalog(converted_features, start_time, end_time)
+    return len(all_records)
 
 
-def main(START_DATE, END_DATE, BBOX):
+def main(START_DATE, END_DATE, BBOX, last_scene_id):
     bboxes = [BBOX]
     current_date = START_DATE
     end_date = END_DATE
@@ -264,7 +284,7 @@ def main(START_DATE, END_DATE, BBOX):
     print("-" * columns)
     print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
     print("Duration :", duration, "batch")
-
+    total_records = 0
     with tqdm(total=duration, desc="", unit="batch") as pbar:
         while current_date <= end_date:  # Inclusive of end_date
             start_time = current_date.isoformat()
@@ -274,13 +294,18 @@ def main(START_DATE, END_DATE, BBOX):
                 end_time = end_date.isoformat()
 
             for bbox in bboxes:
-                fetch_and_process_records(AUTH_TOKEN, bbox, start_time, end_time)
+                response = fetch_and_process_records(
+                    AUTH_TOKEN, bbox, start_time, end_time, last_scene_id
+                )
+                if response:
+                    total_records += response
 
             current_date += timedelta(days=BATCH_SIZE)  # Move to the next day
             pbar.update(1)  # Update progress bar
 
         pbar.clear()
     tqdm.write("Completed processing BlackSky data")
+    return total_records
 
 
 def run_blacksky_catalog_api():
@@ -292,11 +317,26 @@ def run_blacksky_catalog_api():
         .first()
     )
     if not START_DATE:
-        START_DATE = datetime(datetime.now().year, datetime.now().month, datetime.now().day, tzinfo=pytz.utc)
+        START_DATE = datetime(
+            datetime.now().year,
+            datetime.now().month,
+            datetime.now().day,
+            tzinfo=pytz.utc,
+        )
+        last_scene_id = None
     else:
-        START_DATE = START_DATE.end_datetime.astimezone(pytz.UTC)
+        print(START_DATE.end_datetime)
+        print(START_DATE.end_datetime.astimezone(pytz.UTC))
+        START_DATE = START_DATE.end_datetime
+        last_scene_id = (
+            SatelliteCaptureCatalog.objects.filter(vendor_name="blacksky")
+            .order_by("-acquisition_datetime")
+            .first()
+            .vendor_id
+        )
         print(f"From DB: {START_DATE}")
 
     END_DATE = get_utc_time()
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-    main(START_DATE, END_DATE, BBOX)
+    response = main(START_DATE, END_DATE, BBOX, last_scene_id)
+    return response

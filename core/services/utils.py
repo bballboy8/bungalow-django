@@ -287,3 +287,40 @@ def calculate_bbox_npolygons(geometry):
     max_lat = max(latitudes)
     
     return min_long, min_lat, max_long, max_lat
+
+
+
+def generate_land_grids(shapefile_path):
+    import geopandas as gpd
+    from shapely.geometry import Polygon
+    import os
+    # Define fixed bounds
+    lat_min, lat_max = -90, 90
+    lon_min, lon_max = -180, 180
+    
+    # Check if the shapefile exists
+    if not os.path.exists(shapefile_path):
+        raise FileNotFoundError(f"Shapefile not found at {shapefile_path}")
+    
+    # Load the world shapefile
+    world = gpd.read_file(shapefile_path)
+    
+    land_grids = []
+    
+    # Iterate over the latitudes and longitudes with a step of 6 degrees
+    for lat in range(int(lat_min), int(lat_max), 6):
+        for lon in range(int(lon_min), int(lon_max), 6):
+            # Create the coordinates for the bounding box
+            lat1 = lat
+            lat2 = min(lat + 6, lat_max)
+            lon1 = lon
+            lon2 = min(lon + 6, lon_max)
+            
+            # Generate the polygon for the bounding box
+            grid = Polygon([(lon1, lat1), (lon2, lat1), (lon2, lat2), (lon1, lat2), (lon1, lat1)])
+            
+            # Check if the grid intersects with any land (world polygons)
+            if world.intersects(grid).any():
+                land_grids.append(grid)
+    
+    return land_grids

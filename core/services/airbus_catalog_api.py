@@ -210,13 +210,16 @@ def process_database_catalog(features, start_time, end_time, batch_size=100):
         except IntegrityError as e:
             print(f"Error during bulk insert: {e}")
 
+    if not valid_features:
+        print(f"No records Found for {start_time} to {end_time}")
+        return
+
     try:
         last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
         last_acquisition_datetime = datetime.strftime(
             last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
         )
     except Exception as e:
-        print(f"Error in last_acquisition_datetime: {e}")
         last_acquisition_datetime = end_time
 
     history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(

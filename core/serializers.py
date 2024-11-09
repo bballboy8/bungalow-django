@@ -1,7 +1,7 @@
 # serializers.py
 
 from rest_framework import serializers
-from .models import SatelliteCaptureCatalog
+from .models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
 from django.contrib.gis.geos import Polygon
 
 class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
@@ -29,3 +29,9 @@ class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
         if SatelliteCaptureCatalog.objects.filter(vendor_id=value).exists():
             raise serializers.ValidationError("A record with this vendor_id already exists.")
         return value
+    
+
+class SatelliteDateRetrievalPipelineHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SatelliteDateRetrievalPipelineHistory
+        fields = '__all__'

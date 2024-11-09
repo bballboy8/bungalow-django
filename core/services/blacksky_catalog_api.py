@@ -4,17 +4,24 @@ from tqdm import tqdm
 import math
 import shutil
 from decouple import config
-from core.serializers import SatelliteCaptureCatalogSerializer
+from core.serializers import (
+    SatelliteCaptureCatalogSerializer,
+    SatelliteDateRetrievalPipelineHistorySerializer,
+)
 from datetime import datetime
 from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import  save_image_in_s3_and_get_url
+from core.utils import save_image_in_s3_and_get_url
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
 from rasterio.io import MemoryFile
 from io import BytesIO
 from PIL import Image
+from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
+from django.db.utils import IntegrityError
+from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
+import pytz
 
 columns = shutil.get_terminal_size().columns
 
@@ -40,6 +47,7 @@ def get_blacksky_collections(
         "bbox": bbox,
         "time": datetime_range,
     }
+    print(f"Fetching data from BlackSky API with params: {params}")
 
     try:
         response = requests.get(url, params=params, headers=headers)
@@ -52,21 +60,62 @@ def get_blacksky_collections(
     return None
 
 
-def process_database_catalog(features):
-    serializer = SatelliteCaptureCatalogSerializer(data=features, many=True)
-    if serializer.is_valid():
-        serializer.save()
+def process_database_catalog(features, start_time, end_time):
+    valid_features = []
+    invalid_features = []
+
+    for feature in features:
+        serializer = SatelliteCaptureCatalogSerializer(data=feature)
+        if serializer.is_valid():
+            valid_features.append(serializer.validated_data)
+        else:
+            invalid_features.append(feature)
+
+    if valid_features:
+        try:
+            SatelliteCaptureCatalog.objects.bulk_create(
+                [SatelliteCaptureCatalog(**feature) for feature in valid_features]
+            )
+        except IntegrityError as e:
+            print(f"Error during bulk insert: {e}")
+
+    if invalid_features:
+        print(f"Total invalid records: {len(invalid_features)}")
+
+    try:
+        last_acquisition_datetime = (valid_features[-1]["acquisition_datetime"])
+        last_acquisition_datetime = datetime.strftime(last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z")
+    except Exception as e:
+        print(f"Error in last_acquisition_datetime: {e}")
+        last_acquisition_datetime = end_time
+
+    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+        data={
+            "start_datetime": convert_iso_to_datetime(start_time),
+            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+            "vendor_name": "blacksky",
+            "message": {
+                "total_records": len(features),
+                "valid_records": len(valid_features),
+                "invalid_records": len(invalid_features),
+            },
+        }
+    )
+    if history_serializer.is_valid():
+        history_serializer.save()
     else:
-        print(serializer.errors)
+        print(f"Error in history serializer: {history_serializer.errors}")
+
 
 def get_polygon_bounding_box(polygon):
     """Extracts the bounding box from a polygon's coordinates."""
-    min_lon = min([point[0] for point in polygon['coordinates'][0]])
-    max_lon = max([point[0] for point in polygon['coordinates'][0]])
-    min_lat = min([point[1] for point in polygon['coordinates'][0]])
-    max_lat = max([point[1] for point in polygon['coordinates'][0]])
+    min_lon = min([point[0] for point in polygon["coordinates"][0]])
+    max_lon = max([point[0] for point in polygon["coordinates"][0]])
+    min_lat = min([point[1] for point in polygon["coordinates"][0]])
+    max_lat = max([point[1] for point in polygon["coordinates"][0]])
 
     return min_lon, min_lat, max_lon, max_lat
+
 
 def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=None):
     img = Image.open(BytesIO(content))
@@ -75,21 +124,22 @@ def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=Non
     # Define the transform based on polygon bounds
     if polygon:
         min_lon, min_lat, max_lon, max_lat = get_polygon_bounding_box(polygon)
-        transform = from_bounds(min_lon, min_lat, max_lon, max_lat, img_array.shape[1], img_array.shape[0])
+        transform = from_bounds(
+            min_lon, min_lat, max_lon, max_lat, img_array.shape[1], img_array.shape[0]
+        )
     else:
-        print("Polygon bounds not provided.")
         return False
 
     # Step 3: Convert to GeoTIFF and save to S3
     with MemoryFile() as memfile:
         with memfile.open(
-            driver='GTiff',
+            driver="GTiff",
             height=img_array.shape[0],
             width=img_array.shape[1],
             count=img_array.shape[2] if len(img_array.shape) == 3 else 1,
             dtype=img_array.dtype,
-            crs='EPSG:4326',
-            transform=transform
+            crs="EPSG:4326",
+            transform=transform,
         ) as dst:
             if len(img_array.shape) == 2:  # Grayscale
                 dst.write(img_array, 1)
@@ -98,10 +148,10 @@ def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=Non
                     dst.write(img_array[:, :, i], i + 1)
 
         # Upload the GeoTIFF to S3
-        geotiff_url = save_image_in_s3_and_get_url(memfile.read(), filename, tiff_folder, "tif")
-        print(f"Uploaded GeoTIFF for feature {filename} to {geotiff_url}")
+        geotiff_url = save_image_in_s3_and_get_url(
+            memfile.read(), filename, tiff_folder, "tif"
+        )
         return geotiff_url
-
 
 
 def upload_to_s3(feature, folder="thumbnails"):
@@ -112,10 +162,11 @@ def upload_to_s3(feature, folder="thumbnails"):
         response = requests.get(url, headers=headers, stream=True)
         response.raise_for_status()
         filename = feature.get("id")
-        content = response.content  
+        content = response.content
         response_url = save_image_in_s3_and_get_url(content, filename, folder)
-        response_geotiff = geotiff_conversion_and_s3_upload(content, filename, "geotiffs", feature.get("geometry"))
-        print(f"Uploaded image for feature {feature.get('id')} to {response_url}, {response_geotiff}")
+        response_geotiff = geotiff_conversion_and_s3_upload(
+            content, filename, "geotiffs", feature.get("geometry")
+        )
         return True
 
     except requests.exceptions.RequestException as e:
@@ -153,11 +204,12 @@ def download_and_upload_images(features, path, max_workers=5):
 def convert_to_model_params(features):
     response = []
     for feature in features:
+        print(feature)
         try:
             location_polygon = Polygon(feature["geometry"]["coordinates"][0], srid=4326)
             model_params = {
                 "acquisition_datetime": datetime.fromisoformat(
-                    feature["properties"]["datetime"].replace("Z", "+00:00")
+                    feature["properties"]["datetime"].replace('Z', '+00:00')
                 ),
                 "cloud_cover": feature["properties"]["cloudPercent"],
                 "vendor_id": feature["id"],
@@ -177,6 +229,7 @@ def convert_to_model_params(features):
                 "resolution": f"{feature['properties']['gsd']}m",
                 "georeferenced": feature["properties"]["georeferenced"] == "True",
                 "location_polygon": feature["geometry"],
+                "coordinates_record": feature["geometry"],
             }
             response.append(model_params)
         except Exception as e:
@@ -192,14 +245,16 @@ def fetch_and_process_records(auth_token, bbox, start_time, end_time):
     if records is None:
         return
     features = records.get("features", [])
-    download_and_upload_images(features, "thumbnails")
-    process_database_catalog(convert_to_model_params(features))
+    # download_and_upload_images(features, "thumbnails")
+    converted_features = convert_to_model_params(features)
+    print(converted_features,"converted_features")
+    process_database_catalog(converted_features, start_time, end_time)
 
 
 def main(START_DATE, END_DATE, BBOX):
     bboxes = [BBOX]
-    current_date = datetime.strptime(START_DATE, "%Y-%m-%d")
-    end_date = datetime.strptime(END_DATE, "%Y-%m-%d")
+    current_date = START_DATE
+    end_date = END_DATE
     global BATCH_SIZE
     date_difference = (end_date - current_date).days + 1
     if date_difference < BATCH_SIZE:
@@ -212,8 +267,11 @@ def main(START_DATE, END_DATE, BBOX):
 
     with tqdm(total=duration, desc="", unit="batch") as pbar:
         while current_date <= end_date:  # Inclusive of end_date
-            start_time = current_date.strftime("%Y-%m-%d")
-            end_time = (current_date + timedelta(days=BATCH_SIZE)).strftime("%Y-%m-%d")
+            start_time = current_date.isoformat()
+            if duration > 1:
+                end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
+            else:
+                end_time = end_date.isoformat()
 
             for bbox in bboxes:
                 fetch_and_process_records(AUTH_TOKEN, bbox, start_time, end_time)
@@ -228,6 +286,17 @@ def main(START_DATE, END_DATE, BBOX):
 def run_blacksky_catalog_api():
     BBOX = "-180,-90,180,90"
     print(f"Generated BBOX: {BBOX}")
-    START_DATE = "2024-10-25"
-    END_DATE = "2024-10-27"
+    START_DATE = (
+        SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="blacksky")
+        .order_by("-end_datetime")
+        .first()
+    )
+    if not START_DATE:
+        START_DATE = datetime(datetime.now().year, datetime.now().month, datetime.now().day, tzinfo=pytz.utc)
+    else:
+        START_DATE = START_DATE.end_datetime.astimezone(pytz.UTC)
+        print(f"From DB: {START_DATE}")
+
+    END_DATE = get_utc_time()
+    print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
     main(START_DATE, END_DATE, BBOX)

@@ -67,28 +67,13 @@ def process_database_catalog(features, start_time, end_time, batch_size=100):
     valid_features = []
     invalid_features = []
 
-    for i in range(0, len(features), batch_size):
-        batch = features[i:i + batch_size]
-        batch_vendor_ids = [feature.get('vendor_id') for feature in batch]
-        
-        existing_vendor_ids = set(
-            SatelliteCaptureCatalog.objects.filter(
-                vendor_id__in=batch_vendor_ids
-            ).values_list('vendor_id', flat=True)
-        )
-        
-        for feature in batch:
-            vendor_id = feature.get('vendor_id')
-            
-            if vendor_id in existing_vendor_ids:
-                invalid_features.append(feature)
-                continue
-
-            serializer = SatelliteCaptureCatalogSerializer(data=feature)
-            if serializer.is_valid():
-                valid_features.append(serializer.validated_data)
-            else:
-                invalid_features.append(feature)
+    for feature in features:
+        serializer = SatelliteCaptureCatalogSerializer(data=feature)
+        if serializer.is_valid():
+            valid_features.append(serializer.validated_data)
+        else:
+            invalid_features.append(feature)
+    
     print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
     if valid_features:
         try:

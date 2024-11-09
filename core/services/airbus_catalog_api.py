@@ -193,29 +193,15 @@ def process_database_catalog(features, start_time, end_time, batch_size=100):
     valid_features = []
     invalid_features = []
 
-    for i in range(0, len(features), batch_size):
-        batch = features[i:i + batch_size]
-        batch_vendor_ids = [feature.get('vendor_id') for feature in batch]
-        
-        existing_vendor_ids = set(
-            SatelliteCaptureCatalog.objects.filter(
-                vendor_id__in=batch_vendor_ids
-            ).values_list('vendor_id', flat=True)
-        )
-        
-        for feature in batch:
-            vendor_id = feature.get('vendor_id')
-            
-            if vendor_id in existing_vendor_ids:
-                invalid_features.append(feature)
-                continue
-
-            serializer = SatelliteCaptureCatalogSerializer(data=feature)
-            if serializer.is_valid():
-                valid_features.append(serializer.validated_data)
-            else:
-                invalid_features.append(feature)
+    for feature in features:
+        serializer = SatelliteCaptureCatalogSerializer(data=feature)
+        if serializer.is_valid():
+            valid_features.append(serializer.validated_data)
+        else:
+            print(f"Error in serializer: {serializer.errors}")
+            invalid_features.append(feature)
     print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
+
     if valid_features:
         try:
             SatelliteCaptureCatalog.objects.bulk_create(
@@ -237,7 +223,7 @@ def process_database_catalog(features, start_time, end_time, batch_size=100):
         data={
             "start_datetime": convert_iso_to_datetime(start_time),
             "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "blacksky",
+            "vendor_name": "airbus",
             "message": {
                 "total_records": len(features),
                 "valid_records": len(valid_features),
@@ -352,10 +338,9 @@ def search_images(bbox, start_date, end_date):
                         bbox, start_date_str, end_date_str, current_page
                     )
                     if response_data:
-                        total_records = response_data.get("totalResults", 0)
-                        total_items += total_records
                         all_features.extend(response_data.get("features", []))
-                        if total_records <= current_page * ITEMS_PER_PAGE:
+                        if response_data.get("totalResults", 0) <= (current_page * ITEMS_PER_PAGE):
+                            total_items += response_data.get("totalResults", 0)
                             break
                     else:
                         break

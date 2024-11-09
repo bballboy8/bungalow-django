@@ -22,6 +22,8 @@ from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
 from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
 import pytz
+from django.db.models import Q
+
 
 columns = shutil.get_terminal_size().columns
 
@@ -62,17 +64,33 @@ def get_blacksky_collections(
     return None
 
 
-def process_database_catalog(features, start_time, end_time):
+def process_database_catalog(features, start_time, end_time, batch_size=100):
     valid_features = []
     invalid_features = []
 
-    for feature in features:
-        serializer = SatelliteCaptureCatalogSerializer(data=feature)
-        if serializer.is_valid():
-            valid_features.append(serializer.validated_data)
-        else:
-            invalid_features.append(feature)
+    for i in range(0, len(features), batch_size):
+        batch = features[i:i + batch_size]
+        batch_vendor_ids = [feature.get('vendor_id') for feature in batch]
+        
+        existing_vendor_ids = set(
+            SatelliteCaptureCatalog.objects.filter(
+                vendor_id__in=batch_vendor_ids
+            ).values_list('vendor_id', flat=True)
+        )
+        
+        for feature in batch:
+            vendor_id = feature.get('vendor_id')
+            
+            if vendor_id in existing_vendor_ids:
+                invalid_features.append(feature)
+                continue
 
+            serializer = SatelliteCaptureCatalogSerializer(data=feature)
+            if serializer.is_valid():
+                valid_features.append(serializer.validated_data)
+            else:
+                invalid_features.append(feature)
+    print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
     if valid_features:
         try:
             SatelliteCaptureCatalog.objects.bulk_create(
@@ -262,7 +280,7 @@ def fetch_and_process_records(auth_token, bbox, start_time, end_time, last_scene
 
     if not all_records:
         return 0
-    download_and_upload_images(all_records, "thumbnails")
+    # download_and_upload_images(all_records, "thumbnails")
     converted_features = convert_to_model_params(all_records)
     process_database_catalog(converted_features, start_time, end_time)
     return len(all_records)

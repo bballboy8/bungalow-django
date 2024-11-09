@@ -22,7 +22,6 @@ from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
 from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
 import pytz
-from django.db.models import Q
 
 
 columns = shutil.get_terminal_size().columns

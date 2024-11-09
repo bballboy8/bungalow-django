@@ -63,7 +63,7 @@ def get_blacksky_collections(
     return None
 
 
-def process_database_catalog(features, start_time, end_time, batch_size=100):
+def process_database_catalog(features, start_time, end_time):
     valid_features = []
     invalid_features = []
 

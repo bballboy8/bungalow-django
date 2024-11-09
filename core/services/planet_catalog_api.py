@@ -17,7 +17,6 @@ import os
 from tqdm import tqdm
 import math
 import shutil
-from utils import check_csv_and_rename_output_dir, latlon_to_geojson, calculate_bbox_npolygons
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil
 from PIL import Image, ImageChops
@@ -25,81 +24,37 @@ import numpy as np
 import rasterio
 from rasterio.transform import from_bounds
 from decouple import config
+from core.serializers import (
+    SatelliteCaptureCatalogSerializer,
+    SatelliteDateRetrievalPipelineHistorySerializer,
+)
+from datetime import datetime
+from django.contrib.gis.geos import Polygon
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from core.utils import save_image_in_s3_and_get_url
+from botocore.exceptions import NoCredentialsError
+import numpy as np
+from rasterio.transform import from_bounds
+from rasterio.io import MemoryFile
+from io import BytesIO
+from PIL import Image
+from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
+from django.db.utils import IntegrityError
+from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
+import pytz
+from core.services.utils import calculate_bbox_npolygons
 
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
 
 # Input configuration
 API_KEY = config("PLANET_API_KEY") 
-# START_DATE = '2024-01-01'  # Specify the start date in 'YYYY-MM-DD' format
-# END_DATE = '2024-08-07'    # Specify the end date in 'YYYY-MM-DD' format
 GEOHASH = 'w'              # Specify the initial geohash
 GEOHASH_LENGTH = 2         # Specify the desired geohash length
 ITEM_TYPE = "SkySatCollect"  # Specify the item type
 BATCH_SIZE = 28
 MAX_THREADS = 10
-# Output files
-# OUTPUT_CSV_FILE = r'O:\Professional__Work\Heimdall\planet\output_planet.csv'
-# OUTPUT_GEOJSON_FILE = r'O:\Professional__Work\Heimdall\planet\output_planet.geojson'
 
-
-# Function to get the corners of the geohash
-def get_geohash_corners(geohash):
-    center_lat, center_lon = pgh.decode(geohash)
-    lat_err, lon_err = pgh.decode_exactly(geohash)[-2:]
-    top_left = (center_lat + lat_err, center_lon - lon_err)
-    top_right = (center_lat + lat_err, center_lon + lon_err)
-    bottom_left = (center_lat - lat_err, center_lon - lon_err)
-    bottom_right = (center_lat - lat_err, center_lon + lon_err)
-    return {
-        "top_left": top_left,
-        "top_right": top_right,
-        "bottom_left": bottom_left,
-        "bottom_right": bottom_right
-    }
-
-
-# Function to convert geohash to GeoJSON
-def geohash_to_geojson(geohash_str: str) -> dict:
-    corners = get_geohash_corners(geohash_str)
-    return {
-        "type": "Polygon",
-        "coordinates": [[
-            [corners["top_left"][1], corners["top_left"][0]],  # NW corner
-            [corners["top_right"][1], corners["top_right"][0]],  # NE corner
-            [corners["bottom_right"][1], corners["bottom_right"][0]],  # SE corner
-            [corners["bottom_left"][1], corners["bottom_left"][0]],  # SW corner
-            [corners["top_left"][1], corners["top_left"][0]]  # NW corner again to close the polygon
-        ]]
-    }
-
-def latlon_to_geohash(lat, lon, range_km):
-    # Map the range to geohash precision
-    precision = (
-        2 if range_km > 100 else
-        4 if range_km > 20 else
-        6 if range_km > 5 else
-        8 if range_km > 1 else
-        10
-    )
-    return pgh.encode(lat, lon, precision=precision)
-
-
-# Function to generate an array of geohashes from a seed geohash
-def generate_geohashes(seed_geohash, child_length):
-    base32_chars = '0123456789bcdefghjkmnpqrstuvwxyz'
-
-    def generate_geohashes_recursive(current_geohash, target_length, result):
-        if len(current_geohash) == target_length:
-            result.append(current_geohash)
-            return
-        for char in base32_chars:
-            next_geohash = current_geohash + char
-            generate_geohashes_recursive(next_geohash, target_length, result)
-
-    result = []
-    generate_geohashes_recursive(seed_geohash, len(seed_geohash) + child_length, result)
-    return result
 
 
 # Function to calculate the withhold time
@@ -181,201 +136,194 @@ def query_planet_paginated_data(next_url):
         # print(f"Failed to fetch data: {str(e)}")
         return []
 
-def process_geojson(features):
-    """Saves each feature as a separate GeoJSON file."""
-    for feature in features:
-        feature_id = feature.get("properties", {}).get("id", "")
-        geojson_filename = f"{feature_id}.geojson"
-        geojson_path = os.path.join(OUTPUT_GEOJSON_FOLDER, geojson_filename)
+def get_polygon_bounding_box(polygon):
+    """Extracts the bounding box from a polygon's coordinates."""
+    min_lon = min([point[0] for point in polygon["coordinates"][0]])
+    max_lon = max([point[0] for point in polygon["coordinates"][0]])
+    min_lat = min([point[1] for point in polygon["coordinates"][0]])
+    max_lat = max([point[1] for point in polygon["coordinates"][0]])
 
-        with open(geojson_path, "w") as geojson_file:
-            json.dump(feature, geojson_file, indent=4)
-
-
-def remove_black_borders(img):
-    """Remove black borders from the image."""
-    bg = Image.new(img.mode, img.size, img.getpixel((0, 0)))
-    diff = ImageChops.difference(img, bg)
-    bbox = diff.getbbox()
-    if bbox:
-        return img.crop(bbox)
-    return img
+    return min_lon, min_lat, max_lon, max_lat
 
 
-def georectify_image(
-    png_path, bbox, geotiffs_folder, image_id, target_resolution=(1500, 1500)
-):
-    try:
-        with Image.open(png_path) as img:
-            img = remove_black_borders(img)
-            img = img.resize(target_resolution, Image.Resampling.LANCZOS)
-            img_array = np.array(img)
+def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=None):
+    img = Image.open(BytesIO(content))
+    img_array = np.array(img)
 
-        width, height = target_resolution
+    # Define the transform based on polygon bounds
+    if polygon:
+        min_lon, min_lat, max_lon, max_lat = get_polygon_bounding_box(polygon)
+        transform = from_bounds(
+            min_lon, min_lat, max_lon, max_lat, img_array.shape[1], img_array.shape[0]
+        )
+    else:
+        return False
 
-        left, bottom, right, top = bbox
-
-        transform = from_bounds(left, bottom, right, top, width, height)
-
-        geotiff_name = f"{image_id}.tif"
-        geotiff_path = os.path.join(geotiffs_folder, geotiff_name)
-
-        if len(img_array.shape) == 2:
-            img_array = np.expand_dims(img_array, axis=-1)
-            count = 1
-        else:
-            count = img_array.shape[2]
-
-        # Write the GeoTIFF file using rasterio
-        with rasterio.open(
-            geotiff_path,
-            "w",
+    # Step 3: Convert to GeoTIFF and save to S3
+    with MemoryFile() as memfile:
+        with memfile.open(
             driver="GTiff",
             height=img_array.shape[0],
             width=img_array.shape[1],
-            count=count,
+            count=img_array.shape[2] if len(img_array.shape) == 3 else 1,
             dtype=img_array.dtype,
             crs="EPSG:4326",
             transform=transform,
         ) as dst:
-            for i in range(1, count + 1):
-                dst.write(img_array[:, :, i - 1], i)
+            if len(img_array.shape) == 2:  # Grayscale
+                dst.write(img_array, 1)
+            else:  # RGB or multi-channel
+                for i in range(img_array.shape[2]):
+                    dst.write(img_array[:, :, i], i + 1)
 
-    except Exception as e:
-        pass
+        # Upload the GeoTIFF to S3
+        geotiff_url = save_image_in_s3_and_get_url(
+            memfile.read(), filename, tiff_folder, "tif"
+        )
+        return geotiff_url
 
 
-def save_image(feature):
-    """Downloads an image from the provided URL and saves it to the specified path."""
+def upload_to_s3(feature, folder="thumbnails"):
+    """Downloads an image from the URL in the feature and uploads it to S3."""
     try:
         url = feature.get("_links", {}).get("thumbnail", {})
         feature['bbox'] = calculate_bbox_npolygons(feature.get('geometry', {}))
-        save_path = os.path.join(OUTPUT_THUMBNAILS_FOLDER, f"{feature.get('id')}.png")
         headers = {
             "Content-Type": "application/json",
             "Authorization": "api-key " + API_KEY,
         }
         response = requests.get(url, headers=headers, stream=True)
+        response.raise_for_status()
+        filename = feature.get("id")
+        content = response.content
+        response_url = save_image_in_s3_and_get_url(content, filename, folder)
+        response_geotiff = geotiff_conversion_and_s3_upload(
+            content, filename, "geotiffs", feature.get("geometry")
+        )
+        return True
 
-        if response.status_code == 200:
-            with open(save_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            georectify_image(
-                save_path, feature.get("bbox"), OUTPUT_GEOTIFF_FOLDER, feature.get("id")
-            )
-        else:
-            # print(f"Error during download: {response.status_code}")
-            # print(response.text)
-            pass
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to download {url}: {e}")
+        return False
+    except NoCredentialsError:
+        print("S3 credentials not available")
+        return False
     except Exception as e:
+        print(f"Failed to upload {url}: {e}")
         return False
 
 
-def download_thumbnails(features):
-    """Download and save thumbnail images for the given features."""
+def download_and_upload_images(features, path, max_workers=5):
+    """Download images from URLs in features and upload them to S3."""
 
-    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(save_image, feature): feature for feature in features
+            executor.submit(upload_to_s3, feature, path): feature
+            for feature in features
         }
 
         for future in as_completed(futures):
+            feature = futures[future]
             try:
                 result = future.result()
                 if result:
-                    # print(f"Successfully downloaded thumbnail for feature {feature.get('id')}")
                     pass
                 else:
-                    # print(f"Failed to download thumbnail for feature {feature.get('id')}")
-                    pass
+                    print(f"Failed to upload image for feature {feature.get('id')}")
             except Exception as e:
-                # print(f"Exception occurred while downloading thumbnail for feature {feature.get('id')}: {e}")
-                pass
+                print(f"Exception occurred for feature {feature.get('id')}: {e}")
 
 
-# Function to save features to CSV and GeoJSON
-def save_features_to_files(features, output_dir='.'):
+def process_database_catalog(features, start_time, end_time):
+    valid_features = []
+    invalid_features = []
 
-    # Prepare GeoJSON output
-    geojson_features = []
+    for feature in features:
+        serializer = SatelliteCaptureCatalogSerializer(data=feature)
+        if serializer.is_valid():
+            valid_features.append(serializer.validated_data)
+        else:
+            invalid_features.append(feature)
+    
+    print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
+    if valid_features:
+        try:
+            SatelliteCaptureCatalog.objects.bulk_create(
+                [SatelliteCaptureCatalog(**feature) for feature in valid_features]
+            )
+        except IntegrityError as e:
+            print(f"Error during bulk insert: {e}")
 
-    with open(OUTPUT_CSV_FILE, mode='w', newline='') as csv_file:
-        csv_writer = csv.writer(csv_file, quoting=csv.QUOTE_ALL)
+    if not valid_features:
+        print(f"No records Found for {start_time} to {end_time}")
+        return
 
-        # Write the header row
-        csv_writer.writerow([
-            'id', 'geometry', 'acquired', 'cloud_percent',
-            'item_type', 'provider', 'published',
-            'satellite_azimuth', 'satellite_id', 'view_angle',
-            'pixel_resolution', 'withhold_readable', 'withhold_hours'
-        ])
+    try:
+        last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
+        last_acquisition_datetime = datetime.strftime(
+            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+        )
+    except Exception as e:
+        last_acquisition_datetime = end_time
 
-        
+    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+        data={
+            "start_datetime": convert_iso_to_datetime(start_time),
+            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+            "vendor_name": "planet",
+            "message": {
+                "total_records": len(features),
+                "valid_records": len(valid_features),
+                "invalid_records": len(invalid_features),
+            },
+        }
+    )
+    if history_serializer.is_valid():
+        history_serializer.save()
+    else:
+        print(f"Error in history serializer: {history_serializer.errors}")
 
-        # Write the data rows
-        for feature in features:
+def process_features(features):
+    response = []
+
+    for feature in features:
+        try:
             properties = feature.get('properties', {})
             geometry = feature.get('geometry', {})
-            acquisition_date = format_datetime(properties.get('acquired', ''))
-            publication_date = format_datetime(properties.get('published', ''))
-            withhold_readable, withhold_hours = calculate_withhold_time(properties.get('acquired', ''),
-                                                                        properties.get('published', ''))
-            satellite_azimuth = format_float(properties.get('satellite_azimuth', ''), 2)
-            view_angle = format_float(properties.get('view_angle', ''), 2)
-            pixel_resolution = format_float(properties.get('pixel_resolution', ''), 2)
-
-            csv_writer.writerow([
-                feature.get('id', ''),
-                json.dumps(geometry),  # Geometry as a JSON string
-                acquisition_date,
-                properties.get('cloud_percent', ''),
-                properties.get('item_type', ''),
-                properties.get('provider', ''),
-                publication_date,
-                satellite_azimuth,
-                properties.get('satellite_id', ''),
-                view_angle,
-                pixel_resolution,
-                withhold_readable,
-                withhold_hours
-            ])
-
-            # Create a GeoJSON feature
-            geojson_feature = {
-                "type": "Feature",
-                "geometry": geometry,
-                "properties": {
-                    "id": feature.get('id', ''),
-                    "acquired": acquisition_date,
-                    "cloud_percent": properties.get('cloud_percent', ''),
-                    "item_type": properties.get('item_type', ''),
-                    "provider": properties.get('provider', ''),
-                    "published": publication_date,
-                    "satellite_azimuth": satellite_azimuth,
-                    "satellite_id": properties.get('satellite_id', ''),
-                    "view_angle": view_angle,
-                    "pixel_resolution": pixel_resolution,
-                    "withhold_readable": withhold_readable,
-                    "withhold_hours": withhold_hours
-                }
+            location_polygon = Polygon(geometry["coordinates"][0], srid=4326)
+            model_params = {
+                "acquisition_datetime": datetime.fromisoformat(
+                properties["acquired"].replace("Z", "+00:00")
+                ),
+                "cloud_cover": properties["cloud_cover"],
+                "vendor_id": feature["id"],
+                "vendor_name": "planet",
+                "sensor": properties["item_type"],
+                "area": location_polygon.area,
+                "type": (
+                    "Day"
+                    if 6
+                    <= datetime.fromisoformat(
+                        properties["acquired"].replace("Z", "+00:00")
+                    ).hour
+                    <= 18
+                    else "Night"
+                ),
+                "sun_elevation": properties["sun_azimuth"],
+                "resolution": f"{properties['gsd']}m",
+                "location_polygon": geometry,
+                "coordinates_record": geometry,
             }
-            geojson_features.append(geojson_feature)
+            response.append(model_params)
+        except Exception as e:
+            print(f"Error: {e}")
+            continue
+    return response
 
-    process_geojson(geojson_features)
-    download_thumbnails(features)
-
-
-# Main function to process all dates first and then save the files
-def main(START_DATE, END_DATE, OUTPUT_DIR, BBOX):
-    # seed_geohash = GEOHASH
-    # child_length = int(GEOHASH_LENGTH) - 1
-    # geohashes = generate_geohashes(seed_geohash, child_length)
-
+def main(START_DATE, END_DATE, BBOX):
     bboxes = [BBOX]
-
-    current_date = datetime.strptime(START_DATE, '%Y-%m-%d')
-    end_date = datetime.strptime(END_DATE, '%Y-%m-%d')
+    current_date = START_DATE
+    end_date = END_DATE
 
     global BATCH_SIZE
     date_difference = (end_date - current_date).days + 1
@@ -385,17 +333,17 @@ def main(START_DATE, END_DATE, OUTPUT_DIR, BBOX):
 
     all_features = []  # Collect all features for all dates
     print("-"*columns)
-    description = f"Processing Planet Catalog \nDate Range: {current_date.date()} to {end_date.date()} \n lat: {LAT} and lon: {LON} Range:{RANGE} \nOutput Directory: {OUTPUT_DIR}"
-    print(description)
-    print("-"*columns)
     print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
     print("Duration :", duration, "batch")
     # Iterate over each day in the date range
     with tqdm(total=duration, desc="", unit="batch") as pbar:
 
         while current_date <= end_date:
-            start_time = current_date.strftime('%Y-%m-%dT00:00:00Z')
-            end_time = (current_date + timedelta(days=BATCH_SIZE)).strftime('%Y-%m-%dT00:00:00Z')
+            start_time = current_date.isoformat()
+            if duration > 1:
+                end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
+            else:
+                end_time = end_date.isoformat()
 
             for bbox in bboxes:
                 features = query_planet_data(bbox, start_time, end_time, ITEM_TYPE)
@@ -417,50 +365,50 @@ def main(START_DATE, END_DATE, OUTPUT_DIR, BBOX):
 
         pbar.clear()
     tqdm.write("Completed processing Planet data")
+    converted_features = process_features(all_features)
+    download_and_upload_images(all_features, "thumbnails")
+    process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
 
-    # Save all collected features to files after processing all days
-    save_features_to_files(all_features, OUTPUT_DIR)
 
+def bbox_to_geojson(bbox_str):
+    min_lon, min_lat, max_lon, max_lat = map(float, bbox_str.split(","))
+    coordinates = [
+        [
+            [min_lon, min_lat],  
+            [min_lon, max_lat],  
+            [max_lon, max_lat],  
+            [max_lon, min_lat],  
+            [min_lon, min_lat]   
+        ]
+    ]
+    
+    # Create the GeoJSON structure
+    geojson = {
+        "type": "Polygon",
+        "coordinates": coordinates
+    }
+    return geojson
 
-if __name__ == "__main__":
-    argument_parser = argparse.ArgumentParser(description='Plant Catelog API Executor')
-    argument_parser.add_argument('--start-date', required=True, help='Start date')
-    argument_parser.add_argument('--end-date', required=True, help='End date')
-    argument_parser.add_argument('--lat', required=True, type=float, help='Latitude')
-    argument_parser.add_argument('--long', required=True, type=float, help='Longitude')
-    argument_parser.add_argument('--range', required=True, type=float, help='Range value')
-    argument_parser.add_argument('--output-dir', required=True, help='Output directory')
-    argument_parser.add_argument('--bbox', required=True, help='Bounding Box')
-
-    args = argument_parser.parse_args()
-    START_DATE = args.start_date
-    END_DATE = args.end_date
-    OUTPUT_DIR = args.output_dir + f"/planet/{START_DATE}_{END_DATE}"
-
-    RANGE = int(args.range)
-    LAT, LON = args.lat, args.long
-    BBOX = latlon_to_geojson(LAT, LON, RANGE)
-    print(f"Generated BBOX: {BBOX}")
-
-    OUTPUT_THUMBNAILS_FOLDER = f"{OUTPUT_DIR}/thumbnails"
-    os.makedirs(OUTPUT_THUMBNAILS_FOLDER, exist_ok=True)
-
-    OUTPUT_GEOJSON_FOLDER = f"{OUTPUT_DIR}/geojsons"
-    os.makedirs(OUTPUT_GEOJSON_FOLDER, exist_ok=True)
-
-    OUTPUT_GEOTIFF_FOLDER = f"{OUTPUT_DIR}/geotiffs"
-    os.makedirs(OUTPUT_GEOTIFF_FOLDER, exist_ok=True)
-
-    OUTPUT_CSV_FILE = f"{OUTPUT_DIR}/output_planet.csv"
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    # Check if the directory exists
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    main(
-        START_DATE,
-        END_DATE,
-        OUTPUT_DIR,
-        BBOX
+def run_planet_catalog_api():
+    BBOX = "-180,-90,180,90"
+    BBOX = bbox_to_geojson(BBOX)
+    START_DATE = (
+        SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="planet")
+        .order_by("-end_datetime")
+        .first()
     )
+    if not START_DATE:
+        START_DATE = datetime(
+            datetime.now().year,
+            datetime.now().month,
+            datetime.now().day,
+            tzinfo=pytz.utc,
+        )
+    else:
+        START_DATE = START_DATE.end_datetime
+        print(f"From DB: {START_DATE}")
 
-    check_csv_and_rename_output_dir(OUTPUT_DIR, START_DATE, END_DATE, args.output_dir, "planet")
+    END_DATE = get_utc_time()
+    print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+    response = main(START_DATE, END_DATE, BBOX)
+    return response

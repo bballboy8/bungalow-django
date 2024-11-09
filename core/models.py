@@ -3,6 +3,7 @@
 
 from django.contrib.gis.db import models
 from django.db import models as plane_models
+from django.utils import timezone
 
 # Constants for choices
 VENDOR_CHOICES = [
@@ -31,7 +32,9 @@ class SatelliteCaptureCatalog(models.Model):
     resolution = models.CharField(max_length=50, null=True, blank=True)
     georeferenced = models.BooleanField(null=True, blank=True)
     location_polygon = models.PolygonField(null=True, blank=True)
-    coordinates_record = models.JSONField(null=True, blank=True) 
+    coordinates_record = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True) 
     
     class Meta:
         indexes = [

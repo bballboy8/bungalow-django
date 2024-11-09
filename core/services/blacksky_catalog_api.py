@@ -280,7 +280,7 @@ def fetch_and_process_records(auth_token, bbox, start_time, end_time, last_scene
 
     if not all_records:
         return 0
-    # download_and_upload_images(all_records, "thumbnails")
+    download_and_upload_images(all_records, "thumbnails")
     converted_features = convert_to_model_params(all_records)
     process_database_catalog(converted_features, start_time, end_time)
     return len(all_records)

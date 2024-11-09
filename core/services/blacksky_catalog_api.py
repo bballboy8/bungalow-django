@@ -81,9 +81,6 @@ def process_database_catalog(features, start_time, end_time):
         except IntegrityError as e:
             print(f"Error during bulk insert: {e}")
 
-    if invalid_features:
-        print(f"Total invalid records: {len(invalid_features)}")
-
     try:
         last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
         last_acquisition_datetime = datetime.strftime(
@@ -310,7 +307,6 @@ def main(START_DATE, END_DATE, BBOX, last_scene_id):
 
 def run_blacksky_catalog_api():
     BBOX = "-180,-90,180,90"
-    print(f"Generated BBOX: {BBOX}")
     START_DATE = (
         SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="blacksky")
         .order_by("-end_datetime")
@@ -325,8 +321,6 @@ def run_blacksky_catalog_api():
         )
         last_scene_id = None
     else:
-        print(START_DATE.end_datetime)
-        print(START_DATE.end_datetime.astimezone(pytz.UTC))
         START_DATE = START_DATE.end_datetime
         last_scene_id = (
             SatelliteCaptureCatalog.objects.filter(vendor_name="blacksky")

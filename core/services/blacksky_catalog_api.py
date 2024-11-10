@@ -186,7 +186,7 @@ def upload_to_s3(feature, folder="thumbnails"):
         return False
 
 
-def download_and_upload_images(features, path, max_workers=5):
+def download_and_upload_images(features, path, max_workers=20):
     """Download images from URLs in features and upload them to S3."""
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

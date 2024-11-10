@@ -42,7 +42,7 @@ import pytz
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
 
-BATCH_SIZE = 1
+BATCH_SIZE = 28
 
 # API and Authentication setup
 API_URL = "https://api.capellaspace.com/catalog/search"
@@ -149,7 +149,7 @@ def upload_to_s3(feature, folder="thumbnails"):
         return False
 
 
-def download_and_upload_images(features, path, max_workers=5):
+def download_and_upload_images(features, path, max_workers=20):
     """Download images from URLs in features and upload them to S3."""
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -173,49 +173,63 @@ def query_api_with_retries(access_token, bbox, start_datetime, end_datetime):
     """Query the API with retries and token refresh handling."""
     bbox = list(map(float, bbox.split(",")))
     retry_count = 0
-    while retry_count < RETRY_LIMIT:
-        try:
+    all_features = []
+    next_url = API_URL
+    page = 1
+    try:
+        while True:
             request_body = {
                 "bbox": bbox,
                 "datetime": f"{start_datetime}/{end_datetime}",
                 "limit": 100,
+                "page": page,
+                "fields": {
+                    "include": [
+                    "id",
+                    "properties.datetime",
+                    "properties.view:incidence_angle",
+                    "properties.instruments",
+                    "properties.capella:resolution_ground_range",
+                    "properties.eo:cloud_cover"
+                    "geometry",
+                    "assets:thumbnail",
+                ]
+                },
             }
-
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
             }
-
-            response = requests.post(API_URL, json=request_body, headers=headers)
+            response = requests.post(next_url, json=request_body, headers=headers)
             response.raise_for_status()
-
-            return response.json()
-
-        except requests.RequestException as e:
-            logging.error(f"API request failed: {e}")
-            retry_count += 1
-
-            if retry_count >= RETRY_LIMIT:
-                logging.error(
-                    f"Max retries reached. Exiting after {retry_count} attempts."
-                )
-                break
-
-            token_info = get_access_token(USERNAME, PASSWORD)
-            if token_info:
-                access_token = token_info["accessToken"]
-                logging.info(
-                    f"New token acquired. Retrying... ({retry_count}/{RETRY_LIMIT})"
-                )
+            response_json = response.json()
+            if response_json.get("features"):
+                all_features += response_json.get("features")
+            if response_json.get("links") and response_json["links"][0]['rel'] == "next":
+                page += 1
             else:
-                logging.error(
-                    "Failed to obtain new access token. Pausing for 10 minutes..."
-                )
-                time.sleep(600)  # Sleep for 10 minutes before retrying
+                break
+        return all_features
+    except requests.RequestException as e:
+        logging.error(f"API request failed: {e}")
 
-            time.sleep(300)
+        token_info = get_access_token(USERNAME, PASSWORD)
+        if token_info:
+            access_token = token_info["accessToken"]
+            logging.info(
+                f"New token acquired. Retrying... ({retry_count}/{RETRY_LIMIT})"
+            )
+        else:
+            logging.error(
+                "Failed to obtain new access token. Pausing for 10 minutes..."
+            )
+            time.sleep(600)  # Sleep for 10 minutes before retrying
 
-    return None
+        time.sleep(300)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+
 
 
 def process_features(features):
@@ -341,8 +355,8 @@ def search_images(start_date, end_date, bbox):
                 start_time,
                 end_time,
             )
-            if response and response.get("features"):
-                total_records += response["features"]
+            if response:
+                total_records += response
 
         current_date += timedelta(days=BATCH_SIZE)
 

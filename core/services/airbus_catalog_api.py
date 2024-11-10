@@ -325,37 +325,34 @@ def search_images(bbox, start_date, end_date):
         print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
         print("Duration :", duration, "batch")
         total_items = 0
-        with tqdm(total=duration, desc="", unit="batch") as pbar:
-            while current_date <= end_date:
-                current_page = START_PAGE
-                while True:
-                    start_date_str = current_date.isoformat()
-                    if (end_date - current_date).days > 1 > 1:
-                        end_date_str = (
-                            current_date + timedelta(days=BATCH_SIZE)
-                        ).isoformat()
-                    else:
-                        end_date_str = end_date.isoformat()
+        while current_date <= end_date:
+            current_page = START_PAGE
+            while True:
+                start_date_str = current_date.isoformat()
+                if (end_date - current_date).days > 1 > 1:
+                    end_date_str = (
+                        current_date + timedelta(days=BATCH_SIZE)
+                    ).isoformat()
+                else:
+                    end_date_str = end_date.isoformat()
 
-                    response_data = airbus_catalog_api(
-                        bbox, start_date_str, end_date_str, current_page
-                    )
-                    if response_data:
-                        all_features.extend(response_data.get("features", []))
-                        if response_data.get("totalResults", 0) <= (current_page * ITEMS_PER_PAGE):
-                            total_items += response_data.get("totalResults", 0)
-                            break
-                    else:
+                response_data = airbus_catalog_api(
+                    bbox, start_date_str, end_date_str, current_page
+                )
+                if response_data:
+                    all_features.extend(response_data.get("features", []))
+                    if response_data.get("totalResults", 0) <= (current_page * ITEMS_PER_PAGE):
+                        total_items += response_data.get("totalResults", 0)
                         break
-                    current_page += 1
-                current_date += timedelta(days=BATCH_SIZE)
-                pbar.update(1)
-                pbar.refresh()
+                else:
+                    break
+                current_page += 1
+            current_date += timedelta(days=BATCH_SIZE)
         
         data, images = process_features(all_features)
         process_database_catalog(data, start_date.isoformat(), end_date.isoformat())
         download_and_upload_images(images, "thumbnails")
-        tqdm.write("Completed Processing Airbus: Total Items: {}".format(total_items))
+        print("Completed Processing Airbus: Total Items: {}".format(total_items))
     else:
         logging.error(f"Failed to authenticate")
         pass

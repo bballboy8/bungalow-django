@@ -335,36 +335,28 @@ def main(START_DATE, END_DATE, BBOX):
     print("-"*columns)
     print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
     print("Duration :", duration, "batch")
-    # Iterate over each day in the date range
-    with tqdm(total=duration, desc="", unit="batch") as pbar:
+    while current_date <= end_date:
+        start_time = current_date.isoformat()
+        if (end_date - current_date).days > 1:
+            end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
+        else:
+            end_time = end_date.isoformat()
 
-        while current_date <= end_date:
-            start_time = current_date.isoformat()
-            if (end_date - current_date).days > 1:
-                end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
-            else:
-                end_time = end_date.isoformat()
-
-            for bbox in bboxes:
-                features = query_planet_data(bbox, start_time, end_time, ITEM_TYPE)
-                all_features.extend(features['features'])
-                while True:
-                    try:
-                        if features['features'] and features.get("_links", {}).get("_next"):
-                            features = query_planet_paginated_data(features["_links"]["_next"])
-                            all_features.extend(features['features'])
-                        else:
-                            break
-                    except Exception as e:
+        for bbox in bboxes:
+            features = query_planet_data(bbox, start_time, end_time, ITEM_TYPE)
+            all_features.extend(features['features'])
+            while True:
+                try:
+                    if features['features'] and features.get("_links", {}).get("_next"):
+                        features = query_planet_paginated_data(features["_links"]["_next"])
+                        all_features.extend(features['features'])
+                    else:
                         break
+                except Exception as e:
+                    break
 
-            current_date += timedelta(days=BATCH_SIZE)
+        current_date += timedelta(days=BATCH_SIZE)
 
-            pbar.refresh()
-            pbar.update(1)
-
-        pbar.clear()
-    tqdm.write("Completed processing Planet data")
     converted_features = process_features(all_features)
     download_and_upload_images(all_features, "thumbnails")
     process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())

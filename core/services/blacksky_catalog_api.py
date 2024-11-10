@@ -287,26 +287,22 @@ def main(START_DATE, END_DATE, BBOX, last_scene_id):
     print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
     print("Duration :", duration, "batch")
     total_records = 0
-    with tqdm(total=duration, desc="", unit="batch") as pbar:
-        while current_date <= end_date:  # Inclusive of end_date
-            start_time = current_date.isoformat()
-            if (end_date - current_date).days > 1:
-                end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
-            else:
-                end_time = end_date.isoformat()
+    while current_date <= end_date:
+        start_time = current_date.isoformat()
+        if (end_date - current_date).days > 1:
+            end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
+        else:
+            end_time = end_date.isoformat()
 
-            for bbox in bboxes:
-                response = fetch_and_process_records(
-                    AUTH_TOKEN, bbox, start_time, end_time, last_scene_id
-                )
-                if response:
-                    total_records += response
+        for bbox in bboxes:
+            response = fetch_and_process_records(
+                AUTH_TOKEN, bbox, start_time, end_time, last_scene_id
+            )
+            if response:
+                total_records += response
 
-            current_date += timedelta(days=BATCH_SIZE)  # Move to the next day
-            pbar.update(1)  # Update progress bar
-
-        pbar.clear()
-    tqdm.write("Completed processing BlackSky data")
+        current_date += timedelta(days=BATCH_SIZE)
+    print("Completed processing BlackSky data")
     return total_records
 
 

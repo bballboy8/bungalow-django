@@ -328,29 +328,23 @@ def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
     print("-" * columns)
     print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
     print("Duration :", duration, "batch")
-    with tqdm(total=duration, desc="", unit="batch") as pbar:
-        while current_date <= end_date:  # Inclusive of end_date
-            start_time = current_date.isoformat()
-            if (end_date - current_date).days > 1:
-                end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
-            else:
-                end_time = end_date.isoformat()
-            print("Start Time: ", start_time, "End Time: ", end_time)
+    while current_date <= end_date:  # Inclusive of end_date
+        start_time = current_date.isoformat()
+        if (end_date - current_date).days > 1:
+            end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
+        else:
+            end_time = end_date.isoformat()
+        print("Start Time: ", start_time, "End Time: ", end_time)
 
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = [
-                    executor.submit(worker, start_time, end_time, bbox, results)
-                    for bbox in LAND_POLYGONS_WKT
-                ]
-                for future in concurrent.futures.as_completed(futures):
-                    future.result()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(worker, start_time, end_time, bbox, results)
+                for bbox in LAND_POLYGONS_WKT
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
 
-            current_date += timedelta(days=BATCH_SIZE)
-            pbar.update(1)
-
-        pbar.clear()
-
-        tqdm.write("Completed Skyfi Processing")
+        current_date += timedelta(days=BATCH_SIZE)
 
     converted_features = convert_to_model_params(results)
     download_and_upload_images(converted_features, "thumbnails")

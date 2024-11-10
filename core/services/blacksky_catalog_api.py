@@ -290,7 +290,7 @@ def main(START_DATE, END_DATE, BBOX, last_scene_id):
     with tqdm(total=duration, desc="", unit="batch") as pbar:
         while current_date <= end_date:  # Inclusive of end_date
             start_time = current_date.isoformat()
-            if duration > 1:
+            if (end_date - current_date).days > 1:
                 end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
             else:
                 end_time = end_date.isoformat()

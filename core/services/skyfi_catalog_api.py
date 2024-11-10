@@ -37,7 +37,7 @@ from core.serializers import (
     SatelliteCaptureCatalogSerializer,
     SatelliteDateRetrievalPipelineHistorySerializer,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from core.utils import save_image_in_s3_and_get_url
@@ -51,151 +51,236 @@ from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
 from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
 import pytz
+from shapely import wkt
+from shapely.geometry import mapping
+import pandas as pd
+import pvlib
 
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
-# Input Variables
 
-# Mode of operation: "array" or "length"
-mode = "length"  # Change to "length" to use length-based generation
-
-# Geohash array input (used if mode is "array")
-geohash_input = ["wxnp"]
-
-# Geohash length input (used if mode is "length")
-# The length is 'how many more' -- so 2 would provide a geohash3
-geohash_seed = "w"
-geohash_length = 2
 BATCH_SIZE = 28
-
-
-product_types = ["DAY"]
-open_data = False
 
 
 # Configure your API key
 API_KEY = config("SKYFI_API_KEY")
 
 
-# Function to read the bounding box from the GeoJSON file
-def read_bbox_from_geojson(geojson_path):
-    """Read the bounding box from a GeoJSON file."""
+def wkt_to_geojson(wkt_string):
+    polygon = wkt.loads(wkt_string)
+    geojson_dict = mapping(polygon)
+    return geojson_dict
+
+
+def convert_to_utc(capture_timestamp):
+    local_time = datetime.fromisoformat(capture_timestamp)
+    utc_time = local_time.astimezone(timezone.utc)
+    return utc_time
+
+
+def estimate_sun_angles(capture_time, footprint_wkt):
     try:
-        with open(geojson_path, "r") as f:
-            data = geojson.load(f)
-            # Assuming the polygon is the first feature
-            coordinates = data["features"][0]["geometry"]["coordinates"][0]
-
-            # Extract all the longitude and latitude values
-            lons = [coord[0] for coord in coordinates]
-            lats = [coord[1] for coord in coordinates]
-
-            # Determine the bounding box corners
-            bottom_left = [min(lons), min(lats)]
-            bottom_right = [max(lons), min(lats)]
-            top_right = [max(lons), max(lats)]
-            top_left = [min(lons), max(lats)]
-
-            # Return the points in a flat format (lon, lat pairs)
-            return [bottom_left, bottom_right, top_right, top_left]
+        # Parse the capture timestamp
+        capture_timestamp = datetime.fromisoformat(capture_time)
+        
+        # Parse the footprint WKT and extract centroid
+        polygon = wkt.loads(footprint_wkt)
+        centroid = polygon.centroid
+        latitude, longitude = centroid.y, centroid.x
+        
+        # Create a pandas datetime index for the capture time
+        times = pd.DatetimeIndex([capture_timestamp])
+        
+        # Calculate solar position using pvlib
+        solar_position = pvlib.solarposition.get_solarposition(times, latitude, longitude)
+        
+        # Get azimuth at the capture time
+        azimuth = solar_position['azimuth'].iloc[0]
+        
+        return float(azimuth)
     except Exception as e:
-        # logging.error(f"Error reading bounding box from GeoJSON file {geojson_path}: {e}")
-        return None
+        print(f"Error in sun angle calculation: {e}")
+        return 0
 
 
-# Function to remove black borders from the image
-def remove_black_borders(img):
-    """Remove black borders from the image."""
-    bg = Image.new(img.mode, img.size, img.getpixel((0, 0)))
-    diff = ImageChops.difference(img, bg)
-    bbox = diff.getbbox()
-    if bbox:
-        # logging.info("Black borders detected and removed.")
-        return img.crop(bbox)
-    # logging.info("No black borders detected.")
-    return img
+def process_database_catalog(features, start_time, end_time):
+    valid_features = []
+    invalid_features = []
 
+    for feature in features:
+        serializer = SatelliteCaptureCatalogSerializer(data=feature)
+        if serializer.is_valid():
+            valid_features.append(serializer.validated_data)
+        else:
+            invalid_features.append(feature)
 
-# Function to georectify the image and save as GeoTIFF
-def georectify_image(
-    png_path,
-    geojson_path,
-    geotiffs_folder,
-    image_prefix,
-    image_id,
-    date,
-    target_resolution,
-):
-    """
-    Georectify the PNG image, crop padding, upscale to target resolution, and save as a 2-band black and white GeoTIFF.
-    """
-    # logging.info(f"Starting georectification for {png_path} using GeoJSON at {geojson_path}")
+    print(
+        f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}"
+    )
+    if valid_features:
+        try:
+            SatelliteCaptureCatalog.objects.bulk_create(
+                [SatelliteCaptureCatalog(**feature) for feature in valid_features]
+            )
+        except IntegrityError as e:
+            print(f"Error during bulk insert: {e}")
+
+    if not valid_features:
+        print(f"No records Found for {start_time} to {end_time}")
+        return
+
     try:
-        # Open the image
-        with Image.open(png_path) as img:
-            # Ensure image is converted to grayscale (if not already)
-            img = img.convert("L")  # Convert to grayscale
-
-            # Remove black borders
-            img = remove_black_borders(img)
-
-            # Resize image to target resolution
-            img = img.resize(target_resolution, Image.Resampling.LANCZOS)
-
-            # Convert grayscale image to 2-band (black and white)
-            img_array = np.array(img)
-            img_array = np.stack(
-                (img_array, img_array), axis=-1
-            )  # Stack to create 2 bands
-
-            # Read bounding box from GeoJSON
-            corners = read_bbox_from_geojson(geojson_path)
-            if not corners:
-                # logging.error("Failed to extract bounding box from GeoJSON.")
-                return
-
-            # Extract bounding box coordinates for each corner
-            bottom_left, bottom_right, top_right, top_left = corners
-
-            # Flatten the corner coordinates
-            left, bottom = bottom_left[0], bottom_left[1]
-            right, top = top_right[0], top_right[1]
-
-            # Compute affine transform from the bounding box corners
-            width, height = target_resolution
-            transform = from_bounds(left, bottom, right, top, width, height)
-
-            # Correct naming convention for the GeoTIFF file
-            base_name = f"{image_prefix}_{date}_{image_id}"
-            geotiff_name = f"{base_name}.tif"
-            geotiff_path = os.path.join(geotiffs_folder, geotiff_name)
-
-            # logging.info(f"Saving GeoTIFF to {geotiff_path}")
-
-            # Save the image as a 2-band GeoTIFF
-            with rasterio.open(
-                geotiff_path,
-                "w",
-                driver="GTiff",
-                height=img_array.shape[0],
-                width=img_array.shape[1],
-                count=2,  # 2 bands
-                dtype=img_array.dtype,
-                crs="EPSG:4326",  # WGS 84 CRS
-                transform=transform,
-            ) as dst:
-                dst.write(img_array[:, :, 0], 1)  # Write first band
-                dst.write(img_array[:, :, 1], 2)  # Write second band
-
-            # logging.info(f"GeoTIFF saved as {geotiff_path}")
-
+        last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
+        last_acquisition_datetime = datetime.strftime(
+            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+        )
     except Exception as e:
-        # logging.error(f"Failed to georectify image {png_path}: {e}")
-        pass
+        last_acquisition_datetime = end_time
+
+    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+        data={
+            "start_datetime": convert_iso_to_datetime(start_time),
+            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+            "vendor_name": "skyfi",
+            "message": {
+                "total_records": len(features),
+                "valid_records": len(valid_features),
+                "invalid_records": len(invalid_features),
+            },
+        }
+    )
+    if history_serializer.is_valid():
+        history_serializer.save()
+    else:
+        print(f"Error in history serializer: {history_serializer.errors}")
+
+
+def get_polygon_bounding_box(polygon):
+    """Extracts the bounding box from a polygon's coordinates."""
+    min_lon = min([point[0] for point in polygon["coordinates"][0]])
+    max_lon = max([point[0] for point in polygon["coordinates"][0]])
+    min_lat = min([point[1] for point in polygon["coordinates"][0]])
+    max_lat = max([point[1] for point in polygon["coordinates"][0]])
+
+    return min_lon, min_lat, max_lon, max_lat
+
+
+def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=None):
+    img = Image.open(BytesIO(content))
+    img_array = np.array(img)
+
+    # Define the transform based on polygon bounds
+    if polygon:
+        min_lon, min_lat, max_lon, max_lat = get_polygon_bounding_box(polygon)
+        transform = from_bounds(
+            min_lon, min_lat, max_lon, max_lat, img_array.shape[1], img_array.shape[0]
+        )
+    else:
+        return False
+
+    # Step 3: Convert to GeoTIFF and save to S3
+    with MemoryFile() as memfile:
+        with memfile.open(
+            driver="GTiff",
+            height=img_array.shape[0],
+            width=img_array.shape[1],
+            count=img_array.shape[2] if len(img_array.shape) == 3 else 1,
+            dtype=img_array.dtype,
+            crs="EPSG:4326",
+            transform=transform,
+        ) as dst:
+            if len(img_array.shape) == 2:  # Grayscale
+                dst.write(img_array, 1)
+            else:  # RGB or multi-channel
+                for i in range(img_array.shape[2]):
+                    dst.write(img_array[:, :, i], i + 1)
+
+        # Upload the GeoTIFF to S3
+        geotiff_url = save_image_in_s3_and_get_url(
+            memfile.read(), filename, tiff_folder, "tif"
+        )
+        return geotiff_url
+
+
+def upload_to_s3(feature, folder="thumbnails"):
+    """Downloads an image from the URL in the feature and uploads it to S3."""
+    try:
+        url = feature.get("thumbnail_url",{}).values()
+        if not url:
+            return False
+        url = list(url)[0]
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        filename = feature.get("vendor_id")
+        content = response.content
+        response_url = save_image_in_s3_and_get_url(content, filename, folder)
+        response_geotiff = geotiff_conversion_and_s3_upload(
+            content, filename, "geotiffs", feature.get("location_polygon")
+        )
+        return True
+
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to download {url}: {e}")
+        return False
+    except NoCredentialsError:
+        print("S3 credentials not available")
+        return False
+    except Exception as e:
+        print(f"Failed to upload {url}: {e}")
+        return False
+
+
+def download_and_upload_images(features, path, max_workers=5):
+    """Download images from URLs in features and upload them to S3."""
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(upload_to_s3, feature, path): feature
+            for feature in features
+        }
+
+        for future in as_completed(futures):
+            feature = futures[future]
+            try:
+                result = future.result()
+                if result:
+                    pass
+                else:
+                    print(f"Failed to upload image for feature {feature.get('id')}")
+            except Exception as e:
+                print(f"Exception occurred for feature {feature.get('id')}: {e}")
+
+
+def convert_to_model_params(features):
+    response = []
+    for feature in features:
+        try:
+            location_polygon = wkt_to_geojson(feature["footprint"])
+            utc_time = convert_to_utc(feature["captureTimestamp"])
+            model_params = {
+                "acquisition_datetime": utc_time,
+                "cloud_cover": feature["cloudCoveragePercent"],
+                "vendor_id": feature["archiveId"],
+                "vendor_name": "skyfi",
+                "sensor": feature["provider"],
+                "area": feature["totalAreaSquareKm"],
+                "type": ("Day" if 6 <= utc_time.hour <= 18 else "Night"),
+                "sun_elevation": estimate_sun_angles(
+                    feature["captureTimestamp"], feature["footprint"]
+                ),
+                "resolution": f"{feature['gsd']}m",
+                "thumbnail_url": feature["thumbnailUrls"],
+                "location_polygon": location_polygon,
+                "coordinates_record": location_polygon,
+            }
+            response.append(model_params)
+        except Exception as e:
+            print(e)
+    return response
 
 
 # Function to search the SkyFi archive with pagination
-def search_skyfi_archive(aoi, from_date, to_date, product_types):
+def search_skyfi_archive(aoi, from_date, to_date):
     url = "https://app.skyfi.com/platform-api/archives"
     headers = {"X-Skyfi-Api-Key": API_KEY, "Content-Type": "application/json"}
     next_page = 0
@@ -203,19 +288,17 @@ def search_skyfi_archive(aoi, from_date, to_date, product_types):
     while True:
         payload = {
             "aoi": aoi,
-            'fromDate': '2024-11-01T00:00:00+00:00',
-            'toDate': '2024-11-10T00:00:00+00:00',
-            'pageNumber': 0,
-            'pageSize': 100
+            "fromDate": from_date,
+            "toDate": to_date,
+            "pageNumber": next_page,
+            "pageSize": 100,
         }
-        print(payload)
-
         response = requests.post(url, json=payload, headers=headers)
         if response.status_code == 200:
-            print(response.json())
             archives = response.json()
             if "archives" in archives and archives["archives"]:
                 all_archives.extend(archives["archives"])
+                time.sleep(1)
             else:
                 break
             if "nextPage" in archives and archives["nextPage"] is not None:
@@ -228,132 +311,60 @@ def search_skyfi_archive(aoi, from_date, to_date, product_types):
             break
     return all_archives
 
-# Function to generate date range
-def date_range(start_date, end_date, range_days):
-    current_date = start_date
-    while current_date <= end_date:
-        yield current_date
-        current_date += timedelta(days=range_days)
 
-
-def process_csv(features, OUTPUT_CSV_FILE):
-    """Appends feature properties and geometries to the CSV file."""
-    write_header = (
-        not os.path.exists(OUTPUT_CSV_FILE) or os.path.getsize(OUTPUT_CSV_FILE) == 0
-    )
-
-    with open(OUTPUT_CSV_FILE, mode="a", newline="") as csv_file:
-        csv_writer = csv.writer(csv_file, quoting=csv.QUOTE_ALL)
-
-        if features:
-            header = list(features[0].keys())
-            if write_header:
-                csv_writer.writerow(header)
-
-            for feature in features:
-                row = [(feature.get(key)) for key in header]
-                csv_writer.writerow(row)
-
-
-def worker(start_date, end_date, throttle_time, bboxes, duration, results):
-    retry_count = 0
-    max_retries = 5
+def worker(start_date, end_date, aoi, results):
     try:
-        from_date_str = start_date.isoformat()
-        timedelta_days = BATCH_SIZE
-        if duration > 1:
-            end_date_str = (start_date + timedelta(days=timedelta_days)).isoformat()
-        else:
-            end_date_str = end_date.isoformat()
-        for i in range(0, len(bboxes)):
-            try:
-                aoi = bbox_to_wkt(bboxes[i])
-                print(aoi)    
-                # archives = search_skyfi_archive(aoi, from_date_str, end_date_str, product_types)
-                # if archives == "rate_limit":
-                #     throttle_time += 0.01
-                #     time.sleep(throttle_time)
-                #     retry_count += 1
-                # elif archives:
-                #     for archive in archives:
-                #         results.append(archive)
-            except Exception as e:
-                print(e)
-                retry_count += 1
-                time.sleep(1)
-        print(len(bboxes), "BBOXES")
+        archives = search_skyfi_archive(aoi, start_date, end_date)
+        if archives:
+            results.extend(archives)
     except Exception as e:
         print(e)
-        import traceback
-        traceback.print_exc()
-        retry_count += 1
         time.sleep(1)
 
-    if retry_count == max_retries:
-        pass
 
-def generate_bboxes(lat_min, lat_max, lon_min, lon_max, step=10):
-    bboxes = []
-    lat = lat_min
-    while lat < lat_max:
-        lon = lon_min
-        while lon < lon_max:
-            bbox = f"{lon},{lat},{lon+step},{lat+step}"
-            bboxes.append(bbox)
-            lon += step
-        lat += step
-    return bboxes
-
-def skyfi_executor(START_DATE, END_DATE):
-    bboxes = generate_bboxes(-90, 90, -180, 180, step=8)
-    print(len(bboxes), "BBOXES")
-    throttle_time = 0.001
+def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
     results = []
-    start_date = START_DATE
+    current_date = START_DATE
     end_date = END_DATE
 
     global BATCH_SIZE
-    date_difference = (end_date - start_date).days + 1
+    date_difference = (end_date - current_date).days + 1
     if date_difference < BATCH_SIZE:
         BATCH_SIZE = date_difference
     duration = math.ceil(date_difference / BATCH_SIZE)
 
-    tqdm_lock = threading.Lock()
-
     print("-" * columns)
     print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
     print("Duration :", duration, "batch")
-    i = 0
     with tqdm(total=duration, desc="", unit="batch") as pbar:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = []
-            print("Start Date: ", start_date, "End Date: ", end_date)
-            for start_date in date_range(start_date, end_date, BATCH_SIZE):
-                print(i)
-                future = executor.submit(
-                    worker, start_date, end_date, throttle_time, bboxes, duration, results
-                )
-                futures.append(future)
-                i += 1
+        while current_date <= end_date:  # Inclusive of end_date
+            start_time = current_date.isoformat()
+            if (end_date - current_date).days > 1:
+                end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
+            else:
+                end_time = end_date.isoformat()
+            print("Start Time: ", start_time, "End Time: ", end_time)
 
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    pass
-                with tqdm_lock:
-                    pbar.update(1)
-                    pbar.refresh()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                futures = [
+                    executor.submit(worker, start_time, end_time, bbox, results)
+                    for bbox in LAND_POLYGONS_WKT
+                ]
+                for future in concurrent.futures.as_completed(futures):
+                    future.result()  
+    
+            current_date += timedelta(days=BATCH_SIZE)
+            pbar.update(1)
+
+        pbar.clear()
 
         tqdm.write("Completed Skyfi Processing")
 
-    print("Total Archives: ", len(results))
-
-
-def bbox_to_wkt(bbox):
-    min_lon, min_lat, max_lon, max_lat = map(float, bbox.split(","))
-    wkt = f"POLYGON(({min_lon} {min_lat}, {max_lon} {min_lat}, {max_lon} {max_lat}, {min_lon} {max_lat}, {min_lon} {min_lat}))"
-    return wkt
+    converted_features = convert_to_model_params(results)[:1]
+    print(converted_features)
+    print("Converted Features: ", len(converted_features))
+    # download_and_upload_images(converted_features, "thumbnails")
+    # process_database_catalog(converted_features, start_time, end_time)
 
 
 def run_skyfi_catalog_api():
@@ -366,7 +377,7 @@ def run_skyfi_catalog_api():
         START_DATE = datetime(
             datetime.now().year,
             datetime.now().month,
-            datetime.now().day ,
+            datetime.now().day,
             tzinfo=pytz.utc,
         )
     else:
@@ -375,5 +386,9 @@ def run_skyfi_catalog_api():
 
     END_DATE = get_utc_time()
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-    response = skyfi_executor(START_DATE, END_DATE)
+    land_polygons_wkt = []
+    with open("core/services/land_polygons.json", "r") as file:
+        land_polygons_wkt = json.load(file)
+    land_polygons_wkt = land_polygons_wkt[61:]
+    response = skyfi_executor(START_DATE, END_DATE, land_polygons_wkt)
     return response

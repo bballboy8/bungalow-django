@@ -330,7 +330,7 @@ def search_images(bbox, start_date, end_date):
                 current_page = START_PAGE
                 while True:
                     start_date_str = current_date.isoformat()
-                    if duration > 1:
+                    if (end_date - current_date).days > 1 > 1:
                         end_date_str = (
                             current_date + timedelta(days=BATCH_SIZE)
                         ).isoformat()

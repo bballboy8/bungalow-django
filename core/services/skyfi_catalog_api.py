@@ -80,23 +80,15 @@ def convert_to_utc(capture_timestamp):
 
 def estimate_sun_angles(capture_time, footprint_wkt):
     try:
-        # Parse the capture timestamp
         capture_timestamp = datetime.fromisoformat(capture_time)
-        
-        # Parse the footprint WKT and extract centroid
         polygon = wkt.loads(footprint_wkt)
         centroid = polygon.centroid
         latitude, longitude = centroid.y, centroid.x
-        
-        # Create a pandas datetime index for the capture time
         times = pd.DatetimeIndex([capture_timestamp])
-        
-        # Calculate solar position using pvlib
-        solar_position = pvlib.solarposition.get_solarposition(times, latitude, longitude)
-        
-        # Get azimuth at the capture time
-        azimuth = solar_position['azimuth'].iloc[0]
-        
+        solar_position = pvlib.solarposition.get_solarposition(
+            times, latitude, longitude
+        )
+        azimuth = solar_position["azimuth"].iloc[0]
         return float(azimuth)
     except Exception as e:
         print(f"Error in sun angle calculation: {e}")
@@ -205,7 +197,7 @@ def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=Non
 def upload_to_s3(feature, folder="thumbnails"):
     """Downloads an image from the URL in the feature and uploads it to S3."""
     try:
-        url = feature.get("thumbnail_url",{}).values()
+        url = feature.get("thumbnail_url", {}).values()
         if not url:
             return False
         url = list(url)[0]
@@ -351,8 +343,8 @@ def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
                     for bbox in LAND_POLYGONS_WKT
                 ]
                 for future in concurrent.futures.as_completed(futures):
-                    future.result()  
-    
+                    future.result()
+
             current_date += timedelta(days=BATCH_SIZE)
             pbar.update(1)
 
@@ -360,11 +352,11 @@ def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
 
         tqdm.write("Completed Skyfi Processing")
 
-    converted_features = convert_to_model_params(results)[:1]
-    print(converted_features)
-    print("Converted Features: ", len(converted_features))
-    # download_and_upload_images(converted_features, "thumbnails")
-    # process_database_catalog(converted_features, start_time, end_time)
+    converted_features = convert_to_model_params(results)
+    download_and_upload_images(converted_features, "thumbnails")
+    process_database_catalog(
+        converted_features, current_date.isoformat(), end_date.isoformat()
+    )
 
 
 def run_skyfi_catalog_api():

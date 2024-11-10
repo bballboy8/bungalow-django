@@ -96,6 +96,14 @@ def estimate_sun_angles(capture_time, footprint_wkt):
 
 
 def process_database_catalog(features, start_time, end_time):
+    unique_features = []
+    seen_vendor_ids = set()
+    for feature in features:
+        vendor_id = feature.get('vendor_id')
+        if vendor_id not in seen_vendor_ids:
+            unique_features.append(feature)
+            seen_vendor_ids.add(vendor_id)
+    features = unique_features
     valid_features = []
     invalid_features = []
 

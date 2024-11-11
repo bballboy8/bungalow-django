@@ -327,7 +327,7 @@ def generate_land_grids(shapefile_path):
 
 from shapely.geometry import Polygon
 from pyproj import Transformer
-def calculate_area_from_geojson(geojson):
+def calculate_area_from_geojson(geojson, id):
     """
     Calculates the area of a polygon given in GeoJSON format.
     
@@ -352,5 +352,5 @@ def calculate_area_from_geojson(geojson):
         
         return area_sq_m
     except Exception as e:
-        print(f"Error calculating area: {e}")
+        print(f"Error calculating area: {e} for id: {id}")
         return 0

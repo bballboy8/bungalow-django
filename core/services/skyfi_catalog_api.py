@@ -276,6 +276,8 @@ def convert_to_model_params(features):
             response.append(model_params)
         except Exception as e:
             print(e)
+    # sort by acquisition_datetime
+    response = sorted(response, key=lambda x: x["acquisition_datetime"], reverse=True)
     return response
 
 

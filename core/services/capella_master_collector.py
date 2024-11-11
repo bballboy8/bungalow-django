@@ -133,9 +133,9 @@ def upload_to_s3(feature, folder="thumbnails"):
         filename = feature.get("id")
         content = response.content
         response_url = save_image_in_s3_and_get_url(content, filename, folder)
-        response_geotiff = geotiff_conversion_and_s3_upload(
-            content, filename, "geotiffs", feature.get("geometry")
-        )
+        # response_geotiff = geotiff_conversion_and_s3_upload(
+        #     content, filename, "capella/geotiffs", feature.get("geometry")
+        # )
         return True
 
     except requests.exceptions.RequestException as e:
@@ -362,7 +362,7 @@ def search_images(start_date, end_date, bbox):
 
     print("Total Records: ", len(total_records))
     converted_records = process_features(total_records)
-    download_and_upload_images(converted_records, "thumbnails")
+    download_and_upload_images(converted_records, "capella/thumbnails")
     process_database_catalog(converted_records, start_date.isoformat(), end_date.isoformat())
 
 def run_capella_catalog_api():

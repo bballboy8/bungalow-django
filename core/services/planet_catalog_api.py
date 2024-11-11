@@ -197,9 +197,9 @@ def upload_to_s3(feature, folder="thumbnails"):
         filename = feature.get("id")
         content = response.content
         response_url = save_image_in_s3_and_get_url(content, filename, folder)
-        response_geotiff = geotiff_conversion_and_s3_upload(
-            content, filename, "geotiffs", feature.get("geometry")
-        )
+        # response_geotiff = geotiff_conversion_and_s3_upload(
+        #     content, filename, "planet/geotiffs", feature.get("geometry")
+        # )
         return True
 
     except requests.exceptions.RequestException as e:
@@ -358,7 +358,7 @@ def main(START_DATE, END_DATE, BBOX):
         current_date += timedelta(days=BATCH_SIZE)
 
     converted_features = process_features(all_features)
-    download_and_upload_images(all_features, "thumbnails")
+    download_and_upload_images(all_features, "planet/thumbnails")
     process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
 
 

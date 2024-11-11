@@ -214,9 +214,9 @@ def upload_to_s3(feature, folder="thumbnails"):
         filename = feature.get("vendor_id")
         content = response.content
         response_url = save_image_in_s3_and_get_url(content, filename, folder)
-        response_geotiff = geotiff_conversion_and_s3_upload(
-            content, filename, "geotiffs", feature.get("location_polygon")
-        )
+        # response_geotiff = geotiff_conversion_and_s3_upload(
+        #     content, filename, "skyfi/geotiffs", feature.get("location_polygon")
+        # )
         return True
 
     except requests.exceptions.RequestException as e:
@@ -355,7 +355,7 @@ def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
         current_date += timedelta(days=BATCH_SIZE)
 
     converted_features = convert_to_model_params(results)
-    download_and_upload_images(converted_features, "thumbnails")
+    download_and_upload_images(converted_features, "skyfi/thumbnails")
     process_database_catalog(
         converted_features, current_date.isoformat(), end_date.isoformat()
     )

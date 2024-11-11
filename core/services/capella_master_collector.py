@@ -1,24 +1,13 @@
-import os
 import base64
 import logging
 import time
 import requests
-import rasterio
 from rasterio.transform import from_bounds
 import numpy as np
-import pygeohash as pgh
-from PIL import Image, ImageChops
-import geojson
-from shapely.geometry import shape, box, Polygon
+from PIL import Image
 from datetime import datetime, timedelta
-import csv
-import re
-import argparse
-from tqdm import tqdm
-import geohash2
 import shutil
 import math
-from pyproj import Geod
 from decouple import config
 from core.serializers import (
     SatelliteCaptureCatalogSerializer,
@@ -38,6 +27,7 @@ from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
 from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
 import pytz
+from core.services.utils import calculate_area_from_geojson
 
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
@@ -128,7 +118,7 @@ def upload_to_s3(feature, folder="thumbnails"):
     """Downloads an image from the URL in the feature and uploads it to S3."""
     try:
         url = feature.get("thumbnail_url")
-        response = requests.get(url, stream=True)
+        response = requests.get(url, stream=True, timeout=(10, 30))
         response.raise_for_status()
         filename = feature.get("id")
         content = response.content
@@ -239,15 +229,15 @@ def process_features(features):
             feature_id = feature["id"]
             datetime_str = feature["properties"]["datetime"]
             thumbnail_url = feature["assets"]["thumbnail"]["href"]
-            location_polygon = Polygon(feature["geometry"]["coordinates"][0], srid=4326)
             model_params = {
+                "id": feature_id,
                 "acquisition_datetime": datetime.fromisoformat(
                     datetime_str.replace("Z", "+00:00")
                 ),
                 "vendor_id": feature_id,
                 "vendor_name": "capella",
                 "sensor": feature["properties"]["instruments"][0] if feature["properties"]["instruments"] else "",
-                "area": location_polygon.area,
+                "area": calculate_area_from_geojson(feature["geometry"], feature_id),
                 "type": (
                     "Day"
                     if 6

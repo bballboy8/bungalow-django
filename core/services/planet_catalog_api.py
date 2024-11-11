@@ -42,7 +42,7 @@ from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
 from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
 import pytz
-from core.services.utils import calculate_bbox_npolygons
+from core.services.utils import calculate_bbox_npolygons, calculate_area_from_geojson
 
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
@@ -192,7 +192,7 @@ def upload_to_s3(feature, folder="thumbnails"):
             "Content-Type": "application/json",
             "Authorization": "api-key " + API_KEY,
         }
-        response = requests.get(url, headers=headers, stream=True)
+        response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
         response.raise_for_status()
         filename = feature.get("id")
         content = response.content
@@ -299,7 +299,7 @@ def process_features(features):
                 "vendor_id": feature["id"],
                 "vendor_name": "planet",
                 "sensor": properties["item_type"],
-                "area": location_polygon.area,
+                "area": calculate_area_from_geojson(geometry, feature["id"]),
                 "type": (
                     "Day"
                     if 6
@@ -356,7 +356,7 @@ def main(START_DATE, END_DATE, BBOX):
                     break
 
         current_date += timedelta(days=BATCH_SIZE)
-
+    print(f"Total features: {len(all_features)}")
     converted_features = process_features(all_features)
     download_and_upload_images(all_features, "planet/thumbnails")
     process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())

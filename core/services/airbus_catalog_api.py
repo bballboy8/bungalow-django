@@ -2,7 +2,6 @@ import requests
 from datetime import datetime, timedelta
 import logging
 from dateutil import parser
-from tqdm import tqdm
 import math
 import shutil
 from decouple import config
@@ -24,6 +23,7 @@ from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
 from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
 import pytz
+from core.services.utils import calculate_area_from_geojson
 
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
@@ -108,7 +108,6 @@ def process_features(all_features):
         try:
             properties = feature.get("properties", {})
             geometry = feature.get("geometry", {})
-            location_polygon = Polygon(feature["geometry"]["coordinates"][0], srid=4326)
             model_params = {
                 "acquisition_datetime": datetime.fromisoformat(
                     properties.get("acquisitionDate").replace("Z", "+00:00")
@@ -117,7 +116,7 @@ def process_features(all_features):
                 "vendor_id": properties.get("id"),
                 "vendor_name": "airbus",
                 "sensor": properties.get("sensorType"),
-                "area": location_polygon.area,
+                "area": calculate_area_from_geojson(geometry, properties.get("id")),
                 "type": (
                     "Day"
                     if 6
@@ -149,7 +148,7 @@ def upload_to_s3(feature, folder="thumbnails"):
     try:
         headers = {"Authorization": "Bearer " + access_token}
         url = feature.get("url")
-        response = requests.get(url, headers=headers, stream=True)
+        response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
         response.raise_for_status()
         filename = feature.get("id")
         content = response.content

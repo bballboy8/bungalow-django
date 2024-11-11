@@ -22,7 +22,7 @@ from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
 from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
 import pytz
-
+from core.services.utils import calculate_area_from_geojson
 
 columns = shutil.get_terminal_size().columns
 
@@ -165,7 +165,7 @@ def upload_to_s3(feature, folder="thumbnails"):
     try:
         url = feature.get("assets", {}).get("browseUrl", {}).get("href")
         headers = {"Content-Type": "application/json", "Authorization": AUTH_TOKEN}
-        response = requests.get(url, headers=headers, stream=True)
+        response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
         response.raise_for_status()
         filename = feature.get("id")
         content = response.content
@@ -211,7 +211,6 @@ def convert_to_model_params(features):
     response = []
     for feature in features:
         try:
-            location_polygon = Polygon(feature["geometry"]["coordinates"][0], srid=4326)
             model_params = {
                 "acquisition_datetime": datetime.fromisoformat(
                     feature["properties"]["datetime"].replace("Z", "+00:00")
@@ -220,7 +219,7 @@ def convert_to_model_params(features):
                 "vendor_id": feature["id"],
                 "vendor_name": "blacksky",
                 "sensor": feature["properties"]["sensorId"],
-                "area": location_polygon.area,
+                "area": calculate_area_from_geojson(feature["geometry"], feature["id"]),
                 "type": (
                     "Day"
                     if 6

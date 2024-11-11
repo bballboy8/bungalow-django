@@ -132,7 +132,7 @@ def save_image(feature):
         save_path_tif = os.path.join(OUTPUT_GEOTIFFS_FOLDER, f"{feature.get('id')}.tif")
         save_path_png = os.path.join(OUTPUT_THUMBNAILS_FOLDER, f"{feature.get('id')}.png")
         headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
-        response = requests.get(url, stream=True, headers=headers)
+        response = requests.get(url, stream=True, headers=headers, timeout=(10, 30))
         response.raise_for_status()
         content = response.content
         with open(save_path_tif, 'wb') as out_file:

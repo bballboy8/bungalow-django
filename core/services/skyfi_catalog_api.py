@@ -209,7 +209,7 @@ def upload_to_s3(feature, folder="thumbnails"):
         if not url:
             return False
         url = list(url)[0]
-        response = requests.get(url, stream=True)
+        response = requests.get(url, stream=True, timeout=(10, 30))
         response.raise_for_status()
         filename = feature.get("vendor_id")
         content = response.content
@@ -246,9 +246,9 @@ def download_and_upload_images(features, path, max_workers=20):
                 if result:
                     pass
                 else:
-                    print(f"Failed to upload image for feature {feature.get('id')}")
+                    print(f"Failed to upload image for feature {feature.get('vendor_id')}")
             except Exception as e:
-                print(f"Exception occurred for feature {feature.get('id')}: {e}")
+                print(f"Exception occurred for feature {feature.get('vendor_id')}: {e}")
 
 
 def convert_to_model_params(features):
@@ -354,6 +354,7 @@ def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
 
         current_date += timedelta(days=BATCH_SIZE)
 
+    print("Total records: ", len(results))
     converted_features = convert_to_model_params(results)
     download_and_upload_images(converted_features, "skyfi/thumbnails")
     process_database_catalog(

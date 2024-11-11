@@ -324,3 +324,33 @@ def generate_land_grids(shapefile_path):
                 land_grids.append(grid)
     
     return land_grids
+
+from shapely.geometry import Polygon
+from pyproj import Transformer
+def calculate_area_from_geojson(geojson):
+    """
+    Calculates the area of a polygon given in GeoJSON format.
+    
+    Parameters:
+        geojson (dict): GeoJSON dictionary with a Polygon type geometry.
+        
+    Returns:
+        float: Area in square meters.
+    """
+    try:
+        coordinates = geojson["coordinates"][0]
+        
+        polygon = Polygon(coordinates)
+        
+        transformer = Transformer.from_crs("epsg:4326", "epsg:32756", always_xy=True)
+        
+        utm_coords = [transformer.transform(lon, lat) for lon, lat in polygon.exterior.coords]
+        utm_polygon = Polygon(utm_coords)
+        
+        # Calculate the area in square meters
+        area_sq_m = utm_polygon.area
+        
+        return area_sq_m
+    except Exception as e:
+        print(f"Error calculating area: {e}")
+        return 0

@@ -287,7 +287,7 @@ def process_database_catalog(features, start_time, end_time):
         return
 
     try:
-        last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
+        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
         last_acquisition_datetime = datetime.strftime(
             last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
         )

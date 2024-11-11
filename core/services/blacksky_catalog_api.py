@@ -232,7 +232,7 @@ def convert_to_model_params(features):
                 ),
                 "sun_elevation": feature["properties"]["sunAzimuth"],
                 "resolution": f"{feature['properties']['gsd']}m",
-                "georeferenced": feature["properties"]["georeferenced"] == "True",
+                "georeferenced": feature["properties"]["georeferenced"],
                 "location_polygon": feature["geometry"],
                 "coordinates_record": feature["geometry"],
             }

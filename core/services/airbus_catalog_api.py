@@ -350,8 +350,8 @@ def search_images(bbox, start_date, end_date):
             current_date += timedelta(days=BATCH_SIZE)
         
         data, images = process_features(all_features)
-        process_database_catalog(data, start_date.isoformat(), end_date.isoformat())
         download_and_upload_images(images, "airbus/thumbnails")
+        process_database_catalog(data, start_date.isoformat(), end_date.isoformat())
         print("Completed Processing Airbus: Total Items: {}".format(total_items))
     else:
         logging.error(f"Failed to authenticate")

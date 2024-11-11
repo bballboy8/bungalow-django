@@ -168,7 +168,7 @@ def upload_to_s3(feature, folder="thumbnails"):
         print(f"Failed to upload {url}: {e}")
         return False
 
-def download_and_upload_images(images, path, max_workers=20):
+def download_and_upload_images(images, path, max_workers=5):
     """Download images from URLs in images and upload them to S3."""
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

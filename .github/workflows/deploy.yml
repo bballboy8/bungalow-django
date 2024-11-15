@@ -1,0 +1,28 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - feature/etl-pipeline
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up SSH connection
+      uses: webfactory/ssh-agent@v0.5.3
+      with:
+        ssh-private-key: ${{ secrets.SSH }}
+
+    - name: Change directory and pull repository
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'cd /home/ubuntu/bungalow-django && git pull origin feature/etl-pipeline || (echo "Error encountered during git pull. Stashing changes before retrying." && git stash && git pull origin feature/etl-pipeline)'
+        
+      
+    - name: SERVER and Logs
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'cd /home/ubuntu/bungalow-django && source venv/bin/activate && pip install -r requirements.txt && pm2 list && pm2 restart 0 && (setsid pm2 logs 0 &) && sleep 5 && pkill -f "pm2 logs 0"'
+        

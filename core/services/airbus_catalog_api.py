@@ -32,7 +32,7 @@ columns = shutil.get_terminal_size().columns
 API_KEY = config("AIRBUS_API_KEY")
 
 GEOHASH = "w"
-ITEMS_PER_PAGE = 50
+ITEMS_PER_PAGE = 500
 START_PAGE = 1
 BATCH_SIZE = 28
 
@@ -213,30 +213,30 @@ def process_database_catalog(features, start_time, end_time, batch_size=100):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
+    # try:
+    #     last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+    #     last_acquisition_datetime = datetime.strftime(
+    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+    #     )
+    # except Exception as e:
+    #     last_acquisition_datetime = end_time
 
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "airbus",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
+    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+    #     data={
+    #         "start_datetime": convert_iso_to_datetime(start_time),
+    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+    #         "vendor_name": "airbus",
+    #         "message": {
+    #             "total_records": len(features),
+    #             "valid_records": len(valid_features),
+    #             "invalid_records": len(invalid_features),
+    #         },
+    #     }
+    # )
+    # if history_serializer.is_valid():
+    #     history_serializer.save()
+    # else:
+    #     print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def get_polygon_bounding_box(polygon):
@@ -328,18 +328,20 @@ def search_images(bbox, start_date, end_date):
             current_page = START_PAGE
             while True:
                 start_date_str = current_date.isoformat()
-                if (end_date - current_date).days > 1 > 1:
+                if (end_date - current_date).days > 1 :
                     end_date_str = (
                         current_date + timedelta(days=BATCH_SIZE)
                     ).isoformat()
                 else:
                     end_date_str = end_date.isoformat()
-
+                print(start_date_str, end_date_str, current_page)
                 response_data = airbus_catalog_api(
                     bbox, start_date_str, end_date_str, current_page
                 )
+                print(f"Response Data: {response_data.get("totalResults", 0)}")
                 if response_data:
                     all_features.extend(response_data.get("features", []))
+                    print(response_data.get("totalResults", 0) , (current_page * ITEMS_PER_PAGE))
                     if response_data.get("totalResults", 0) <= (current_page * ITEMS_PER_PAGE):
                         total_items += response_data.get("totalResults", 0)
                         break
@@ -347,10 +349,30 @@ def search_images(bbox, start_date, end_date):
                     break
                 current_page += 1
             current_date += timedelta(days=BATCH_SIZE)
-        
+
         data, images = process_features(all_features)
-        download_and_upload_images(images, "airbus/thumbnails")
-        process_database_catalog(data, start_date.isoformat(), end_date.isoformat())
+        print(f"Total Images: {len(data)}")
+        print(all_features)
+        batch_size = 500
+        no_of_records = len(all_features)
+
+        print(f"Total Records: {start_date}, {end_date}", no_of_records)
+        import time
+        # Loop through response in chunks of 100
+        for_loop_start_time = time.time()
+        for i in range(0, no_of_records, batch_size):
+            # batch = images[i : i + batch_size]
+            # startting_time = time.time()
+            # download_and_upload_images(batch, "airbus/thumbnails")
+            # completed_time = time.time()
+            # print(f"Time taken to download and upload images: {completed_time - startting_time}")
+            batch = data[i : i + batch_size]
+            start_time = time.time()
+            process_database_catalog(batch, start_date.isoformat(), end_date.isoformat())
+            end_time = time.time()
+            print(f"Time taken to process database: {end_time - start_time}")
+        for_loop_end_time = time.time()
+        print(f"Time taken to process batch: {for_loop_end_time - for_loop_start_time}")
         print("Completed Processing Airbus: Total Items: {}".format(total_items))
     else:
         logging.error(f"Failed to authenticate")
@@ -359,23 +381,42 @@ def search_images(bbox, start_date, end_date):
 
 def run_airbus_catalog_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = (
-        SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="airbus")
-        .order_by("-end_datetime")
-        .first()
-    )
-    if not START_DATE:
-        START_DATE = datetime(
-            datetime.now().year,
-            datetime.now().month,
-            datetime.now().day,
-            tzinfo=pytz.utc,
-        )
-    else:
-        START_DATE = START_DATE.end_datetime
-        print(f"From DB: {START_DATE}")
+    # START_DATE = (
+    #     SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="airbus")
+    #     .order_by("-end_datetime")
+    #     .first()
+    # )
+    # if not START_DATE:
+    #     START_DATE = datetime(
+    #         datetime.now().year,
+    #         datetime.now().month,
+    #         datetime.now().day,
+    #         tzinfo=pytz.utc,
+    #     )
+    # else:
+    #     START_DATE = START_DATE.end_datetime
+    #     print(f"From DB: {START_DATE}")
 
-    END_DATE = get_utc_time()
-    print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-    response = search_images(BBOX, START_DATE, END_DATE)
+    # END_DATE = get_utc_time()
+    # print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+    # response = search_images(BBOX, START_DATE, END_DATE)
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 3, 5, tzinfo=pytz.utc)
+    import time
+    while START_DATE < END_LIMIT:
+        # Ensure the end date doesn't exceed the end limit
+        END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
+
+
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+
+        # Call the search_images function
+        response = search_images(BBOX, START_DATE, END_DATE)
+
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+
+        # Move to the next 15-day interval
+        START_DATE = END_DATE
     return response

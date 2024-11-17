@@ -258,30 +258,30 @@ def process_database_catalog(features, start_time, end_time):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
+    # try:
+    #     last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+    #     last_acquisition_datetime = datetime.strftime(
+    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+    #     )
+    # except Exception as e:
+    #     last_acquisition_datetime = end_time
 
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "planet",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
+    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+    #     data={
+    #         "start_datetime": convert_iso_to_datetime(start_time),
+    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+    #         "vendor_name": "planet",
+    #         "message": {
+    #             "total_records": len(features),
+    #             "valid_records": len(valid_features),
+    #             "invalid_records": len(invalid_features),
+    #         },
+    #     }
+    # )
+    # if history_serializer.is_valid():
+    #     history_serializer.save()
+    # else:
+    #     print(f"Error in history serializer: {history_serializer.errors}")
 
 def process_features(features):
     response = []
@@ -357,9 +357,27 @@ def main(START_DATE, END_DATE, BBOX):
 
         current_date += timedelta(days=BATCH_SIZE)
     print(f"Total features: {len(all_features)}")
-    converted_features = process_features(all_features)
-    download_and_upload_images(all_features, "planet/thumbnails")
-    process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
+    batch_size = 300
+    no_of_records = len(all_features)
+    for_loop_start_time = datetime.now()
+    for i in range(0, no_of_records, batch_size):
+        process_start_time = datetime.now()
+        converted_features = process_features(all_features[i : i + batch_size])
+        converted_end_time = datetime.now()
+        print(f"Time taken to process features: {converted_end_time - process_start_time}")
+        download_and_upload_images(all_features[i : i + batch_size], "planet/thumbnails")
+        print(f" TIME TAKEN TO DOWNLOAD AND UPLOAD IMAGES: {datetime.now() - converted_end_time}")
+        process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
+        print(f" TIME TAKEN TO PROCESS DATABASE: {datetime.now() - converted_end_time}")
+    print(f"Time taken for the for loop: {datetime.now() - for_loop_start_time}")
+    # process_start_time = datetime.now()
+    # converted_features = process_features(all_features)
+    # converted_end_time = datetime.now()
+    # print(f"Time taken to process features: {converted_end_time - process_start_time}")
+    # download_and_upload_images(all_features, "planet/thumbnails")
+    # print(f" TIME TAKEN TO DOWNLOAD AND UPLOAD IMAGES: {datetime.now() - converted_end_time}")
+    # process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
+    # print(f" TIME TAKEN TO PROCESS DATABASE: {datetime.now() - converted_end_time}")
 
 
 def bbox_to_geojson(bbox_str):
@@ -384,23 +402,43 @@ def bbox_to_geojson(bbox_str):
 def run_planet_catalog_api():
     BBOX = "-180,-90,180,90"
     BBOX = bbox_to_geojson(BBOX)
-    START_DATE = (
-        SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="planet")
-        .order_by("-end_datetime")
-        .first()
-    )
-    if not START_DATE:
-        START_DATE = datetime(
-            datetime.now().year,
-            datetime.now().month,
-            datetime.now().day,
-            tzinfo=pytz.utc,
-        )
-    else:
-        START_DATE = START_DATE.end_datetime
-        print(f"From DB: {START_DATE}")
+    # START_DATE = (
+    #     SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="planet")
+    #     .order_by("-end_datetime")
+    #     .first()
+    # )
+    # if not START_DATE:
+    #     START_DATE = datetime(
+    #         datetime.now().year,
+    #         datetime.now().month,
+    #         datetime.now().day,
+    #         tzinfo=pytz.utc,
+    #     )
+    # else:
+    #     START_DATE = START_DATE.end_datetime
+    #     print(f"From DB: {START_DATE}")
 
-    END_DATE = get_utc_time()
-    print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-    response = main(START_DATE, END_DATE, BBOX)
+    # END_DATE = get_utc_time()
+    # print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+    # response = main(START_DATE, END_DATE, BBOX)
+
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 3, 1, tzinfo=pytz.utc)
+    import time
+    while START_DATE < END_LIMIT:
+        # Ensure the end date doesn't exceed the end limit
+        END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
+
+
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+
+        # Call the search_images function
+        response = main(START_DATE, END_DATE, BBOX)
+
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+
+        # Move to the next 15-day interval
+        START_DATE = END_DATE
     return response

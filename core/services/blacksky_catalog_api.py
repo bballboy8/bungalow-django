@@ -30,7 +30,7 @@ columns = shutil.get_terminal_size().columns
 BLACKSKY_BASE_URL = "https://api.blacksky.com"
 AUTH_TOKEN = config("BLACKSKY_API_KEY")
 MAX_THREADS = 10
-BATCH_SIZE = 28
+BATCH_SIZE = 2
 
 
 def get_blacksky_collections(
@@ -87,30 +87,30 @@ def process_database_catalog(features, start_time, end_time):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    try:
-        last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
+    # try:
+    #     last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
+    #     last_acquisition_datetime = datetime.strftime(
+    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+    #     )
+    # except Exception as e:
+    #     last_acquisition_datetime = end_time
 
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "blacksky",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
+    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+    #     data={
+    #         "start_datetime": convert_iso_to_datetime(start_time),
+    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+    #         "vendor_name": "blacksky",
+    #         "message": {
+    #             "total_records": len(features),
+    #             "valid_records": len(valid_features),
+    #             "invalid_records": len(invalid_features),
+    #         },
+    #     }
+    # )
+    # if history_serializer.is_valid():
+    #     history_serializer.save()
+    # else:
+    #     print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def get_polygon_bounding_box(polygon):
@@ -234,6 +234,7 @@ def convert_to_model_params(features):
                 "georeferenced": feature["properties"]["georeferenced"],
                 "location_polygon": feature["geometry"],
                 "coordinates_record": feature["geometry"],
+                "assets": feature["assets"],
             }
             response.append(model_params)
         except Exception as e:
@@ -259,17 +260,10 @@ def fetch_and_process_records(auth_token, bbox, start_time, end_time, last_scene
             )
         if not records.get("features", []):
             break
-
         all_records.extend(records.get("features", []))
         last_record = records.get("features", [])[-1]
         last_record_scene_id = last_record.get("id")
-
-    if not all_records:
-        return 0
-    download_and_upload_images(all_records, "blacksky/thumbnails")
-    converted_features = convert_to_model_params(all_records)
-    process_database_catalog(converted_features, start_time, end_time)
-    return len(all_records)
+    return all_records
 
 
 def main(START_DATE, END_DATE, BBOX, last_scene_id):
@@ -286,6 +280,7 @@ def main(START_DATE, END_DATE, BBOX, last_scene_id):
     print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
     print("Duration :", duration, "batch")
     total_records = 0
+    all_records = []
     while current_date <= end_date:
         start_time = current_date.isoformat()
         if (end_date - current_date).days > 1:
@@ -298,7 +293,33 @@ def main(START_DATE, END_DATE, BBOX, last_scene_id):
                 AUTH_TOKEN, bbox, start_time, end_time, last_scene_id
             )
             if response:
-                total_records += response
+                all_records += response
+                total_records += len(response)
+
+            
+            batch_size = 100
+            no_of_records = len(response)
+
+            print(f"Total Records: {start_time}, {end_time}", no_of_records)
+            print(response[0], response[-1])
+            import time
+            # Loop through response in chunks of 100
+            for_loop_start_time = time.time()
+            for i in range(0, no_of_records, batch_size):
+                batch = response[i:i + batch_size]
+                converted_records = convert_to_model_params(batch)
+                startting_time = time.time()
+                download_and_upload_images(converted_records, "blacksky/thumbnails")
+                completed_time = time.time()
+                print(f"Time taken to download and upload images: {completed_time - startting_time}")
+                db_start_time = time.time()
+                process_database_catalog(converted_records, start_time, end_time)
+                db_end_time = time.time()
+                print(f"Time taken to process database: {db_end_time - db_start_time}")
+                print(f"Completed batch {i // batch_size + 1} of {no_of_records // batch_size + (1 if no_of_records % batch_size != 0 else 0)}")
+                
+                for_loop_end_time = time.time()
+                print(f"Time taken to process batch: {for_loop_end_time - for_loop_start_time}")
 
         current_date += timedelta(days=BATCH_SIZE)
     print("Completed processing BlackSky data")
@@ -307,30 +328,62 @@ def main(START_DATE, END_DATE, BBOX, last_scene_id):
 
 def run_blacksky_catalog_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = (
-        SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="blacksky")
-        .order_by("-end_datetime")
-        .first()
-    )
-    if not START_DATE:
-        START_DATE = datetime(
-            datetime.now().year,
-            datetime.now().month,
-            datetime.now().day,
-            tzinfo=pytz.utc,
-        )
-        last_scene_id = None
-    else:
-        START_DATE = START_DATE.end_datetime
+    # START_DATE = (
+    #     SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="blacksky")
+    #     .order_by("-end_datetime")
+    #     .first()
+    # )
+    # if not START_DATE:
+    #     START_DATE = datetime(
+    #         datetime.now().year,
+    #         datetime.now().month,
+    #         datetime.now().day,
+    #         tzinfo=pytz.utc,
+    #     )
+    #     last_scene_id = None
+    # else:
+    #     START_DATE = START_DATE.end_datetime
+    #     last_scene_id = (
+    #         SatelliteCaptureCatalog.objects.filter(vendor_name="blacksky")
+    #         .order_by("-acquisition_datetime")
+    #         .first()
+    #         .vendor_id
+    #     )
+    #     print(f"From DB: {START_DATE}")
+
+    # END_DATE = get_utc_time()
+    # print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+    # response = main(START_DATE, END_DATE, BBOX, last_scene_id)
+
+
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 2, 1, tzinfo=pytz.utc)
+    import time
+    while START_DATE < END_LIMIT:
+        # Ensure the end date doesn't exceed the end limit
+        END_DATE = min(START_DATE + timedelta(days=3), END_LIMIT)
+
+
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+
         last_scene_id = (
-            SatelliteCaptureCatalog.objects.filter(vendor_name="blacksky")
+            SatelliteCaptureCatalog.objects.filter(vendor_name="blacksky" , id__gte=1)
             .order_by("-acquisition_datetime")
             .first()
-            .vendor_id
         )
-        print(f"From DB: {START_DATE}")
+        if not last_scene_id:
+            last_scene_id = None
+        else:
+            last_scene_id = last_scene_id.vendor_id
 
-    END_DATE = get_utc_time()
-    print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-    response = main(START_DATE, END_DATE, BBOX, last_scene_id)
+        # Call the search_images function
+        response = main(START_DATE, END_DATE, BBOX, last_scene_id)
+
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+
+        # Move to the next 15-day interval
+        START_DATE = END_DATE
+
     return response

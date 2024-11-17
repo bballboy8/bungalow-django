@@ -32,7 +32,7 @@ from core.services.utils import calculate_area_from_geojson
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
 
-BATCH_SIZE = 28
+BATCH_SIZE = 3
 
 # API and Authentication setup
 API_URL = "https://api.capellaspace.com/catalog/search"
@@ -114,50 +114,60 @@ def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=Non
         return geotiff_url
 
 
-def upload_to_s3(feature, folder="thumbnails"):
+
+def upload_to_s3(feature, folder="thumbnails", session=None):
     """Downloads an image from the URL in the feature and uploads it to S3."""
     try:
         url = feature.get("thumbnail_url")
-        response = requests.get(url, stream=True, timeout=(10, 30))
+        if not url:
+            print(f"No URL found for feature {feature.get('id')}")
+            return False
+
+        # Download image
+        response = session.get(url, stream=True) if session else requests.get(url, stream=True)
         response.raise_for_status()
-        filename = feature.get("id")
-        content = response.content
-        response_url = save_image_in_s3_and_get_url(content, filename, folder)
-        # response_geotiff = geotiff_conversion_and_s3_upload(
-        #     content, filename, "capella/geotiffs", feature.get("geometry")
-        # )
-        return True
+
+        # Get image bytes and filename
+        image_bytes = response.content
+        file_name = f"{feature.get('id')}.png"  # Default to .png; adjust if necessary
+
+        # Upload image to S3
+        result_url = save_image_in_s3_and_get_url(image_bytes, feature.get('id'), folder)
+        return result_url
 
     except requests.exceptions.RequestException as e:
-        print(f"Failed to download {url}: {e}")
+        print(f"Failed to download {url} for feature {feature.get('id')}: {e}")
         return False
     except NoCredentialsError:
-        print("S3 credentials not available")
+        print("S3 credentials not available.")
         return False
     except Exception as e:
-        print(f"Failed to upload {url}: {e}")
+        print(f"Failed to upload image for feature {feature.get('id')}: {e}")
         return False
 
 
-def download_and_upload_images(features, path, max_workers=5):
+def download_and_upload_images(features, path, max_workers=9):
     """Download images from URLs in features and upload them to S3."""
+    results = []
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(upload_to_s3, feature, path): feature
-            for feature in features
-        }
+    # Using requests.Session() for efficient downloading
+    with requests.Session() as session:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(upload_to_s3, feature, path, session): feature for feature in features}
 
-        for future in as_completed(futures):
-            feature = futures[future]
-            try:
-                result = future.result()
-                if result:
-                    pass
-                else:
-                    print(f"Failed to upload image for feature {feature.get('id')}")
-            except Exception as e:
-                print(f"Exception occurred for feature {feature.get('id')}: {e}")
+            for future in as_completed(futures):
+                feature = futures[future]
+                try:
+                    result = future.result()
+                    if result:
+                        results.append((feature['id'], "Success", result))
+                    else:
+                        results.append((feature['id'], "Failed", None))
+                except Exception as e:
+                    print(f"Exception for feature {feature['id']}: {e}")
+                    results.append((feature['id'], "Exception", None))
+
+    return results
 
 def query_api_with_retries(access_token, bbox, start_datetime, end_datetime):
     """Query the API with retries and token refresh handling."""
@@ -171,7 +181,7 @@ def query_api_with_retries(access_token, bbox, start_datetime, end_datetime):
             request_body = {
                 "bbox": bbox,
                 "datetime": f"{start_datetime}/{end_datetime}",
-                "limit": 100,
+                "limit": 1000,
                 "page": page,
                 "fields": {
                     "include": [
@@ -247,8 +257,8 @@ def process_features(features):
                     <= 18
                     else "Night"
                 ),
-                "sun_elevation": feature["properties"]["view:incidence_angle"],
-                "resolution": f"{feature['properties']['capella:resolution_ground_range']}m",
+                "sun_elevation": feature["properties"].get("view:incidence_angle", 0) if "view:incidence_angle" in feature["properties"] else 0,
+                "resolution": f"{feature['properties']['capella:resolution_ground_range']}m" if "capella:resolution_ground_range" in feature["properties"] else "",
                 "location_polygon": feature["geometry"],
                 "coordinates_record": feature["geometry"],
                 "thumbnail_url": thumbnail_url,
@@ -257,7 +267,7 @@ def process_features(features):
             response.append(model_params)
 
         except Exception as e:
-            logging.error(f"Error processing feature: {e}")
+            logging.error(f"Error processing feature: {e} {feature}")
             continue
     return response
 
@@ -286,35 +296,34 @@ def process_database_catalog(features, start_time, end_time):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
+    # try:
+    #     last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+    #     last_acquisition_datetime = datetime.strftime(
+    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+    #     )
+    # except Exception as e:
+    #     last_acquisition_datetime = end_time
 
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "capella",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
+    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+    #     data={
+    #         "start_datetime": convert_iso_to_datetime(start_time),
+    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+    #         "vendor_name": "capella",
+    #         "message": {
+    #             "total_records": len(features),
+    #             "valid_records": len(valid_features),
+    #             "invalid_records": len(invalid_features),
+    #         },
+    #     }
+    # )
+    # if history_serializer.is_valid():
+    #     history_serializer.save()
+    # else:
+    #     print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def search_images(start_date, end_date, bbox):
     bboxes = [bbox]
-    access_token = get_access_token(USERNAME, PASSWORD)
     token_info = get_access_token(USERNAME, PASSWORD)
     if token_info:
         access_token = token_info["accessToken"]
@@ -337,7 +346,7 @@ def search_images(start_date, end_date, bbox):
             end_time = (current_date + timedelta(days=BATCH_SIZE)).isoformat()
         else:
             end_time = end_date.isoformat()
-
+        print("Processing: ", start_time, end_time)
         for bbox in bboxes:
             response = query_api_with_retries(
                 access_token,
@@ -348,12 +357,33 @@ def search_images(start_date, end_date, bbox):
             if response:
                 total_records += response
 
+                batch_size = 100
+                no_of_records = len(response)
+
+                print(f"Total Records: {start_time}, {end_time}", no_of_records)
+                import time
+                # Loop through response in chunks of 100
+                for_loop_start_time = time.time()
+                for i in range(0, no_of_records, batch_size):
+                    batch = response[i:i + batch_size]
+                    converted_records = process_features(batch)
+                    startting_time = time.time()
+                    download_and_upload_images(converted_records, "capella/thumbnails")
+                    completed_time = time.time()
+                    print(f"Time taken to download and upload images: {completed_time - startting_time}")
+                    start_time = time.time()
+                    process_database_catalog(converted_records, start_date.isoformat(), end_date.isoformat())
+                    end_time = time.time()
+                    print(f"Time taken to process database: {end_time - start_time}")
+                    print(f"Completed batch {i // batch_size + 1} of {no_of_records // batch_size + (1 if no_of_records % batch_size != 0 else 0)}")
+                
+                for_loop_end_time = time.time()
+                print(f"Time taken to process batch: {for_loop_end_time - for_loop_start_time}")
+
         current_date += timedelta(days=BATCH_SIZE)
 
-    print("Total Records: ", len(total_records))
-    converted_records = process_features(total_records)
-    download_and_upload_images(converted_records, "capella/thumbnails")
-    process_database_catalog(converted_records, start_date.isoformat(), end_date.isoformat())
+
+        print("Processing complete: ", start_time, end_time)
 
 def run_capella_catalog_api():
     BBOX = "-180,-90,180,90"
@@ -374,6 +404,26 @@ def run_capella_catalog_api():
         print(f"From DB: {START_DATE}")
 
     END_DATE = get_utc_time()
-    print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-    response = search_images(START_DATE, END_DATE, BBOX)
+
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 11, 12, tzinfo=pytz.utc)
+
+    while START_DATE < END_LIMIT:
+        # Ensure the end date doesn't exceed the end limit
+        END_DATE = min(START_DATE + timedelta(days=14), END_LIMIT)
+
+
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+
+        # Call the search_images function
+        response = search_images(START_DATE, END_DATE, BBOX)
+
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+
+        # Move to the next 15-day interval
+        START_DATE = END_DATE
     return response
+
+# Dont download for 10 to 11 2024, 9 - 10

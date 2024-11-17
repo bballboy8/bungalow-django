@@ -96,14 +96,6 @@ def estimate_sun_angles(capture_time, footprint_wkt):
 
 
 def process_database_catalog(features, start_time, end_time):
-    unique_features = []
-    seen_vendor_ids = set()
-    for feature in features:
-        vendor_id = feature.get('vendor_id')
-        if vendor_id not in seen_vendor_ids:
-            unique_features.append(feature)
-            seen_vendor_ids.add(vendor_id)
-    features = unique_features
     valid_features = []
     invalid_features = []
 
@@ -112,6 +104,7 @@ def process_database_catalog(features, start_time, end_time):
         if serializer.is_valid():
             valid_features.append(serializer.validated_data)
         else:
+            print(f"Error in serializer: {serializer.errors}")
             invalid_features.append(feature)
 
     print(
@@ -129,30 +122,30 @@ def process_database_catalog(features, start_time, end_time):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
+    # try:
+    #     last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+    #     last_acquisition_datetime = datetime.strftime(
+    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+    #     )
+    # except Exception as e:
+    #     last_acquisition_datetime = end_time
 
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "skyfi",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
+    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+    #     data={
+    #         "start_datetime": convert_iso_to_datetime(start_time),
+    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+    #         "vendor_name": "skyfi",
+    #         "message": {
+    #             "total_records": len(features),
+    #             "valid_records": len(valid_features),
+    #             "invalid_records": len(invalid_features),
+    #         },
+    #     }
+    # )
+    # if history_serializer.is_valid():
+    #     history_serializer.save()
+    # else:
+    #     print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def get_polygon_bounding_box(polygon):
@@ -252,6 +245,15 @@ def download_and_upload_images(features, path, max_workers=5):
 
 
 def convert_to_model_params(features):
+    unique_features = []
+    seen_vendor_ids = set()
+    for feature in features:
+        vendor_id = feature.get('archiveId')
+        if vendor_id not in seen_vendor_ids:
+            unique_features.append(feature)
+            seen_vendor_ids.add(vendor_id)
+    features = unique_features
+
     response = []
     for feature in features:
         try:
@@ -261,10 +263,9 @@ def convert_to_model_params(features):
                 "acquisition_datetime": utc_time,
                 "cloud_cover": feature["cloudCoveragePercent"],
                 "vendor_id": feature["archiveId"],
-                "vendor_name": "skyfi",
-                "sensor": feature["provider"],
+                "vendor_name": str(f"skyfi-{feature['provider']}").lower(),
                 "area": feature["totalAreaSquareKm"],
-                "type": ("Day" if 6 <= utc_time.hour <= 18 else "Night"),
+                "type": str(feature["productType"]).title(),
                 "sun_elevation": estimate_sun_angles(
                     feature["captureTimestamp"], feature["footprint"]
                 ),
@@ -294,6 +295,7 @@ def search_skyfi_archive(aoi, from_date, to_date):
             "toDate": to_date,
             "pageNumber": next_page,
             "pageSize": 100,
+            "resolution": "MEDIUM",
         }
         response = requests.post(url, json=payload, headers=headers)
         if response.status_code == 200:
@@ -358,34 +360,58 @@ def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
 
     print("Total records: ", len(results))
     converted_features = convert_to_model_params(results)
-    download_and_upload_images(converted_features, "skyfi/thumbnails")
+    print("Total records after conversion: ", len(converted_features))
+    # download_and_upload_images(converted_features, "skyfi/thumbnails")
     process_database_catalog(
         converted_features, current_date.isoformat(), end_date.isoformat()
     )
+    
 
 
 def run_skyfi_catalog_api():
-    START_DATE = (
-        SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="skyfi")
-        .order_by("-end_datetime")
-        .first()
-    )
-    if not START_DATE:
-        START_DATE = datetime(
-            datetime.now().year,
-            datetime.now().month,
-            datetime.now().day,
-            tzinfo=pytz.utc,
-        )
-    else:
-        START_DATE = START_DATE.end_datetime
-        print(f"From DB: {START_DATE}")
+    # START_DATE = (
+    #     SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="skyfi")
+    #     .order_by("-end_datetime")
+    #     .first()
+    # )
+    # if not START_DATE:
+    #     START_DATE = datetime(
+    #         datetime.now().year,
+    #         datetime.now().month,
+    #         datetime.now().day,
+    #         tzinfo=pytz.utc,
+    #     )
+    # else:
+    #     START_DATE = START_DATE.end_datetime
+    #     print(f"From DB: {START_DATE}")
 
-    END_DATE = get_utc_time()
-    print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+    # END_DATE = get_utc_time()
+    # print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
     land_polygons_wkt = []
     with open("core/services/land_polygons.json", "r") as file:
         land_polygons_wkt = json.load(file)
     land_polygons_wkt = land_polygons_wkt[61:]
-    response = skyfi_executor(START_DATE, END_DATE, land_polygons_wkt)
+
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 1, 2, tzinfo=pytz.utc)
+    import time
+    while START_DATE < END_LIMIT:
+        # Ensure the end date doesn't exceed the end limit
+        END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
+
+
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+
+        # Call the search_images function
+        response = skyfi_executor(START_DATE, END_DATE, land_polygons_wkt)
+
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+        time.sleep(5)
+
+        # Move to the next 15-day interval
+        START_DATE = END_DATE
+
+    
     return response

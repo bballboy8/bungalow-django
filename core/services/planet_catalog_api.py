@@ -290,7 +290,6 @@ def process_features(features):
         try:
             properties = feature.get('properties', {})
             geometry = feature.get('geometry', {})
-            location_polygon = Polygon(geometry["coordinates"][0], srid=4326)
             model_params = {
                 "acquisition_datetime": datetime.fromisoformat(
                 properties["acquired"].replace("Z", "+00:00")

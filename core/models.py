@@ -34,7 +34,8 @@ class SatelliteCaptureCatalog(models.Model):
     location_polygon = models.PolygonField(null=True, blank=True)
     coordinates_record = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True) 
+    updated_at = models.DateTimeField(auto_now=True)
+    image_uploaded = models.BooleanField(default=False, null=True, blank=True) 
     
     class Meta:
         indexes = [

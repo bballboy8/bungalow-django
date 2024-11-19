@@ -5,6 +5,8 @@ import requests
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decouple import config
+from boto3.s3.transfer import TransferConfig
+transfer_config = TransferConfig(max_concurrency=50)
 
 bucket_name = config("AWS_STORAGE_BUCKET_NAME")
 AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
@@ -25,6 +27,7 @@ def save_image_in_s3_and_get_url(image_bytes, id, folder="thumbnails", extension
             Key=f"{folder}/{file_name}",
             Body=image_bytes,
             ContentType=f"image/{extension}",
+            Config=transfer_config
         )
         presigned_url = s3.generate_presigned_url(
             "get_object",

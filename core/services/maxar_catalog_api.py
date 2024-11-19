@@ -38,6 +38,8 @@ def get_maxar_collections(
     collections_str = ",".join(collections)
     url = f"https://api.maxar.com/discovery/v1/search?collections={collections_str}&bbox={bbox}&datetime={datetime_range}&limit={limit}&page={page}&sortby=+properties.datetime"
 
+    print(f"Fetching records from Maxar API: {url}")
+
     headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
     try:
         response = requests.request("GET", url, headers=headers)
@@ -63,7 +65,7 @@ def process_features(all_features):
                     properties.get("datetime").replace("Z", "+00:00")
                 ).replace(microsecond=0),
                 "cloud_cover": properties.get("eo:cloud_cover", ""),
-                "vendor_id": f"{properties.get('id')}-{feature.get('collection')}",
+                "vendor_id": f"{feature.get('id')}-{feature.get('collection')}",
                 "vendor_name": "maxar",
                 "sensor": properties.get("instruments")[0] if properties.get("instruments") and len(properties.get("instruments")) > 0 else None,
                 "area": calculate_area_from_geojson(geometry, properties.get("id")),
@@ -168,6 +170,7 @@ def process_database_catalog(features, start_time, end_time):
         if serializer.is_valid():
             valid_features.append(serializer.validated_data)
         else:
+            print(f"Error in serializer: {serializer.errors}")
             invalid_features.append(feature)
     
     print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
@@ -271,7 +274,7 @@ def run_maxar_catalog_api():
     # print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
 
     START_DATE = datetime(2022, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2022, 1, 3, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2022, 2, 1, tzinfo=pytz.utc)
     import time
     while START_DATE < END_LIMIT:
         # Ensure the end date doesn't exceed the end limit
@@ -286,6 +289,7 @@ def run_maxar_catalog_api():
 
         month_end_time = time.time()
         print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+        time.sleep(5)
 
         # Move to the next 15-day interval
         START_DATE = END_DATE

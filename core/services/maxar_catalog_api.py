@@ -13,7 +13,8 @@ import pytz
 from core.services.utils import calculate_area_from_geojson
 from core.utils import save_image_in_s3_and_get_url
 from botocore.exceptions import NoCredentialsError
-
+from PIL import Image
+import io
 
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
@@ -87,6 +88,10 @@ def process_features(all_features):
             converted_features.append(model_params)
         except Exception as e:
             pass
+    # sort by acquisition_datetime
+    converted_features = sorted(
+        converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
+    )
     return converted_features
 
 
@@ -97,12 +102,17 @@ def upload_to_s3(feature, folder="thumbnails"):
         url = feature.get("assets", {}).get("browse", {}).get("href")
         response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
         response.raise_for_status()
-        filename = feature.get("id")
-        content = response.content
-        response_url = save_image_in_s3_and_get_url(content, filename, folder)
-        # response_geotiff = geotiff_conversion_and_s3_upload(
-        #     content, filename, "airbus/geotiffs", feature.get("geometry")
-        # )
+        filename = feature.get("vendor_id").split("-")[0]
+        tif_content = response.content
+        save_image_in_s3_and_get_url(tif_content, filename, folder , "tif")
+
+        with Image.open(io.BytesIO(tif_content)) as img:
+            png_buffer = io.BytesIO()
+            img.save(png_buffer, format="PNG")
+            png_buffer.seek(0)
+            save_image_in_s3_and_get_url(
+                png_buffer.getvalue(), filename, folder , "png"
+            )
         return True
 
     except requests.exceptions.RequestException as e:
@@ -116,12 +126,12 @@ def upload_to_s3(feature, folder="thumbnails"):
         return False
 
 
-def download_thumbnails(features):
+def download_thumbnails(features, path):
     """Download and save thumbnail images for the given features."""
 
     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
         futures = {
-            executor.submit(upload_to_s3, feature): feature for feature in features
+            executor.submit(upload_to_s3, feature, path): feature for feature in features
         }
 
         for future in as_completed(futures):
@@ -186,30 +196,30 @@ def process_database_catalog(features, start_time, end_time):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    # try:
-    #     last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-    #     last_acquisition_datetime = datetime.strftime(
-    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-    #     )
-    # except Exception as e:
-    #     last_acquisition_datetime = end_time
+    try:
+        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+        last_acquisition_datetime = datetime.strftime(
+            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+        )
+    except Exception as e:
+        last_acquisition_datetime = end_time
 
-    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-    #     data={
-    #         "start_datetime": convert_iso_to_datetime(start_time),
-    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-    #         "vendor_name": "planet",
-    #         "message": {
-    #             "total_records": len(features),
-    #             "valid_records": len(valid_features),
-    #             "invalid_records": len(invalid_features),
-    #         },
-    #     }
-    # )
-    # if history_serializer.is_valid():
-    #     history_serializer.save()
-    # else:
-    #     print(f"Error in history serializer: {history_serializer.errors}")
+    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+        data={
+            "start_datetime": convert_iso_to_datetime(start_time),
+            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+            "vendor_name": "maxar",
+            "message": {
+                "total_records": len(features),
+                "valid_records": len(valid_features),
+                "invalid_records": len(invalid_features),
+            },
+        }
+    )
+    if history_serializer.is_valid():
+        history_serializer.save()
+    else:
+        print(f"Error in history serializer: {history_serializer.errors}")
 
 def main(START_DATE, END_DATE, BBOX):
     bboxes = [BBOX]
@@ -229,12 +239,13 @@ def main(START_DATE, END_DATE, BBOX):
 
     while current_date <= end_date:
         start_time = current_date
-        start_time = start_time.strftime("%Y-%m-%d")
+        # Format like this : 2020-01-02T18:01:15.140202Z
+        start_time = start_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         if (end_date - current_date).days > 1:
             end_time = (current_date + timedelta(days=BATCH_SIZE))
         else:
             end_time = end_date
-        end_time = end_time.strftime("%Y-%m-%d")
+        end_time = end_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         
         print(f"Start Time: {start_time}, End Time: {end_time} Running...")
 
@@ -248,49 +259,30 @@ def main(START_DATE, END_DATE, BBOX):
 
     converted_features = process_features(all_features)
     print(f"Total records: {len(all_features)}, Converted records: {len(converted_features)}")
+    download_thumbnails(converted_features, "maxar/thumbnails")
     process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
-    # download_thumbnails(converted_features)
 
 
 def run_maxar_catalog_api():
     BBOX = "-180,-90,180,90"
-    # START_DATE = (
-    #     SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="maxar")
-    #     .order_by("-end_datetime")
-    #     .first()
-    # )
-    # if not START_DATE:
-    #     START_DATE = datetime(
-    #         datetime.now().year,
-    #         datetime.now().month,
-    #         datetime.now().day,
-    #         tzinfo=pytz.utc,
-    #     )
-    # else:
-    #     START_DATE = START_DATE.end_datetime
-    #     print(f"From DB: {START_DATE}")
+    START_DATE = (
+        SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="maxar")
+        .order_by("-end_datetime")
+        .first()
+    )
+    if not START_DATE:
+        START_DATE = datetime(
+            datetime.now().year,
+            datetime.now().month,
+            datetime.now().day,
+            tzinfo=pytz.utc,
+        )
+    else:
+        START_DATE = START_DATE.end_datetime
+        print(f"From DB: {START_DATE}")
 
-    # END_DATE = get_utc_time()
-    # print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+    END_DATE = get_utc_time()
+    print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
 
-    START_DATE = datetime(2022, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2022, 2, 1, tzinfo=pytz.utc)
-    import time
-    while START_DATE < END_LIMIT:
-        # Ensure the end date doesn't exceed the end limit
-        END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
-
-
-        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-        month_start_time = time.time()
-
-        # Call the search_images function
-        response = main(START_DATE, END_DATE, BBOX)
-
-        month_end_time = time.time()
-        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
-        time.sleep(5)
-
-        # Move to the next 15-day interval
-        START_DATE = END_DATE
+    response = main(START_DATE, END_DATE, BBOX)
     return response

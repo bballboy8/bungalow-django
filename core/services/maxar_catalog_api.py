@@ -1,21 +1,20 @@
 import requests
-import geohash2
 from datetime import datetime, timedelta
-import csv
-import io
-import time
-import logging
-import json
-from dateutil import parser
-import argparse
 import os
-from tqdm import tqdm
-import pygeohash as pgh
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil
-from utils import check_csv_and_rename_output_dir
 from decouple import config
+from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
+from django.db.utils import IntegrityError
+from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
+from core.serializers import SatelliteDateRetrievalPipelineHistorySerializer, SatelliteCaptureCatalogSerializer
+import pytz
+from core.services.utils import calculate_area_from_geojson
+from core.utils import save_image_in_s3_and_get_url
+from botocore.exceptions import NoCredentialsError
+from PIL import Image
+import io
 
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
@@ -23,85 +22,12 @@ columns = shutil.get_terminal_size().columns
 # Configuration
 AUTH_TOKEN = config("MAXAR_API_KEY")
 MAXAR_BASE_URL = "https://api.maxar.com/discovery/v1"
-MAX_THREADS = 10
+MAX_THREADS = 9
 BATCH_SIZE = 28
 
 
-
-def latlon_to_geohash(lat, lon, range_km):
-    # Map the range to geohash precision
-    precision = (
-        2
-        if range_km > 100
-        else 4 if range_km > 20 else 6 if range_km > 5 else 8 if range_km > 1 else 10
-    )
-    return geohash2.encode(lat, lon, precision=precision)
-
-
-
-def get_geohash_corners(geohash: str) -> str:
-    center_lat, center_lon = pgh.decode(geohash)
-    lat_err, lon_err = pgh.decode_exactly(geohash)[-2:]
-    
-    top_left = (center_lat + lat_err, center_lon - lon_err)
-    top_right = (center_lat + lat_err, center_lon + lon_err)
-    bottom_left = (center_lat - lat_err, center_lon - lon_err)
-    bottom_right = (center_lat - lat_err, center_lon + lon_err)
-    
-    lats = [top_left[0], top_right[0], bottom_left[0], bottom_right[0]]
-    lons = [top_left[1], top_right[1], bottom_left[1], bottom_right[1]]
-    
-    xmin = math.ceil(min(lons))
-    ymin = math.ceil(min(lats))
-    xmax = math.ceil(max(lons))
-    ymax = math.ceil(max(lats))
-    
-    # Format as a bbox string
-    return f"{xmin},{ymin},{xmax},{ymax}"
-
-
-def calculate_withhold_time(acquisition_date, publication_date):
-    """Calculate the withhold time as total hours and human-readable format."""
-    acq_date = parser.isoparse(acquisition_date)
-    pub_date = parser.isoparse(publication_date)
-    delta = pub_date - acq_date
-    total_hours = int(delta.total_seconds() / 3600)  # convert to hours
-    days = delta.days
-    hours = delta.seconds // 3600
-    return f"{days} days {hours} hours", total_hours
-
-
-def sanitize_value(value):
-    """Ensure values are suitable for GeoJSON by converting them to strings if necessary, except for None."""
-    if isinstance(value, (int, float)):
-        return str(value)
-    if value is None:
-        return None  # Keep None as is to maintain distinction in outputs
-    return value
-
-
-def format_datetime(datetime_str):
-    """Format datetime string to 'YYYY-MM-DD HH:MM:SS.xx'."""
-    try:
-        dt = parser.isoparse(datetime_str)
-        return dt.strftime("%Y-%m-%d %H:%M:%S.%f")[
-            :-4
-        ]  # Truncate to two decimal places
-    except (ValueError, TypeError):
-        return datetime_str
-
-
-def format_float(value, precision=2):
-    """Format float to a string with the given precision."""
-    try:
-        return f"{float(value):.{precision}f}"
-    except (ValueError, TypeError):
-        return None
-
-
 def get_maxar_collections(
-    auth_token,
-    limit=1,
+    limit=100,
     page=1,
     bbox=None,
     datetime_range=None,
@@ -109,14 +35,16 @@ def get_maxar_collections(
     """
     Fetches collections from the Maxar API.
     """
-    collections = [ "wv01", "wv02"]
+    collections = ["wv01", "wv02"]
     collections_str = ",".join(collections)
-    url = f"https://api.maxar.com/discovery/v1/search?collections={collections_str}&bbox={bbox}&datetime={datetime_range}&limit={limit}&page={page}"
+    url = f"https://api.maxar.com/discovery/v1/search?collections={collections_str}&bbox={bbox}&datetime={datetime_range}&limit={limit}&page={page}&sortby=+properties.datetime"
 
-    headers = {"Accept": "application/json", "MAXAR-API-KEY": auth_token}
+    print(f"Fetching records from Maxar API: {url}")
 
+    headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
     try:
-        response = requests.request("GET",url, headers=headers)
+        response = requests.request("GET", url, headers=headers)
+        response.raise_for_status()
         return response.json()
     except requests.exceptions.HTTPError as http_err:
         print(f"HTTP error occurred: {http_err}")
@@ -125,31 +53,86 @@ def get_maxar_collections(
 
     return None
 
-def save_image(feature):
-    """Downloads an image from the provided URL and saves it to the specified path."""
-    try:
-        url = feature.get('assets', {}).get('browse', {}).get('href')
-        save_path_tif = os.path.join(OUTPUT_GEOTIFFS_FOLDER, f"{feature.get('id')}.tif")
-        save_path_png = os.path.join(OUTPUT_THUMBNAILS_FOLDER, f"{feature.get('id')}.png")
-        headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
-        response = requests.get(url, stream=True, headers=headers, timeout=(10, 30))
-        response.raise_for_status()
-        content = response.content
-        with open(save_path_tif, 'wb') as out_file:
-            out_file.write(content)
 
-        with open(save_path_png, 'wb') as out_file:
-            out_file.write(content)
-        
+def process_features(all_features):
+    converted_features = []
+    for feature in all_features:
+        try:
+            properties = feature.get("properties", {})
+            geometry = feature.get("geometry", {})
+            assets = feature.get("assets", {})
+            model_params = {
+                "acquisition_datetime": datetime.fromisoformat(
+                    properties.get("datetime").replace("Z", "+00:00")
+                ).replace(microsecond=0),
+                "cloud_cover": properties.get("eo:cloud_cover", ""),
+                "vendor_id": f"{feature.get('id')}-{feature.get('collection')}",
+                "vendor_name": "maxar",
+                "sensor": properties.get("instruments")[0] if properties.get("instruments") and len(properties.get("instruments")) > 0 else None,
+                "area": calculate_area_from_geojson(geometry, properties.get("id")),
+                "type": (
+                    "Day"
+                    if 6
+                    <= datetime.fromisoformat(
+                        properties.get("datetime").replace("Z", "+00:00")
+                    ).hour
+                    <= 18
+                    else "Night"
+                ),
+                "sun_elevation": properties.get("view:sun_azimuth"),
+                "resolution": f"{properties.get("pan_resolution_avg")}m",
+                "location_polygon": geometry,
+                "coordinates_record": geometry,
+                "assets": assets,
+            }
+            converted_features.append(model_params)
+        except Exception as e:
+            pass
+    # sort by acquisition_datetime
+    converted_features = sorted(
+        converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
+    )
+    return converted_features
+
+
+def upload_to_s3(feature, folder="thumbnails"):
+    """Downloads an image from the URL in the feature and uploads it to S3."""
+    try:
+        headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
+        url = feature.get("assets", {}).get("browse", {}).get("href")
+        response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
+        response.raise_for_status()
+        filename = feature.get("vendor_id").split("-")[0]
+        tif_content = response.content
+        save_image_in_s3_and_get_url(tif_content, filename, folder , "tif")
+
+        with Image.open(io.BytesIO(tif_content)) as img:
+            png_buffer = io.BytesIO()
+            img.save(png_buffer, format="PNG")
+            png_buffer.seek(0)
+            save_image_in_s3_and_get_url(
+                png_buffer.getvalue(), filename, folder , "png"
+            )
         return True
-    except requests.RequestException as e:
+
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to download {url}: {e}")
+        return False
+    except NoCredentialsError:
+        print("S3 credentials not available")
+        return False
+    except Exception as e:
+        print(f"Failed to upload {url}: {e}")
         return False
 
-def download_thumbnails(features):
+
+def download_thumbnails(features, path):
     """Download and save thumbnail images for the given features."""
 
     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-        futures = {executor.submit(save_image, feature): feature for feature in features}
+        futures = {
+            executor.submit(upload_to_s3, feature, path): feature for feature in features
+        }
 
         for future in as_completed(futures):
             feature = futures[future]
@@ -165,137 +148,141 @@ def download_thumbnails(features):
                 # print(f"Exception occurred while downloading thumbnail for feature {feature.get('id')}: {e}")
                 pass
 
-def process_geojson(features):
-    """Saves each feature as a separate GeoJSON file."""
-    for feature in features:
-        feature_id = feature.get('id', 'unknown')
-        geojson_data = {
-            "type": "FeatureCollection",
-            "features": [feature]  # Save each feature individually
-        }
 
-        geojson_filename = f"{feature_id}.geojson"
-        geojson_path = os.path.join(OUTPUT_GEOJSON_FOLDER, geojson_filename)
-
-        with open(geojson_path, 'w') as geojson_file:
-            json.dump(geojson_data, geojson_file, indent=4)
-        
-def process_csv(features):
-    """Appends feature properties and geometries to the CSV file."""
-    write_header = not os.path.exists(OUTPUT_CSV_FILE) or os.path.getsize(OUTPUT_CSV_FILE) == 0
-
-    with open(OUTPUT_CSV_FILE, mode='a', newline='') as csv_file:
-        csv_writer = csv.writer(csv_file, quoting=csv.QUOTE_ALL)
-
-        if features:
-            header = ["id"] + list(features[0].get('properties', {}).keys()) + ["geometry"]
-            if write_header:
-                csv_writer.writerow(header)
-
-            for feature in features:
-                feature_id = feature.get('id', 'unknown')
-                properties = feature.get('properties', {})
-                geometry = feature.get('geometry', {})
-                
-                row = [feature_id] + [sanitize_value(properties.get(key)) for key in header[1:-1]] + [json.dumps(geometry)]
-                csv_writer.writerow(row)
-
-def fetch_and_process_records(auth_token, bbox, start_time, end_time):
+def fetch_and_process_records(bbox, start_time, end_time):
     """Fetches records from the Maxar API and processes them."""
     page = 1
     all_features = []
 
     while True:
-        records = get_maxar_collections(auth_token, bbox=bbox, datetime_range=f"{start_time}/{end_time}", page=page)
+        records = get_maxar_collections(
+            bbox=bbox, datetime_range=f"{start_time}/{end_time}", page=page
+        )
         if not records:
             break
-        
-        features = records.get('features', [])
+
+        features = records.get("features", [])
         all_features.extend(features)
 
         if not any(link.get("rel") == "next" for link in records.get("links", [])):
             break
-        
+
         page += 1
 
-    # Process and save data
-    process_geojson(all_features)    # Separate GeoJSON for each feature
-    process_csv(all_features)        # CSV for all features
-    download_thumbnails(all_features) # Thumbnails for each feature
+    return all_features
 
-def main(START_DATE, END_DATE, OUTPUT_DIR, BBOX):
+def process_database_catalog(features, start_time, end_time):
+    valid_features = []
+    invalid_features = []
+
+    for feature in features:
+        serializer = SatelliteCaptureCatalogSerializer(data=feature)
+        if serializer.is_valid():
+            valid_features.append(serializer.validated_data)
+        else:
+            print(f"Error in serializer: {serializer.errors}")
+            invalid_features.append(feature)
+    
+    print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
+    if valid_features:
+        try:
+            SatelliteCaptureCatalog.objects.bulk_create(
+                [SatelliteCaptureCatalog(**feature) for feature in valid_features]
+            )
+        except IntegrityError as e:
+            print(f"Error during bulk insert: {e}")
+
+    if not valid_features:
+        print(f"No records Found for {start_time} to {end_time}")
+        return
+
+    try:
+        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+        last_acquisition_datetime = datetime.strftime(
+            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+        )
+    except Exception as e:
+        last_acquisition_datetime = end_time
+
+    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+        data={
+            "start_datetime": convert_iso_to_datetime(start_time),
+            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+            "vendor_name": "maxar",
+            "message": {
+                "total_records": len(features),
+                "valid_records": len(valid_features),
+                "invalid_records": len(invalid_features),
+            },
+        }
+    )
+    if history_serializer.is_valid():
+        history_serializer.save()
+    else:
+        print(f"Error in history serializer: {history_serializer.errors}")
+
+def main(START_DATE, END_DATE, BBOX):
     bboxes = [BBOX]
-    current_date = datetime.strptime(START_DATE, '%Y-%m-%d')
-    end_date = datetime.strptime(END_DATE, '%Y-%m-%d')
+    current_date = START_DATE
+    end_date = END_DATE
     global BATCH_SIZE
+
     date_difference = (end_date - current_date).days + 1  # Inclusive of end_date
     if date_difference < BATCH_SIZE:
-            BATCH_SIZE = date_difference
+        BATCH_SIZE = date_difference
     duration = math.ceil(date_difference / BATCH_SIZE)
 
     print("-" * columns)
-    description = (f"Processing Maxar Catalog \nDate Range: {current_date.date()} to {end_date.date()} \n"
-                   f"lat: {LAT} and lon: {LON} Range: {RANGE} \nOutput Directory: {OUTPUT_DIR}")
-    print(description)
-    print("-" * columns)
     print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
     print("Duration :", duration, "batch")
+    all_features = []
 
-    with tqdm(total=duration, desc="", unit="batch") as pbar:
-        while current_date <= end_date:  # Inclusive of end_date
-            start_time = current_date.strftime('%Y-%m-%d')
-            end_time = (current_date + timedelta(days=BATCH_SIZE)).strftime('%Y-%m-%d')
-            for bbox in bboxes:
-                fetch_and_process_records(AUTH_TOKEN, bbox, start_time, end_time)
+    while current_date <= end_date:
+        start_time = current_date
+        # Format like this : 2020-01-02T18:01:15.140202Z
+        start_time = start_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        if (end_date - current_date).days > 1:
+            end_time = (current_date + timedelta(days=BATCH_SIZE))
+        else:
+            end_time = end_date
+        end_time = end_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        
+        print(f"Start Time: {start_time}, End Time: {end_time} Running...")
 
-            current_date += timedelta(days=BATCH_SIZE)  # Move to the next day
-            pbar.update(1)  # Update progress bar
+        for bbox in bboxes:
+            response = fetch_and_process_records(bbox, start_time, end_time)
+            print(f"Total records: {len(response)}")
+            if response:
+                all_features.extend(response)
 
+        current_date += timedelta(days=BATCH_SIZE)
 
-        pbar.clear()
-    tqdm.write("Completed processing Maxar data")
-
-
-if __name__ == "__main__":
-    argument_parser = argparse.ArgumentParser(description='Maxar Catelog API Executor')
-    argument_parser.add_argument('--start-date', required=True, help='Start date')
-    argument_parser.add_argument('--end-date', required=True, help='End date')
-    argument_parser.add_argument('--lat', required=True, type=float, help='Latitude')
-    argument_parser.add_argument('--long', required=True, type=float, help='Longitude')
-    argument_parser.add_argument('--range', required=True, type=float, help='Range value')
-    argument_parser.add_argument('--output-dir', required=True, help='Output directory')
-    argument_parser.add_argument('--bbox', required=True, help='Bounding Box')
-
-    args = argument_parser.parse_args()
-    START_DATE = args.start_date
-    END_DATE = args.end_date
-    OUTPUT_DIR = args.output_dir + f"/maxar/{START_DATE}_{END_DATE}"
-
-    RANGE = int(args.range)
-    LAT, LON = args.lat, args.long
-    
-    BBOX = args.bbox.replace("t", "-")
-    print(f"Generated BBOX: {BBOX}")
+    converted_features = process_features(all_features)
+    print(f"Total records: {len(all_features)}, Converted records: {len(converted_features)}")
+    download_thumbnails(converted_features, "maxar/thumbnails")
+    process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
 
 
-    OUTPUT_GEOTIFFS_FOLDER = f"{OUTPUT_DIR}/geotiffs"
-    os.makedirs(OUTPUT_GEOTIFFS_FOLDER, exist_ok=True)
-
-    OUTPUT_THUMBNAILS_FOLDER = f"{OUTPUT_DIR}/thumbnails"
-    os.makedirs(OUTPUT_THUMBNAILS_FOLDER, exist_ok=True)
-
-    OUTPUT_GEOJSON_FOLDER = f"{OUTPUT_DIR}/geojsons"
-    os.makedirs(OUTPUT_GEOJSON_FOLDER, exist_ok=True)
-
-    OUTPUT_CSV_FILE = f"{OUTPUT_DIR}/output_maxar.csv"
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-    # Check if the directory exists
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    main(
-        START_DATE,
-        END_DATE,
-        OUTPUT_DIR,
-        BBOX
+def run_maxar_catalog_api():
+    BBOX = "-180,-90,180,90"
+    START_DATE = (
+        SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name="maxar")
+        .order_by("-end_datetime")
+        .first()
     )
-    check_csv_and_rename_output_dir(OUTPUT_DIR, START_DATE, END_DATE, args.output_dir, "maxar")
+    if not START_DATE:
+        START_DATE = datetime(
+            datetime.now().year,
+            datetime.now().month,
+            datetime.now().day,
+            tzinfo=pytz.utc,
+        )
+    else:
+        START_DATE = START_DATE.end_datetime
+        print(f"From DB: {START_DATE}")
+
+    END_DATE = get_utc_time()
+    print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+
+    response = main(START_DATE, END_DATE, BBOX)
+    return response

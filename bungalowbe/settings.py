@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 from decouple import config
-
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "django_celery_results",
     "core",
+    "api",
+    "drf_spectacular",
 ]
 
 MIDDLEWARE = [
@@ -82,6 +84,27 @@ DATABASES = {
         "PORT": config("DB_PORT", cast=int),
     }
 }
+
+# Simplet JWT
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=365*10),  # Set to 10 years (or as long as you need)
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=365*10),  # Set the refresh token lifetime similarly
+    'ROTATE_REFRESH_TOKENS': False,  # Don't rotate refresh tokens (optional)
+    'BLACKLIST_AFTER_ROTATION': False,  # Optional, depends on your need
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Bungalow Docs',
+    'DESCRIPTION': 'This is the API documentation for Bungalow project.',
+    'VERSION': '1.0.0',
+}
+
 
 # Redis settings
 CHANNEL_LAYERS = {

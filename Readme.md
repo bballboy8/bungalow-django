@@ -23,7 +23,7 @@
 1. run cp .env.sample .env
 2. Create a database in Postgres and add relevent DB credentials in .env
 3. Run python manage.py migrate.
-4. Run python manage.py runserver.
+4. Run daphne bungalowbe.asgi:application.
 
 Project is setup and ready to be used.
 

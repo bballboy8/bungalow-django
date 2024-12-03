@@ -52,17 +52,7 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
             )
 
     async def peer_text(self, event):
-        message_data = {
-            "id": -1,
-            "sender": event["data"]["sender"],
-            "content": event["data"]["message"],
-            "channel_id": event["data"]["channel_id"],
-        }
-
-        message_data["reply_of_info"] = await self._get_reply_of_message_info(
-            message_data["reply_of"]
-        )
-        await self.send_json(message_data)
+        await self.send_json(event)
 
     @database_sync_to_async
     def get_user_from_jwt(self):

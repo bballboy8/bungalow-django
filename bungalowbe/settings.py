@@ -70,7 +70,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "bungalowbe.wsgi.application"
+# WSGI_APPLICATION = "bungalowbe.wsgi.application"
 ASGI_APPLICATION = "bungalowbe.asgi.application"
 
 

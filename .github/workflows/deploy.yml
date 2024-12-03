@@ -3,7 +3,7 @@ name: Deploy to AWS
 on:
   push:
     branches:
-      - feature/etl-pipeline
+      - production
 
 jobs:
   deploy:
@@ -19,7 +19,7 @@ jobs:
 
     - name: Change directory and pull repository
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'cd /home/ubuntu/bungalow-django && git pull origin feature/etl-pipeline || (echo "Error encountered during git pull. Stashing changes before retrying." && git stash && git pull origin feature/etl-pipeline)'
+        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'cd /home/ubuntu/bungalow-django && git pull origin production || (echo "Error encountered during git pull. Stashing changes before retrying." && git stash && git pull origin production)'
         
       
     - name: SERVER and Logs

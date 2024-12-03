@@ -12,8 +12,11 @@ from .models import SatelliteCaptureCatalog
 from .serializers import SatelliteCaptureCatalogSerializer
 from django.contrib.gis.geos import Point
 from django.contrib.gis.measure import D
+from drf_spectacular.utils import extend_schema
+
 
 class UploadImageView(APIView):
+    @extend_schema(exclude=True)
     def post(self, request):
         image = request.FILES.get("image")
         image_id = request.data.get("id")
@@ -29,6 +32,7 @@ class UploadImageView(APIView):
 
         return Response({"url": url}, status=status.HTTP_201_CREATED)
     
+@extend_schema(exclude=True)    
 class SatelliteCaptureCatalogViewSet(viewsets.ModelViewSet):
     queryset = SatelliteCaptureCatalog.objects.all()
     serializer_class = SatelliteCaptureCatalogSerializer

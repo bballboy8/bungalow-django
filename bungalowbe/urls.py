@@ -14,7 +14,7 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-
+from django.shortcuts import render
 from django.contrib import admin
 from django.urls import path, include
 from django.http import HttpResponse
@@ -31,7 +31,7 @@ from drf_spectacular.views import (
 
 
 def static_response(request):
-    return HttpResponse("Visit: /api/docs to view documentation")
+    return render(request, 'index.html')
 
 
 urlpatterns = [

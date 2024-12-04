@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bungalow - Redirecting...</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Countdown Timer
+        document.addEventListener("DOMContentLoaded", () => {
+            let countdown = 10; // Start at 10 seconds
+            const countdownElement = document.getElementById("countdown");
+            const interval = setInterval(() => {
+                if (countdown > 1) {
+                    countdown -= 1;
+                    countdownElement.textContent = countdown;
+                } else {
+                    clearInterval(interval);
+                    window.location.href = "/api/docs"; // Redirect after countdown ends
+                }
+            }, 1000); // Update every second
+        });
+    </script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white shadow-2xl rounded-lg p-10 max-w-xl text-center">
+        <!-- Header Section -->
+        <h1 class="text-2xl sm:text-3xl font-semibold text-gray-800 mb-4">
+            <span class="text-indigo-600">Bungalow</span>
+        </h1>
+        <p class="text-gray-600 text-base sm:text-lg mb-6">
+            You’re being redirected to our documentation at 
+            <span class="text-indigo-600 font-medium">/api/docs</span>.
+        </p>
+        
+        <!-- Countdown Section -->
+        <div class="text-gray-900 font-bold text-4xl sm:text-5xl mb-6">
+            <span id="countdown" class="text-indigo-600">5</span>
+            <span class="text-gray-500 text-lg sm:text-xl">seconds</span>
+        </div>
+
+        <!-- Action Button -->
+        <a href="/api/docs" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-sm sm:text-base px-6 py-3 rounded-lg shadow-md transition-all duration-300">
+            Go to Documentation Now
+        </a>
+
+        <!-- Footer -->
+        <p class="text-sm text-gray-400 mt-6">
+            Bungalow &copy; 2024 | Redirecting you securely
+        </p>
+    </div>
+</body>
+</html>

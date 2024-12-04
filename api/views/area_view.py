@@ -6,6 +6,7 @@ from api.serializers.area_serializer import *
 from api.parameters.area_parameters import *
 from rest_framework.permissions import IsAuthenticated
 from logging_module import logger
+from api.tasks import run_image_seeder
 import time
 
 
@@ -107,10 +108,13 @@ class SatelliteCaptureCatalogView(APIView):
             serializer = SatelliteCaptureCatalogSerializer(
                 service_response["data"], many=True
             )
+            data = serializer.data
+            # Non-blocking function call using Celery
+            run_image_seeder.delay(data)
             logger.info("Satellite Capture Catalog View response")
             return Response(
                 {
-                    "data": serializer.data,
+                    "data": data,
                     "page_number": service_response["page_number"],
                     "page_size": service_response["page_size"],
                     "total_records": service_response["total_records"],

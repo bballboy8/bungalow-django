@@ -10,6 +10,8 @@ import time
 
 
 class GeoJSONToWKTView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         description="Convert a GeoJSON polygon to a WKT polygon.",
         request=GeoJSONToWKTSerializer,
@@ -52,7 +54,7 @@ class GeoJSONToWKTView(APIView):
 
 
 class SatelliteCaptureCatalogView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         description="Get satellite captures with optional filters for page number, page size, start date, and end date.",

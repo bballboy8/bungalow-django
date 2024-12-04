@@ -48,10 +48,10 @@ def get_satellite_records(
             filters &= Q(location_polygon__distance_lte=(point, D(km=distance)))
 
         if start_date:
-            filters &= Q(acquisition_date__gte=start_date)
+            filters &= Q(acquisition_datetime__gte=start_date)
         
         if end_date:
-            filters &= Q(acquisition_date__lte=end_date)
+            filters &= Q(acquisition_datetime__lte=end_date)
 
         captures = captures.filter(filters)
 

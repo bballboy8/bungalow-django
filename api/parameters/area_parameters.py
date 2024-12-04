@@ -19,13 +19,13 @@ satellite_capture_catalog_params = [
         name="start_date",
         type=str,
         location=OpenApiParameter.QUERY,
-        description="Filter records with acquisition date greater than or equal to this date. Format: YYYY-MM-DD",
+        description="Filter records with acquisition date greater than or equal to this date. Format: 2024-11-12T06:16:18.126580Z",
     ),
     OpenApiParameter(
         name="end_date",
         type=str,
         location=OpenApiParameter.QUERY,
-        description="Filter records with acquisition date less than or equal to this date. Format: YYYY-MM-DD",
+        description="Filter records with acquisition date less than or equal to this date. Format: 2024-11-12T06:16:18.126580Z",
     ),
     # add latitude, longitude, and distance parameters
     OpenApiParameter(

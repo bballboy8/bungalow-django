@@ -9,7 +9,6 @@ from django.db.models import Q
 from core.utils import s3, bucket_name
 from typing import List
 from datetime import datetime, timedelta
-from django.db.models import Avg
 
 
 
@@ -143,8 +142,8 @@ def get_pin_selection_analytics_and_location(latitude: float, longitude: float, 
 
         # Construct the query filtering by location and the selected time range
         captures = SatelliteCaptureCatalog.objects.filter(
-                location_polygon__intersects=buffered_polygon,
-                acquisition_datetime__gte=start_time
+                location_polygon__intersects=buffered_polygon ,   # Contained polygons
+                acquisition_datetime__gte=start_time              # Time range filter
             )
 
         # Return the analytics (count of captures)

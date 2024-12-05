@@ -81,7 +81,7 @@ class SatelliteCaptureCatalogView(APIView):
             latitude = int(request.query_params.get("latitude", 0))
             longitude = int(request.query_params.get("longitude", 0))
             distance = int(request.query_params.get("distance", 0))
-            
+
             # Request body
             wkt_polygon = request.data.get("wkt_polygon", None)
 
@@ -123,4 +123,53 @@ class SatelliteCaptureCatalogView(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Satellite Capture Catalog View")
+            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+
+
+class GetSatelliteCapturedImageByIdAndVendorView(APIView):
+
+    @extend_schema(
+        description="""Get satellite capture images by their IDs and vendor Example.{
+                "record": [
+                    {
+                    "id": "c45c156d-a24a-4c45-90f0-99bf79baa745",
+                    "vendor": "airbus"
+                    }
+                ]
+                } """,
+        request=SatelliteCaptureImageByIdAndVendorSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Satellite capture images successfully retrieved.",
+            ),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Satellite Capture"],
+    )
+    def post(self, request, *args, **kwargs):
+        logger.info("Inside Post method of Satellite Capture Image By ID and Vendor View")
+        try:
+            record = request.data.get("record", [])
+
+            if not record:
+                return Response(
+                    {
+                        "data": "Record is required",
+                        "status_code": 400,
+                    },
+                    status=400,
+                )
+            response = get_presigned_url_by_vendor_name_and_id(record)
+            if response["status_code"] != 200:
+                return Response(
+                    response, status=response["status_code"]
+                )
+
+            logger.info("Satellite Capture Image By ID and Vendor View response")
+            return Response(
+                {"data": response["data"], "status_code": 200}
+            )
+        except Exception as e:
+            logger.error(f"Error in Satellite Capture Image By ID and Vendor View: {str(e)}")
             return Response({"data": f"{str(e)}", "status_code": 500}, status=500)

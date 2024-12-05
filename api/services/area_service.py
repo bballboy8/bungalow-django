@@ -6,6 +6,8 @@ from django.contrib.gis.geos import Point
 from django.contrib.gis.measure import D
 from django.core.paginator import Paginator
 from django.db.models import Q
+from core.utils import s3, bucket_name
+from typing import List
 
 
 def convert_geojson_to_wkt(geometry):
@@ -69,4 +71,26 @@ def get_satellite_records(
     
     except Exception as e:
         logger.error(f"Error fetching satellite records: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 400}
+    
+def get_presigned_url_by_vendor_name_and_id(record:List[dict]):
+    logger.info("Inside get presigned URL by vendor name and id service")
+    try:
+        all_urls = []
+        for record in record:
+            file_name = f"{record['id']}.png"
+            presigned_url = s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": bucket_name, "Key": f"{record['vendor']}/{file_name}"},
+                ExpiresIn=3600
+            )
+            all_urls.append({"id": record["id"], "url": presigned_url})
+
+        logger.info("Presigned URL fetched successfully")
+        return {
+            "data": all_urls,
+            "status_code": 200
+        }
+    except Exception as e:
+        logger.error(f"Error fetching presigned URL: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 400}

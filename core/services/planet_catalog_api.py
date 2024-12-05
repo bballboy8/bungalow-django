@@ -192,6 +192,7 @@ def upload_to_s3(feature, folder="thumbnails"):
             "Content-Type": "application/json",
             "Authorization": "api-key " + API_KEY,
         }
+        url = url + "?width=512"
         response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
         response.raise_for_status()
         filename = feature.get("id")

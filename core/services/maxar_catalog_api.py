@@ -99,21 +99,22 @@ def upload_to_s3(feature, folder="thumbnails"):
     """Downloads an image from the URL in the feature and uploads it to S3."""
     try:
         headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
+        print(headers, "upload s3 headers")
         url = feature.get("assets", {}).get("browse", {}).get("href")
         response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
         response.raise_for_status()
         filename = feature.get("vendor_id").split("-")[0]
         tif_content = response.content
         save_image_in_s3_and_get_url(tif_content, filename, folder , "tif")
-
+        url = ""
         with Image.open(io.BytesIO(tif_content)) as img:
             png_buffer = io.BytesIO()
             img.save(png_buffer, format="PNG")
             png_buffer.seek(0)
-            save_image_in_s3_and_get_url(
+            url = save_image_in_s3_and_get_url(
                 png_buffer.getvalue(), filename, folder , "png"
             )
-        return True
+        return url
 
     except requests.exceptions.RequestException as e:
         print(f"Failed to download {url}: {e}")

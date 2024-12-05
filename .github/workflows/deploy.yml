@@ -25,4 +25,12 @@ jobs:
     - name: SERVER and Logs
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'cd /home/ubuntu/bungalow-django && source venv/bin/activate && pip install -r requirements.txt && pm2 list && pm2 restart 0 && (setsid pm2 logs 0 &) && sleep 5 && pkill -f "pm2 logs 0"'
-        
+
+    - name:  Celery-worker and Logs
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'pm2 list && pm2 restart 1 && (setsid pm2 logs 1 &) && sleep 5 && pkill -f "pm2 logs 1"'
+
+    - name: Celery-beat and Logs
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'pm2 list && pm2 restart 2 && (setsid pm2 logs 2 &) && sleep 5 && pkill -f "pm2 logs 2"'
+                

@@ -88,14 +88,15 @@ def get_maxar_record_images_by_ids(ids: List[str]):
         url = f"https://api.maxar.com/discovery/v1/search?ids={','.join(ids)}&collections={collections_str}"
         all_records = []
         headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
-        print(headers,"headers")
+        logger.debug(f"Maxar API URL: {url}")
+        logger.debug(f"Maxar API Headers: {headers}")
         all_urls = []
         try:
             response = requests.request("GET", url, headers=headers)
             response.raise_for_status()
             response_data = response.json()
             all_records = response_data.get("features", [])
-            print(all_records,"all_records")
+            logger.debug(f"Maxar API Response: {all_records}")
             for feature in all_records:
                 feature_id = feature.get("id") + "-" + feature.get("collection")
                 feature["vendor_id"] = feature_id
@@ -112,14 +113,14 @@ def get_maxar_record_images_by_ids(ids: List[str]):
                     )
 
         except Exception as e:
-            logger.error(f"Error in Maxar Vendor View: {str(e)}")
+            logger.error(f"Error in Maxar Vendor View 1: {str(e)}")
 
         return {
             "data": all_urls,
             "status_code": 200,
         }
     except Exception as e:
-        logger.error(f"Error in Maxar Vendor View: {str(e)}")
+        logger.error(f"Error in Maxar Vendor View 2: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500}
 
 

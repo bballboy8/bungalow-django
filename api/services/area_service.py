@@ -94,3 +94,21 @@ def get_presigned_url_by_vendor_name_and_id(record:List[dict]):
     except Exception as e:
         logger.error(f"Error fetching presigned URL: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 400}
+    
+
+def group_by_vendor(data):
+    """
+    Groups the input data by 'vendor_name' and collects IDs for each vendor.
+
+    Args:
+        data (list): A list of dictionaries containing 'vendor_name' and 'id'.
+
+    Returns:
+        dict: A dictionary with vendor names as keys and lists of IDs as values.
+    """
+    grouped_data = {}
+    for item in data:
+        vendor_name = item.get('vendor_name')
+        if vendor_name:
+            grouped_data.setdefault(vendor_name, []).append(item['vendor_id'])
+    return grouped_data

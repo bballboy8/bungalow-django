@@ -110,7 +110,9 @@ class SatelliteCaptureCatalogView(APIView):
             )
             data = serializer.data
             # Non-blocking function call using Celery
-            run_image_seeder.delay(data)
+            grouped_data = group_by_vendor(data)
+            run_image_seeder.delay(grouped_data)
+            
             logger.info("Satellite Capture Catalog View response")
             return Response(
                 {

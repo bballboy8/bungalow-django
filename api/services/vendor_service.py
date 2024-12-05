@@ -88,8 +88,6 @@ def get_maxar_record_images_by_ids(ids: List[str]):
         url = f"https://api.maxar.com/discovery/v1/search?ids={','.join(ids)}&collections={collections_str}"
         all_records = []
         headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
-        logger.debug(f"Maxar API URL: {url}")
-        logger.debug(f"Maxar API Headers: {headers}")
         all_urls = []
         try:
             response = requests.request("GET", url, headers=headers)
@@ -101,7 +99,6 @@ def get_maxar_record_images_by_ids(ids: List[str]):
                 feature_id = feature.get("id") + "-" + feature.get("collection")
                 feature["vendor_id"] = feature_id
                 url = maxar_upload_to_s3(feature, "maxar")
-                print(url)
                 all_urls.append(url)
                 try:
                     SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(

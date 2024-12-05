@@ -94,7 +94,6 @@ def get_maxar_record_images_by_ids(ids: List[str]):
             response.raise_for_status()
             response_data = response.json()
             all_records = response_data.get("features", [])
-            logger.debug(f"Maxar API Response: {all_records}")
             for feature in all_records:
                 feature_id = feature.get("id") + "-" + feature.get("collection")
                 feature["vendor_id"] = feature_id

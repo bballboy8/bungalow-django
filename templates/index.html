@@ -8,7 +8,7 @@
     <script>
         // Countdown Timer
         document.addEventListener("DOMContentLoaded", () => {
-            let countdown = 5; // Start at 10 seconds
+            let countdown = 5;
             const countdownElement = document.getElementById("countdown");
             const interval = setInterval(() => {
                 if (countdown > 1) {
@@ -16,9 +16,9 @@
                     countdownElement.textContent = countdown;
                 } else {
                     clearInterval(interval);
-                    window.location.href = "/api/docs"; // Redirect after countdown ends
+                    window.location.href = "/api/docs";
                 }
-            }, 1000); // Update every second
+            }, 1000);
         });
     </script>
 </head>

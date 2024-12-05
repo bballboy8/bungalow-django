@@ -88,15 +88,20 @@ def get_maxar_record_images_by_ids(ids: List[str]):
         url = f"https://api.maxar.com/discovery/v1/search?ids={','.join(ids)}&collections={collections_str}"
         all_records = []
         headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
+        print(headers,"headers")
+        all_urls = []
         try:
             response = requests.request("GET", url, headers=headers)
             response.raise_for_status()
             response_data = response.json()
             all_records = response_data.get("features", [])
+            print(all_records,"all_records")
             for feature in all_records:
                 feature_id = feature.get("id") + "-" + feature.get("collection")
                 feature["vendor_id"] = feature_id
                 url = maxar_upload_to_s3(feature, "maxar")
+                print(url)
+                all_urls.append(url)
                 try:
                     SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
                         image_uploaded=True
@@ -110,7 +115,7 @@ def get_maxar_record_images_by_ids(ids: List[str]):
             logger.error(f"Error in Maxar Vendor View: {str(e)}")
 
         return {
-            "data": all_records,
+            "data": all_urls,
             "status_code": 200,
         }
     except Exception as e:

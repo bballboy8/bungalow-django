@@ -55,7 +55,7 @@ def get_satellite_records(
         if end_date:
             filters &= Q(acquisition_datetime__lte=end_date)
 
-        captures = captures.filter(filters)
+        captures = captures.filter(filters).order_by('acquisition_datetime')
 
         paginator = Paginator(captures, page_size)
         page = paginator.get_page(page_number)
@@ -109,6 +109,6 @@ def group_by_vendor(data):
     grouped_data = {}
     for item in data:
         vendor_name = item.get('vendor_name')
-        if vendor_name:
+        if vendor_name and not item.get("image_uploaded"):
             grouped_data.setdefault(vendor_name, []).append(item['vendor_id'])
     return grouped_data

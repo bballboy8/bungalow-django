@@ -13,3 +13,7 @@ class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
     class Meta:
         model = SatelliteCaptureCatalog
         exclude = ["location_polygon" , "coordinates_record"]
+
+
+class SatelliteCaptureImageByIdAndVendorSerializer(serializers.Serializer):
+    record = serializers.JSONField(default=[{"id": "", "vendor": ""}])

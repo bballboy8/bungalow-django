@@ -17,3 +17,9 @@ class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
 
 class SatelliteCaptureImageByIdAndVendorSerializer(serializers.Serializer):
     record = serializers.JSONField(default=[{"id": "", "vendor": ""}])
+
+
+class PinSelectionAnalyticsAndLocationSerializer(serializers.Serializer):
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()
+    distance = serializers.FloatField()

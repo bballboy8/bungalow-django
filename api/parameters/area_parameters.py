@@ -47,3 +47,13 @@ satellite_capture_catalog_params = [
         description="Distance in kilometers from the location",
     ),
 ]
+
+pin_selection_analytics_and_location_params = [
+    OpenApiParameter(
+        name="duration",
+        type=int,
+        default=1,
+        location=OpenApiParameter.QUERY,
+        description="Duration for which analytics are to be fetched. Default is 1 day.",
+    )
+]

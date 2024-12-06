@@ -12,7 +12,7 @@ class GeoJSONToWKTSerializer(serializers.Serializer):
 class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
     class Meta:
         model = SatelliteCaptureCatalog
-        exclude = ["location_polygon" , "coordinates_record"]
+        exclude = ["location_polygon", "created_at", "updated_at"]
 
 
 class SatelliteCaptureImageByIdAndVendorSerializer(serializers.Serializer):

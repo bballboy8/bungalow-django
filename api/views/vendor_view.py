@@ -81,7 +81,6 @@ class MaxarVendorView(APIView):
                 )
 
             service_response = get_maxar_record_images_by_ids(ids)
-            print(service_response)
 
             if service_response["status_code"] != 200:
                 return Response(

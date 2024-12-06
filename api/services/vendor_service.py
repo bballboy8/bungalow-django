@@ -3,6 +3,7 @@ from logging_module import logger
 import requests
 from core.services.airbus_catalog_api import get_acces_token
 from core.utils import save_image_in_s3_and_get_url
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from core.models import SatelliteCaptureCatalog
 from core.services.maxar_catalog_api import (
     upload_to_s3 as maxar_upload_to_s3,
@@ -50,10 +51,9 @@ def get_airbus_record_images_by_ids(ids: List[str]):
                         "id": feature.get("properties").get("id"),
                     }
                 )
-        uploaded_urls = []
-        if all_images:
+        def process_image(image):
             headers = {"Authorization": "Bearer " + access_token}
-            for image in all_images:
+            try:
                 response = requests.get(
                     image.get("url"), headers=headers, stream=True, timeout=(10, 30)
                 )
@@ -61,23 +61,33 @@ def get_airbus_record_images_by_ids(ids: List[str]):
                 record_id = image.get("id")
                 content = response.content
                 url = save_image_in_s3_and_get_url(content, record_id, "airbus")
-                try:
-                    SatelliteCaptureCatalog.objects.filter(vendor_id=record_id).update(
-                        image_uploaded=True
-                    )
-                    uploaded_urls.append(url)
-                except Exception as e:
-                    logger.error(
-                        f"Error in updating the image_uploaded field in SatelliteCaptureCatalog: {str(e)}"
-                    )
+                SatelliteCaptureCatalog.objects.filter(vendor_id=record_id).update(
+                    image_uploaded=True
+                )
+                return url
+            except Exception as e:
+                logger.error(
+                    f"Error processing image with Airbus ID {image.get('id')}: {str(e)}"
+                )
+                return None
+
+        uploaded_urls = []
+        if all_images:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                future_to_image = {executor.submit(process_image, img): img for img in all_images}
+                for future in as_completed(future_to_image):
+                    result = future.result()
+                    if result:
+                        uploaded_urls.append(result)
 
         return {
+            "vendor": "airbus",
             "data": uploaded_urls,
             "status_code": 200,
         }
     except Exception as e:
         logger.error(f"Error in Airbus Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "airbus"}
 
 
 def get_maxar_record_images_by_ids(ids: List[str]):
@@ -94,62 +104,81 @@ def get_maxar_record_images_by_ids(ids: List[str]):
             response.raise_for_status()
             response_data = response.json()
             all_records = response_data.get("features", [])
-            for feature in all_records:
-                feature_id = feature.get("id") + "-" + feature.get("collection")
-                feature["vendor_id"] = feature_id
-                url = maxar_upload_to_s3(feature, "maxar")
-                all_urls.append(url)
+            def process_record(feature):
                 try:
+                    feature_id = feature.get("id") + "-" + feature.get("collection")
+                    feature["vendor_id"] = feature_id
+                    url = maxar_upload_to_s3(feature, "maxar")  
+
                     SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
                         image_uploaded=True
                     )
+                    return url
                 except Exception as e:
-                    logger.error(
-                        f"Error in updating the image_uploaded field in SatelliteCaptureCatalog: {str(e)}"
-                    )
+                    logger.error(f"Error processing feature Maxar {feature_id}: {str(e)}")
+                    return None
+
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                future_to_feature = {executor.submit(process_record, feature): feature for feature in all_records}
+                for future in as_completed(future_to_feature):
+                    try:
+                        result = future.result()
+                        if result:
+                            all_urls.append(result)
+                    except Exception as e:
+                        logger.error(f"Error in future processing Maxar: {str(e)}")
 
         except Exception as e:
             logger.error(f"Error in Maxar Vendor View 1: {str(e)}")
 
         return {
+            "vendor": "maxar",
             "data": all_urls,
             "status_code": 200,
         }
     except Exception as e:
         logger.error(f"Error in Maxar Vendor View 2: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "maxar"} 
 
 
 def get_blacksky_record_images_by_ids(ids: List[str]):
     try:
         final_images = []
         headers = {"Authorization": BLACKSKY_AUTH_TOKEN}
-        for feature_id in ids:
+        def process_feature(feature_id):
             try:
                 url = f"{BLACKSKY_BASE_URL}/v1/browse/{feature_id}"
                 response = requests.get(url, headers=headers)
-                url = save_image_in_s3_and_get_url(
-                    response.content, feature_id, "blacksky"
+                response.raise_for_status()
+
+                s3_url = save_image_in_s3_and_get_url(response.content, feature_id, "blacksky")
+
+                SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
+                    image_uploaded=True
                 )
-                final_images.append(url)
-                try:
-                    SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
-                        image_uploaded=True
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Error in updating the image_uploaded field in SatelliteCaptureCatalog: {str(e)}"
-                    )
+                return s3_url
             except Exception as e:
-                logger.error(f"Error in Blacksky Vendor View: {str(e)}")
+                logger.error(f"Error processing feature Blacksky {feature_id}: {str(e)}")
+                return None
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_feature = {executor.submit(process_feature, feature_id): feature_id for feature_id in ids}
+            for future in as_completed(future_to_feature):
+                try:
+                    result = future.result()
+                    if result:
+                        final_images.append(result)
+                except Exception as e:
+                    logger.error(f"Error in future processing Blacksky: {str(e)}")
 
         return {
+            "vendor": "blacksky",
             "data": final_images,
             "status_code": 200,
         }
     except Exception as e:
         logger.error(f"Error in Blacksky Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "blacksky"}
 
 
 def get_planet_record_images_by_ids(ids: List[str]):
@@ -159,38 +188,50 @@ def get_planet_record_images_by_ids(ids: List[str]):
             "Content-Type": "application/json",
             "Authorization": "api-key " + PLANET_API_KEY,
         }
-        all_features = []
-        for item_id in ids:
-            search_endpoint = (
-                f"https://api.planet.com/data/v1/item-types/{item_type}/items/{item_id}"
-            )
+        def process_item(item_id):
             try:
+                # Fetch the item details
+                search_endpoint = (
+                    f"https://api.planet.com/data/v1/item-types/{item_type}/items/{item_id}"
+                )
                 response = requests.get(search_endpoint, headers=headers)
                 response.raise_for_status()
-                response_json = response.json()
-                all_features.append(response_json)
-            except Exception as e:
-                logger.error(f"Error in Planet Vendor View: {str(e)}")
-        for feature in all_features:
-            feature_id = feature.get("id")
-            try:
+                feature = response.json()
+
+                # Extract feature ID and upload to S3
+                feature_id = feature.get("id")
                 url = planet_upload_to_s3(feature, "planet")
+                
+                # Update the database
                 if url:
                     SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
                         image_uploaded=True
                     )
+                return url
             except Exception as e:
-                logger.error(
-                    f"Error in updating the image_uploaded field in SatelliteCaptureCatalog: {str(e)}"
-                )
+                logger.error(f"Error processing Planet item {item_id}: {str(e)}")
+                return None
+
+        # Use ThreadPoolExecutor for concurrent processing
+        final_urls = []
+        with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust max_workers as needed
+            future_to_item = {executor.submit(process_item, item_id): item_id for item_id in ids}
+            for future in as_completed(future_to_item):
+                try:
+                    result = future.result()
+                    if result:
+                        final_urls.append(result)
+                except Exception as e:
+                    logger.error(f"Error in future processing Planet: {str(e)}")
 
         return {
-            "data": "Planet record images successfully retrieved.",
+            "vendor": "planet",
+            "data": final_urls,
             "status_code": 200,
         }
     except Exception as e:
         logger.error(f"Error in Planet Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "planet"}
 
 
 def get_capella_record_images_by_ids(ids: List[str]):
@@ -214,30 +255,47 @@ def get_capella_record_images_by_ids(ids: List[str]):
         response.raise_for_status()
         response_json = response.json()
         all_features = []
+        final_urls = []
         if response_json.get("features"):
             all_features = response_json.get("features")
-            for feature in all_features:
-                feature_id = feature.get("id")
-                record = {
-                    "id": feature_id,
-                    "thumbnail_url": feature.get("assets", {})
-                    .get("thumbnail", {})
-                    .get("href"),
-                }
+            def process_feature(feature):
                 try:
+                    feature_id = feature.get("id")
+                    thumbnail_url = feature.get("assets", {}).get("thumbnail", {}).get("href")
+                    if not thumbnail_url:
+                        logger.error(f"No thumbnail URL found for feature {feature_id}")
+                        return None
+
+                    # Upload to S3
+                    record = {"id": feature_id, "thumbnail_url": thumbnail_url}
                     url = capella_upload_to_s3(record, "capella")
+
+                    # Update database
                     if url:
-                        SatelliteCaptureCatalog.objects.filter(
-                            vendor_id=feature_id
-                        ).update(image_uploaded=True)
+                        SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
+                            image_uploaded=True
+                        )
+                    return url
                 except Exception as e:
-                    logger.error(
-                        f"Error in updating the image_uploaded field in SatelliteCaptureCatalog: {str(e)}"
-                    )
+                    logger.error(f"Error processing feature {feature.get('id')}: {str(e)}")
+                    return None
+
+            # Use ThreadPoolExecutor for concurrent processing
+            
+            with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust max_workers as needed
+                future_to_feature = {executor.submit(process_feature, feature): feature for feature in all_features}
+                for future in as_completed(future_to_feature):
+                    try:
+                        result = future.result()
+                        if result:
+                            final_urls.append(result)
+                    except Exception as e:
+                        logger.error(f"Error in future processing: {str(e)}")
         return {
-            "data": "Capella record images successfully retrieved.",
+            "vendor": "capella",
+            "data": final_urls,
             "status_code": 200,
         }
     except Exception as e:
         logger.error(f"Error in Capella Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}

@@ -185,7 +185,6 @@ class GetPinSelectionAnalyticsAndLocation(APIView):
     @extend_schema(
         description="Get pin selection analytics and location.",
         request=PinSelectionAnalyticsAndLocationSerializer,
-        parameters=pin_selection_analytics_and_location_params,
         responses={
             200: OpenApiResponse(
                 description="Pin selection analytics and location successfully retrieved.",
@@ -202,7 +201,6 @@ class GetPinSelectionAnalyticsAndLocation(APIView):
             latitude = request.data.get("latitude", None)
             longitude = request.data.get("longitude", None)
             distance = request.data.get("distance", None)
-            duration = int(request.query_params.get("duration", 1))
 
             if not latitude or not longitude or not distance:
                 return Response(
@@ -214,10 +212,10 @@ class GetPinSelectionAnalyticsAndLocation(APIView):
                 )
 
             logger.info(
-                f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}, Duration: {duration}"
+                f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}"
             )
             service_response = get_pin_selection_analytics_and_location(
-                latitude=latitude, longitude=longitude, distance=distance, duration=duration
+                latitude=latitude, longitude=longitude, distance=distance
             )
 
             if service_response["status_code"] != 200:

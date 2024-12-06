@@ -232,3 +232,7 @@ LOGGING = {
 
 CORS_ALLOW_ALL_ORIGINS = True
 APPEND_SLASH = False
+
+
+# Environment variables
+GOOGLE_MAPS_API_KEY = config("GOOGLE_MAPS_API_KEY")

@@ -23,3 +23,10 @@ class PinSelectionAnalyticsAndLocationSerializer(serializers.Serializer):
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
     distance = serializers.FloatField()
+
+class NewestInfoSerializer(serializers.Serializer):
+    # id, vendor, vendor_id, acquisition_datetime, cloud_coverage
+    id = serializers.CharField()
+    vendor_name = serializers.CharField()
+    vendor_id = serializers.CharField()
+    acquisition_datetime = serializers.DateTimeField()

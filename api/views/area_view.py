@@ -280,3 +280,102 @@ class GetPolygonSelectionAnalyticsAndLocation(APIView):
         except Exception as e:
             logger.error(f"Error in Polygon Selection Analytics and Location View: {str(e)}")
             return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+        
+class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Get polygon selection calender days frequency.",
+        request=PolygonSelectionAnalyticsAndLocationSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Polygon selection calender days frequency successfully retrieved.",
+            ),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Satellite Capture"],
+    )
+
+    def post(self, request, *args, **kwargs):
+        logger.info("Inside Post method of Polygon Selection Calender Days Frequency View")
+        try:
+            polygon_wkt = request.data.get("polygon_wkt", None)
+            if not polygon_wkt:
+                return Response(
+                    {
+                        "data": "WKT Polygon is required",
+                        "status_code": 400,
+                    },
+                    status=400,
+                )
+
+            logger.info(f"WKT Polygon: {polygon_wkt}")
+            service_response = get_polygon_selection_acquisition_calender_days_frequency(
+                polygon_wkt=polygon_wkt
+            )
+
+            if service_response["status_code"] != 200:
+                return Response(
+                    service_response, status=service_response["status_code"]
+                )
+
+            logger.info("Polygon Selection Calender Days Frequency View response")
+            return Response(
+                {"data": service_response["data"], "status_code": 200}
+            )
+        except Exception as e:
+            logger.error(f"Error in Polygon Selection Calender Days Frequency View: {str(e)}")
+            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+        
+class GetPinSelectionAcquisitionCalenderDaysFrequencyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Get pin selection calender days frequency.",
+        request=PinSelectionAnalyticsAndLocationSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Pin selection calender days frequency successfully retrieved.",
+            ),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Satellite Capture"],
+    )
+
+    def post(self, request, *args, **kwargs):
+        logger.info("Inside Post method of Pin Selection Calender Days Frequency View")
+        try:
+            latitude = request.data.get("latitude", None)
+            longitude = request.data.get("longitude", None)
+            distance = request.data.get("distance", None)
+
+            if not latitude or not longitude or not distance:
+                return Response(
+                    {
+                        "data": "Latitude, Longitude, and Distance are required",
+                        "status_code": 400,
+                    },
+                    status=400,
+                )
+
+            logger.info(
+                f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}"
+            )
+            service_response = get_pin_selection_acquisition_calender_days_frequency(
+                latitude=latitude, longitude=longitude, distance=distance
+            )
+
+            if service_response["status_code"] != 200:
+                return Response(
+                    service_response, status=service_response["status_code"]
+                )
+
+            logger.info("Pin Selection Calender Days Frequency View response")
+            return Response(
+                {"data": service_response["data"], "status_code": 200}
+            )
+        except Exception as e:
+            logger.error(f"Error in Pin Selection Calender Days Frequency View: {str(e)}")
+            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)

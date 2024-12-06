@@ -380,3 +380,106 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         traceback.print_exc()
         logger.error(f"Error fetching pin selection analytics and location: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500}
+    
+
+def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt):
+    """
+    Retrieve the frequency of image captures for each calendar day in the selected area.
+
+    This function calculates the frequency of image captures for each calendar day within the 
+    selected area using the WKT polygon representation. The function returns a dictionary with 
+    the date as the key and the count of images captured on that date as the value.
+
+    Args:
+        polygon_wkt (str): WKT representation of the selected area polygon.
+
+    Returns:
+        dict: A dictionary containing the frequency of image captures for each calendar day.
+    """
+    try:
+        logger.info("Inside get polygon selection calendar days frequency service")
+        func_start_time = now()
+
+        # Convert the WKT string to a Polygon object
+        polygon = fromstr(polygon_wkt)
+
+        logger.info(f"Polygon WKT: {polygon_wkt}")
+
+        # Fetch the records within the selected area
+        records = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=polygon
+        ).order_by("acquisition_datetime")
+
+        # Calculate the frequency of image captures for each calendar day
+        frequency_data = {}
+        for record in records:
+            date = record.acquisition_datetime.date()
+            frequency_data[date.strftime("%Y-%m-%d")] = frequency_data.get(date, 0) + 1
+
+        func_end_time = now()
+        net_time = func_end_time - func_start_time
+        logger.info(f"Time taken to fetch polygon selection calendar days frequency: {net_time}")
+
+        return {
+            "data": frequency_data,
+            "time_taken": str(net_time),
+            "status_code": 200,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        logger.error(f"Error fetching polygon selection calendar days frequency: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500}
+
+def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, distance):
+    """
+    Retrieve the frequency of image captures for each calendar day around the selected pin.
+
+    This function calculates the frequency of image captures for each calendar day within the 
+    selected area around the pin location. The function returns a dictionary with the date as the 
+    key and the count of images captured on that date as the value.
+
+    Args:
+        latitude (float): Latitude of the selected pin.
+        longitude (float): Longitude of the selected pin.
+        distance (float): The radius in kilometers around the selected pin for which the frequency is calculated.
+
+    Returns:
+        dict: A dictionary containing the frequency of image captures for each calendar day.
+    """
+    try:
+        logger.info("Inside get pin selection calendar days frequency service")
+        func_start_time = now()
+
+        point = Point(longitude, latitude, srid=4326)
+        buffered_polygon = point.buffer(distance / 111.32)
+
+        logger.info(f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}")
+
+        # Fetch the records within the selected area
+        records = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=buffered_polygon
+        ).order_by("acquisition_datetime")
+
+        # Calculate the frequency of image captures for each calendar day
+        frequency_data = {}
+        for record in records:
+            date = record.acquisition_datetime.date()
+            frequency_data[date.strftime("%Y-%m-%d")] = frequency_data.get(date, 0) + 1
+
+        func_end_time = now()
+        net_time = func_end_time - func_start_time
+        logger.info(f"Time taken to fetch pin selection calendar days frequency: {net_time}")
+
+        return {
+            "data": frequency_data,
+            "time_taken": str(net_time),
+            "status_code": 200,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        logger.error(f"Error fetching pin selection calendar days frequency: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500}

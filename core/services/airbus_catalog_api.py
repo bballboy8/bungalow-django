@@ -156,7 +156,7 @@ def upload_to_s3(feature, folder="thumbnails"):
         # response_geotiff = geotiff_conversion_and_s3_upload(
         #     content, filename, "airbus/geotiffs", feature.get("geometry")
         # )
-        return True
+        return response_url
 
     except requests.exceptions.RequestException as e:
         print(f"Failed to download {url}: {e}")

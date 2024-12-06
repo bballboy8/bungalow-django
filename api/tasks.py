@@ -1,33 +1,45 @@
 # api/tasks.py
 from celery import shared_task
 from api.services.vendor_service import *
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 @shared_task
 def run_image_seeder(captures):
     try:
         final_output = []
-        if captures.get("blacksky"):
-            blacksky_captures = captures.get("blacksky")
-            get_blacksky_record_images_by_ids(blacksky_captures)
-            final_output.append({"message": "Blacksky images seeded successfully", "ids": blacksky_captures})
-        if captures.get("maxar"):
-            maxar_captures = captures.get("maxar")
-            get_maxar_record_images_by_ids(maxar_captures)
-            final_output.append({"message": "Maxar images seeded successfully", "ids": maxar_captures})
-        if captures.get("airbus"):
-            airbus_captures = captures.get("airbus")
-            get_airbus_record_images_by_ids(airbus_captures)
-            final_output.append({"message": "Airbus images seeded successfully", "ids": airbus_captures})
-        if captures.get("planet"):
-            planet_captures = captures.get("planet")
-            get_planet_record_images_by_ids(planet_captures)
-            final_output.append({"message": "Planet images seeded successfully", "ids": planet_captures})
-        if captures.get("capella"):
-            capella_captures = captures.get("capella")
-            get_capella_record_images_by_ids(capella_captures)
-            final_output.append({"message": "Capella images seeded successfully", "ids": capella_captures})
+        futures = []
+        vendor_map = {
+            "blacksky": get_blacksky_record_images_by_ids,
+            "maxar": get_maxar_record_images_by_ids,
+            "airbus": get_airbus_record_images_by_ids,
+            "planet": get_planet_record_images_by_ids,
+            "capella": get_capella_record_images_by_ids,
+        }
+        
+        # Define a thread pool
+        with ThreadPoolExecutor(max_workers=5) as executor:  # Adjust max_workers as needed
+            for vendor, func in vendor_map.items():
+                if captures.get(vendor):
+                    capture_ids = captures.get(vendor)
+                    futures.append(
+                        executor.submit(func, capture_ids)
+                    )
+                    final_output.append({
+                        "vendor": vendor,
+                        "message": f"{vendor.capitalize()} images seeding initiated",
+                        "ids": capture_ids
+                    })
+            
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    final_output.append({
+                        "details": result
+                    })
+                except Exception as e:
+                    final_output.append({"error": str(e)})
         
         return final_output
     except Exception as e:
-        return f"{str(e)}"
+        return f"Error occurred: {str(e)}"

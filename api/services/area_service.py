@@ -158,7 +158,7 @@ def calculate_percentage_change(current_count, previous_count):
         return ((current_count - previous_count) / previous_count) * 100
     return 0
 
-def calculate_counts_and_percentages(days, buffered_polygon, longest_period_start):
+def calculate_counts_and_percentages(days, buffered_polygon):
     """Function to calculate counts and percentages for a specific duration."""
     start_time = now() - timedelta(days=days)
     current_count = SatelliteCaptureCatalog.objects.filter(
@@ -247,7 +247,7 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
         results = {}
         with ThreadPoolExecutor() as executor:
             future_to_duration = {
-                executor.submit(calculate_counts_and_percentages, days, buffered_polygon, longest_period_start): days
+                executor.submit(calculate_counts_and_percentages, days, buffered_polygon): days
                 for days in durations
             }
             for future in future_to_duration:
@@ -258,12 +258,20 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
             location_polygon__intersects=buffered_polygon
         ).order_by("acquisition_datetime").last()
 
+        # newest clear cloud cover info means cloud cover is 0 also there are null values in cloud cover
+
+        newest_clear_cloud_cover_instance = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=buffered_polygon,
+            cloud_cover__lte=0
+        ).order_by("-acquisition_datetime").first()
+
         analytics = {
             "total_count": sum(result["current_count"] for result in results.values()),
             "average_per_day": sum(result["current_count"] for result in results.values()) /
                                (now() - longest_period_start).days,
             "oldest_date": longest_period_start,
             "newest_info": NewestInfoSerializer(newest_record_instance).data if newest_record_instance else None,
+            "newest_clear_cloud_cover_info": NewestInfoSerializer(newest_clear_cloud_cover_instance).data if newest_clear_cloud_cover_instance else None,
             "address": address_response["data"],
             "percentages": results
         }

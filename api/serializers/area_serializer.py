@@ -30,3 +30,4 @@ class NewestInfoSerializer(serializers.Serializer):
     vendor_name = serializers.CharField()
     vendor_id = serializers.CharField()
     acquisition_datetime = serializers.DateTimeField()
+    cloud_cover = serializers.FloatField()

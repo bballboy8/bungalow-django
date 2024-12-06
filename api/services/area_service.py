@@ -13,6 +13,9 @@ from core.services.utils import calculate_area_from_geojson
 from api.serializers.area_serializer import NewestInfoSerializer
 from decouple import config
 import requests
+from django.utils.timezone import now
+from concurrent.futures import ThreadPoolExecutor
+
 
 
 def convert_geojson_to_wkt(geometry):
@@ -149,84 +152,126 @@ def get_address_from_lat_long_via_google_maps(latitude: float, longitude: float)
         logger.error(f"Error fetching address from latitude and longitude: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500}
 
+def calculate_percentage_change(current_count, previous_count):
+    """Helper to calculate percentage change."""
+    if previous_count > 0:
+        return ((current_count - previous_count) / previous_count) * 100
+    return 0
 
+def calculate_counts_and_percentages(days, buffered_polygon, longest_period_start):
+    """Function to calculate counts and percentages for a specific duration."""
+    start_time = now() - timedelta(days=days)
+    current_count = SatelliteCaptureCatalog.objects.filter(
+        location_polygon__intersects=buffered_polygon,
+        acquisition_datetime__gte=start_time
+    ).count()
 
-def get_pin_selection_analytics_and_location(latitude: float, longitude: float, distance: float, duration: int = 1):
+    previous_duration_start = start_time - timedelta(days=days)
+    previous_count = SatelliteCaptureCatalog.objects.filter(
+        location_polygon__intersects=buffered_polygon,
+        acquisition_datetime__gte=previous_duration_start,
+        acquisition_datetime__lt=start_time
+    ).count()
+    percentage_change = calculate_percentage_change(current_count, previous_count)
+    return days, current_count, previous_count,  percentage_change
+
+def get_pin_selection_analytics_and_location(latitude, longitude, distance):
     """
-    Get the analytics and location of the selected pin.
+    Retrieve analytics and location information for a selected pin.
+
+    This function fetches analytics such as the oldest and newest images, the total 
+    count of images, the average number of images captured per day, and the percentage 
+    change in the number of images captured for the selected area over various durations. 
+    The durations include 1 day, 4 days, 30 days, 60 days, 90 days, and 180 days.
 
     Args:
         latitude (float): Latitude of the selected pin.
         longitude (float): Longitude of the selected pin.
-        distance (float): Distance in kilometers.
+        distance (float): The radius in kilometers around the selected pin for which 
+                          analytics are calculated.
 
     Returns:
-        dict: A dictionary containing analytics and location data.
+        dict: A dictionary containing:
+            - `analytics` (dict): Includes the following:
+                - `total_count` (int): Total number of images captured in the selected area.
+                - `average_per_day` (float): Average number of images captured per day.
+                - `oldest_date` (datetime): Acquisition date of the oldest image in the area.
+                - `newest_info` (dict): Serialized data for the newest image in the area.
+                - `address` (str): The address of the selected location obtained via Google Maps API.
+                - `percentages` (dict): Contains percentage change and counts for each duration:
+                    - `key` (str): Duration (e.g., "1", "4", "30", "60", "90"").
+                    - `percentage_change` (float): Percentage change in the number of images.
+                    - `current_count` (int): Count of images captured in the current duration.
+                    - `previous_count` (int): Count of images captured in the previous duration.
+            - `time_taken` (str): The total time taken to execute the function.
+        dict: Error response with a `status_code` and error message if the process fails.
+
+    Raises:
+        Exception: If any unexpected errors occur during the execution.
+
+    Percentage Calculation:
+        The percentage change is calculated as:
+        
+            Percentage Change = ((Current Count - Previous Count) / Previous Count) * 100
+
+        Where:
+            - `Current Count`: The number of images captured in the selected duration.
+            - `Previous Count`: The number of images captured in the equivalent previous duration.
+
+        If `Previous Count` is zero, the percentage change is set to 0 to avoid division errors.
     """
     try:
-        # Required oldest date, new date, Total count of images, Average per day
         logger.info("Inside get pin selection analytics and location service")
-        func_start_time = datetime.now()
+        func_start_time = now()
 
         point = Point(longitude, latitude, srid=4326)
-        buffered_polygon = point.buffer(distance / 111.32)  
+        buffered_polygon = point.buffer(distance / 111.32)
 
+        logger.info(f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}")
 
-        logger.info(f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}, Duration: {duration}")
-
-        # Get address from latitude and longitude
         address_response = get_address_from_lat_long_via_google_maps(latitude, longitude)
         if address_response["status_code"] != 200:
             return address_response
 
-        start_time = datetime.now() - timedelta(days=duration)
-        percentage_change_calcuation_time = start_time - timedelta(days=duration)
+        # Determine the oldest record start time
+        oldest_record_instance = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=buffered_polygon
+        ).order_by("acquisition_datetime").first()
 
-        captures = SatelliteCaptureCatalog.objects.filter(
-                location_polygon__intersects=buffered_polygon,
-                acquisition_datetime__gte=start_time
-            )
-        
-        # Calculate percentage change
-        percentage_change_captures = SatelliteCaptureCatalog.objects.filter(
-            location_polygon__intersects=buffered_polygon,
-            acquisition_datetime__gte=percentage_change_calcuation_time
-        )
+        longest_period_start = oldest_record_instance.acquisition_datetime if oldest_record_instance else None
+        if not longest_period_start:
+            return {"data": "No records found for the given location", "status_code": 404}
 
+        # Multithreaded calculation of counts and percentages
+        durations = [1, 4, 30, 60, 90, 180]
+        results = {}
+        with ThreadPoolExecutor() as executor:
+            future_to_duration = {
+                executor.submit(calculate_counts_and_percentages, days, buffered_polygon, longest_period_start): days
+                for days in durations
+            }
+            for future in future_to_duration:
+                days, current_count, previous_count, percentage_change = future.result()
+                results[days] = {"current_count": current_count, "previous_count": previous_count, "percentage_change": percentage_change }
 
-        percentage = 0
+        newest_record_instance = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=buffered_polygon
+        ).order_by("acquisition_datetime").last()
 
-        net_count = captures.count()
         analytics = {
-            "count": net_count,
-            "average_per_day": net_count / duration,
-            "oldest_date": None,
-            "newest_info": None,
-            "address": address_response["data"]
+            "total_count": sum(result["current_count"] for result in results.values()),
+            "average_per_day": sum(result["current_count"] for result in results.values()) /
+                               (now() - longest_period_start).days,
+            "oldest_date": longest_period_start,
+            "newest_info": NewestInfoSerializer(newest_record_instance).data if newest_record_instance else None,
+            "address": address_response["data"],
+            "percentages": results
         }
 
-        percentage_change_count = percentage_change_captures.count()
-        if percentage_change_count > 0:
-            percentage = ((net_count - percentage_change_count) / percentage_change_count) * 100
-
-        analytics["percentage_change"] = percentage
-
-        oldest_record_instance = captures.order_by("acquisition_datetime").first()
-        if oldest_record_instance:
-            analytics["oldest_date"] = oldest_record_instance.acquisition_datetime
-        
-
-        newest_record_instance = captures.order_by("acquisition_datetime").last()
-        if newest_record_instance:
-            serializer = NewestInfoSerializer(newest_record_instance)
-            analytics["newest_info"] = serializer.data
-
-
-        func_end_time = datetime.now()
+        func_end_time = now()
         net_time = func_end_time - func_start_time
         logger.info(f"Time taken to fetch pin selection analytics and location: {net_time}")
 
-        logger.info("Pin selection analytics and location fetched successfully")
         return {
             "data": {"analytics": analytics, "time_taken": str(net_time)},
             "status_code": 200,

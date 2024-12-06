@@ -47,7 +47,7 @@ class GeoJSONToWKTView(APIView):
 
             logger.info("GeoJSON to WKT View response")
             return Response(
-                {"data": {"wkt_polygon": service_response["data"]}, "status_code": 200}
+                {"data": {"wkt_polygon": service_response["data"], "area": service_response["area"]}, "status_code": 200}
             )
         except Exception as e:
             logger.error(f"Error in GeoJSON to WKT View: {str(e)}")

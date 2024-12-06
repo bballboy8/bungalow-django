@@ -9,7 +9,7 @@ from django.db.models import Q
 from core.utils import s3, bucket_name
 from typing import List
 from datetime import datetime, timedelta
-
+from core.services.utils import calculate_area_from_geojson
 
 
 def convert_geojson_to_wkt(geometry):
@@ -19,9 +19,14 @@ def convert_geojson_to_wkt(geometry):
             polygon = shape(geometry)
         except Exception as e:
             return {"data": f"Invalid GeoJSON: {str(e)}", "status_code": 400}
+        
+        try:
+            area = calculate_area_from_geojson(geometry, "geojson_to_wkt")
+        except Exception as e:
+            return {"data": f"Error calculating area from GeoJSON: {str(e)}", "status_code": 400}
 
         logger.info("GeoJSON converted to WKT successfully")
-        return {"data": polygon.wkt, "status_code": 200}
+        return {"data": polygon.wkt, "area": area, "status_code": 200}
     except Exception as e:
         logger.error(f"Error converting GeoJSON to WKT: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 400}

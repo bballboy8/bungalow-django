@@ -325,32 +325,39 @@ def generate_land_grids(shapefile_path):
     
     return land_grids
 
-from shapely.geometry import Polygon
-from pyproj import Transformer
+from shapely.geometry import Polygon, shape
+from pyproj import Transformer, CRS
 def calculate_area_from_geojson(geojson, id):
     """
     Calculates the area of a polygon given in GeoJSON format.
-    
+
     Parameters:
         geojson (dict): GeoJSON dictionary with a Polygon type geometry.
-        
+        id (str or int): Identifier for logging/debugging.
+
     Returns:
         float: Area in square meters.
     """
     try:
-        coordinates = geojson["coordinates"][0]
-        
-        polygon = Polygon(coordinates)
-        
-        transformer = Transformer.from_crs("epsg:4326", "epsg:32756", always_xy=True)
-        
-        utm_coords = [transformer.transform(lon, lat) for lon, lat in polygon.exterior.coords]
+        polygon = shape(geojson)  
+
+        # Determine UTM zone dynamically based on the polygon centroid
+        lon, lat = polygon.centroid.x, polygon.centroid.y
+        utm_zone = int((lon + 180) / 6) + 1
+        is_southern = lat < 0
+        utm_crs = CRS.from_proj4(f"+proj=utm +zone={utm_zone} +{'south' if is_southern else 'north'} +datum=WGS84 +units=m +no_defs")
+
+        # Transformer to reproject to the appropriate UTM zone
+        transformer = Transformer.from_crs("epsg:4326", utm_crs, always_xy=True)
+
+        # Transform coordinates to UTM
+        utm_coords = [transformer.transform(x, y) for x, y in polygon.exterior.coords]
         utm_polygon = Polygon(utm_coords)
-        
-        # Calculate the area in square meters
+
+        # Calculate and return the area in square meters
         area_sq_m = utm_polygon.area
-        
         return area_sq_m
+
     except Exception as e:
-        print(f"Error calculating area: {e} for id: {id}")
+        print(f"Error calculating area for id {id}: {e}")
         return 0

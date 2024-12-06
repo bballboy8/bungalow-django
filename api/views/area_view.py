@@ -253,7 +253,7 @@ class GetPolygonSelectionAnalyticsAndLocation(APIView):
     def post(self, request, *args, **kwargs):
         logger.info("Inside Post method of Polygon Selection Analytics and Location View")
         try:
-            polygon_wkt = request.data.get("wkt_polygon", None)
+            polygon_wkt = request.data.get("polygon_wkt", None)
             if not polygon_wkt:
                 return Response(
                     {

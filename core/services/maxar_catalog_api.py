@@ -99,7 +99,6 @@ def upload_to_s3(feature, folder="thumbnails"):
     """Downloads an image from the URL in the feature and uploads it to S3."""
     try:
         headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
-        print(headers, "upload s3 headers")
         url = feature.get("assets", {}).get("browse", {}).get("href")
         response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
         response.raise_for_status()

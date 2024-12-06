@@ -57,7 +57,7 @@ def get_satellite_records(
         if end_date:
             filters &= Q(acquisition_datetime__lte=end_date)
 
-        captures = captures.filter(filters).order_by('acquisition_datetime')
+        captures = captures.filter(filters).order_by('-acquisition_datetime')
 
         paginator = Paginator(captures, page_size)
         page = paginator.get_page(page_number)

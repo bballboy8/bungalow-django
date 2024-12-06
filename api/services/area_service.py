@@ -171,7 +171,6 @@ def get_pin_selection_analytics_and_location(latitude: float, longitude: float, 
         point = Point(longitude, latitude, srid=4326)
         buffered_polygon = point.buffer(distance / 111.32)  
 
-        start_time = datetime.now() - timedelta(days=duration)
 
         logger.info(f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}, Duration: {duration}")
 
@@ -180,18 +179,37 @@ def get_pin_selection_analytics_and_location(latitude: float, longitude: float, 
         if address_response["status_code"] != 200:
             return address_response
 
+        start_time = datetime.now() - timedelta(days=duration)
+        percentage_change_calcuation_time = start_time - timedelta(days=duration)
+
         captures = SatelliteCaptureCatalog.objects.filter(
                 location_polygon__intersects=buffered_polygon,
                 acquisition_datetime__gte=start_time
             )
+        
+        # Calculate percentage change
+        percentage_change_captures = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=buffered_polygon,
+            acquisition_datetime__gte=percentage_change_calcuation_time
+        )
 
+
+        percentage = 0
+
+        net_count = captures.count()
         analytics = {
-            "count": captures.count(),
-            "average_per_day": captures.count() / duration,
+            "count": net_count,
+            "average_per_day": net_count / duration,
             "oldest_date": None,
             "newest_info": None,
             "address": address_response["data"]
         }
+
+        percentage_change_count = percentage_change_captures.count()
+        if percentage_change_count > 0:
+            percentage = ((net_count - percentage_change_count) / percentage_change_count) * 100
+
+        analytics["percentage_change"] = percentage
 
         oldest_record_instance = captures.order_by("acquisition_datetime").first()
         if oldest_record_instance:

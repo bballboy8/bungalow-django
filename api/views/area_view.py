@@ -81,6 +81,7 @@ class SatelliteCaptureCatalogView(APIView):
             latitude = int(request.query_params.get("latitude", 0))
             longitude = int(request.query_params.get("longitude", 0))
             distance = int(request.query_params.get("distance", 0))
+            source = request.query_params.get("source", "home")
 
             # Request body
             wkt_polygon = request.data.get("wkt_polygon", None)
@@ -110,8 +111,9 @@ class SatelliteCaptureCatalogView(APIView):
             )
             data = serializer.data
             # Non-blocking function call using Celery
-            grouped_data = group_by_vendor(data)
-            run_image_seeder.delay(grouped_data)
+            if source != "home":
+                grouped_data = group_by_vendor(data)
+                run_image_seeder.delay(grouped_data)
             
             logger.info("Satellite Capture Catalog View response")
             return Response(

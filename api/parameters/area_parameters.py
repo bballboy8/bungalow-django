@@ -2,6 +2,13 @@ from drf_spectacular.utils import OpenApiParameter
 
 satellite_capture_catalog_params = [
     OpenApiParameter(
+        name="source",
+        type=str,
+        default="home",
+        location=OpenApiParameter.QUERY,
+        description="Source of the request. Default is home.",
+    ),
+    OpenApiParameter(
         name="page_number",
         type=int,
         default=1,

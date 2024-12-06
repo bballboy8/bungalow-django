@@ -11,6 +11,8 @@ from typing import List
 from datetime import datetime, timedelta
 from core.services.utils import calculate_area_from_geojson
 from api.serializers.area_serializer import NewestInfoSerializer
+from decouple import config
+import requests
 
 
 def convert_geojson_to_wkt(geometry):
@@ -122,6 +124,33 @@ def group_by_vendor(data):
     return grouped_data
 
 
+
+def get_address_from_lat_long_via_google_maps(latitude: float, longitude: float):
+    """
+    Get the address from latitude and longitude using Google Maps API.
+
+    Args:
+        latitude (float): Latitude of the location.
+        longitude (float): Longitude of the location.
+
+    Returns:
+        dict: A dictionary containing address data.
+    """
+    logger.info("Inside get address from latitude and longitude service")
+    try:
+        maps_api_key = config("GOOGLE_MAPS_API_KEY")
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={latitude},{longitude}&key={maps_api_key}"
+        response = requests.get(url)
+        response_data = response.json()
+        address = response_data.get("results")[0].get("formatted_address")
+        logger.info("Address fetched successfully")
+        return {"data": address, "status_code": 200}
+    except Exception as e:
+        logger.error(f"Error fetching address from latitude and longitude: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500}
+
+
+
 def get_pin_selection_analytics_and_location(latitude: float, longitude: float, distance: float, duration: int = 1):
     """
     Get the analytics and location of the selected pin.
@@ -146,6 +175,11 @@ def get_pin_selection_analytics_and_location(latitude: float, longitude: float, 
 
         logger.info(f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}, Duration: {duration}")
 
+        # Get address from latitude and longitude
+        address_response = get_address_from_lat_long_via_google_maps(latitude, longitude)
+        if address_response["status_code"] != 200:
+            return address_response
+
         captures = SatelliteCaptureCatalog.objects.filter(
                 location_polygon__intersects=buffered_polygon,
                 acquisition_datetime__gte=start_time
@@ -155,7 +189,8 @@ def get_pin_selection_analytics_and_location(latitude: float, longitude: float, 
             "count": captures.count(),
             "average_per_day": captures.count() / duration,
             "oldest_date": None,
-            "newest_info": None
+            "newest_info": None,
+            "address": address_response["data"]
         }
 
         oldest_record_instance = captures.order_by("acquisition_datetime").first()

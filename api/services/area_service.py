@@ -15,6 +15,8 @@ from decouple import config
 import requests
 from django.utils.timezone import now
 from concurrent.futures import ThreadPoolExecutor
+from django.contrib.gis.geos import fromstr
+
 
 
 
@@ -291,3 +293,90 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
         logger.error(f"Error fetching pin selection analytics and location: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500}
     
+
+def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
+    """
+    Retrieve analytics and location information for a selected area using WKT polygon.
+
+    This function fetches analytics such as the oldest and newest images, the total 
+    count of images, the average number of images captured per day, and the percentage 
+    change in the number of images captured for the selected area over various durations. 
+    The durations include 1 day, 4 days, 30 days, 60 days, 90 days, and 180 days.
+
+    Args:
+        polygon_wkt (str): WKT representation of the selected area polygon.
+
+    Returns:
+        dict: A dictionary containing analytics and location details, or error details.
+    """
+    try:
+        logger.info("Inside get pin selection analytics and location service with WKT input")
+        func_start_time = now()
+
+        # Convert the WKT string to a Polygon object
+        polygon = fromstr(polygon_wkt)
+
+        logger.info(f"Polygon WKT: {polygon_wkt}")
+
+        # Fetch address if needed (you could use reverse geocoding here if applicable)
+        address_response = get_address_from_lat_long_via_google_maps(polygon.centroid.y, polygon.centroid.x)
+        if address_response["status_code"] != 200:
+            return address_response
+
+        # Determine the oldest record start time
+        oldest_record_instance = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=polygon
+        ).order_by("acquisition_datetime").first()
+
+        longest_period_start = oldest_record_instance.acquisition_datetime if oldest_record_instance else None
+        if not longest_period_start:
+            return {"data": "No records found for the given location", "status_code": 404}
+
+        # Multithreaded calculation of counts and percentages for various durations
+        durations = [1, 4, 30, 60, 90, 180]
+        results = {}
+        with ThreadPoolExecutor() as executor:
+            future_to_duration = {
+                executor.submit(calculate_counts_and_percentages, days, polygon): days
+                for days in durations
+            }
+            for future in future_to_duration:
+                days, current_count, previous_count, percentage_change = future.result()
+                results[days] = {"current_count": current_count, "previous_count": previous_count, "percentage_change": percentage_change}
+
+        # Get the newest image record (preferably clear cloud cover if available)
+        newest_record_instance = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=polygon
+        ).order_by("acquisition_datetime").last()
+
+        # Clear cloud cover info if available
+        newest_clear_cloud_cover_instance = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=polygon,
+            cloud_cover__lte=0
+        ).order_by("-acquisition_datetime").first()
+
+        # Prepare analytics data
+        analytics = {
+            "total_count": sum(result["current_count"] for result in results.values()),
+            "average_per_day": sum(result["current_count"] for result in results.values()) / (now() - longest_period_start).days,
+            "oldest_date": longest_period_start,
+            "newest_info": NewestInfoSerializer(newest_record_instance).data if newest_record_instance else None,
+            "newest_clear_cloud_cover_info": NewestInfoSerializer(newest_clear_cloud_cover_instance).data if newest_clear_cloud_cover_instance else None,
+            "address": address_response["data"],
+            "percentages": results
+        }
+
+        func_end_time = now()
+        net_time = func_end_time - func_start_time
+        logger.info(f"Time taken to fetch pin selection analytics and location: {net_time}")
+
+        return {
+            "data": {"analytics": analytics, "time_taken": str(net_time)},
+            "status_code": 200,
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        logger.error(f"Error fetching pin selection analytics and location: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500}

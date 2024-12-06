@@ -131,6 +131,7 @@ class SatelliteCaptureCatalogView(APIView):
 
 
 class GetSatelliteCapturedImageByIdAndVendorView(APIView):
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         description="""Get satellite capture images by their IDs and vendor Example.{
@@ -181,6 +182,7 @@ class GetSatelliteCapturedImageByIdAndVendorView(APIView):
 
 
 class GetPinSelectionAnalyticsAndLocation(APIView):
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         description="Get pin selection analytics and location.",
@@ -229,4 +231,52 @@ class GetPinSelectionAnalyticsAndLocation(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Pin Selection Analytics and Location View: {str(e)}")
+            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+        
+
+class GetPolygonSelectionAnalyticsAndLocation(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Get polygon selection analytics and location.",
+        request=PolygonSelectionAnalyticsAndLocationSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Polygon selection analytics and location successfully retrieved.",
+            ),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Satellite Capture"],
+    )
+
+    def post(self, request, *args, **kwargs):
+        logger.info("Inside Post method of Polygon Selection Analytics and Location View")
+        try:
+            polygon_wkt = request.data.get("polygon_wkt", None)
+            if not polygon_wkt:
+                return Response(
+                    {
+                        "data": "WKT Polygon is required",
+                        "status_code": 400,
+                    },
+                    status=400,
+                )
+
+            logger.info(f"WKT Polygon: {polygon_wkt}")
+            service_response = get_polygon_selection_analytics_and_location_wkt(
+                polygon_wkt=polygon_wkt
+            )
+
+            if service_response["status_code"] != 200:
+                return Response(
+                    service_response, status=service_response["status_code"]
+                )
+
+            logger.info("Polygon Selection Analytics and Location View response")
+            return Response(
+                {"data": service_response["data"], "status_code": 200}
+            )
+        except Exception as e:
+            logger.error(f"Error in Polygon Selection Analytics and Location View: {str(e)}")
             return Response({"data": f"{str(e)}", "status_code": 500}, status=500)

@@ -10,7 +10,8 @@ urlpatterns = [
     path("planet/add-images", PlanetVendorView.as_view(), name="planet-vendor"),
     path("blacksky/add-images", BlackskyVendorView.as_view(), name="blacksky-vendor"),
     path("capella/add-images", CapellaVendorView.as_view(), name="capella-vendor"),
-    path("get-selection-pin-analytics", GetPinSelectionAnalyticsAndLocation.as_view(), name="get-selection-pin-analytics"),
+    path("get-pin-selection-analytics", GetPinSelectionAnalyticsAndLocation.as_view(), name="get-selection-pin-analytics"),
+    path("get-polygon-selection-analytics", GetPolygonSelectionAnalyticsAndLocation.as_view(), name="get-selection-polygon-analytics"),
 
 
 ]

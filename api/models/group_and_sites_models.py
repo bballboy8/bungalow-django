@@ -13,6 +13,7 @@ class Site(models.Model):
     name = models.CharField(max_length=255, unique=True)
     location_polygon = models.PolygonField()
     coordinates_record = models.JSONField(null=True, blank=True)
+    site_area = models.FloatField(null=True, blank=True)
     site_type = models.CharField(
         max_length=10, choices=SITE_TYPE_CHOICES, default="Polygon"
     )
@@ -48,6 +49,7 @@ class GroupSite(plane_models.Model):
         Site, on_delete=plane_models.CASCADE, related_name="site_groups"
     )
     assigned_at = models.DateTimeField(default=now)
+    site_area = models.FloatField(null=True, blank=True)
 
     class Meta:
         unique_together = ("group", "site")

@@ -1,6 +1,8 @@
 from api.models.group_and_sites_models import *
 from logging_module import logger
-
+import shapely.wkt
+from pyproj import Geod
+from api.services.area_service import convert_geojson_to_wkt
 
 def get_all_sites():
     logger.info("Fetching all sites")
@@ -19,24 +21,6 @@ def get_all_sites():
         logger.error(f"Error fetching sites: {str(e)}")
         return {"data": [], "message": "Error fetching sites", "status_code": 500}
 
-
-def create_site(data):
-    logger.info("Creating site")
-    try:
-        site = Site.objects.create(
-            name=data.get("name"),
-            location_polygon=data.get("location_polygon"),
-            coordinates_record=data.get("coordinates_record"),
-        )
-        logger.info("Site created successfully")
-        return {
-            "data": site,
-            "message": "Site created successfully",
-            "status_code": 201,
-        }
-    except Exception as e:
-        logger.error(f"Error creating site: {str(e)}")
-        return {"data": None, "message": "Error creating site", "status_code": 500}
 
 
 def get_group_hierarchy_recursive(group_id):
@@ -79,9 +63,8 @@ def assign_site_to_group(group, site):
     """
     try:
         logger.info(f"Assigning site {site.name} to group {group.name}")
-        assignment = GroupSite.objects.create(group=group, site=site)
+        GroupSite.objects.create(group=group, site=site, site_area=site.site_area)
         return {
-            "data": assignment,
             "message": "Site assigned to group",
             "status_code": 200,
         }
@@ -114,3 +97,99 @@ def get_sites_in_group(group_id):
             "message": f"Error fetching sites for group: {str(e)}",
             "status_code": 500,
         }
+
+def get_subgroups_recursive(group):
+    """
+    Recursively retrieve all subgroups for a given group, including indirect subgroups.
+    """
+    subgroups = Group.objects.filter(parent=group)
+    all_subgroups = list(subgroups)
+    
+    # Recursively get subgroups of each subgroup
+    for subgroup in subgroups:
+        all_subgroups.extend(get_subgroups_recursive(subgroup))
+    
+    return all_subgroups
+
+    
+def total_surface_area_of_group_and_its_subgroups(group_id):
+    """
+    Calculate the total surface area of a group and its subgroups.
+    """
+    try:
+        logger.info(f"Calculating total surface area for group ID: {group_id}")
+        group = Group.objects.filter(id=group_id).first()
+        if not group:
+            return {"error": "Group not found", "status_code": 404}
+        
+        # Get all subgroups recursively
+        all_groups = [group] + get_subgroups_recursive(group)
+
+        # Now go through each group and calculate the total surface area
+        total_surface_area = 0
+        total_objects = 0
+        for group in all_groups:
+            sites = GroupSite.objects.filter(group=group)
+            for site in sites:
+                total_surface_area += site.site_area
+                site_coordinates = site.site.coordinates_record
+        
+        return {
+            "data": {"total_surface_area": total_surface_area},
+            "message": "Total surface area calculated successfully",
+            "status_code": 200,
+        }
+    except Exception as e:
+        logger.error(f"Error calculating total surface area: {str(e)}")
+        return {
+            "error": str(e),
+            "message": "Error calculating total surface area",
+            "status_code": 500,
+        }
+
+
+def get_parent_groups_with_details():
+    """
+    Get all parent groups with their details.
+    """
+    try:
+        logger.info("Fetching parent groups with details")
+        parent_groups = Group.objects.filter(parent=None)
+        groups = []
+        for group in parent_groups:
+            area_response = total_surface_area_of_group_and_its_subgroups(group.id)
+            groups.append(
+                {
+                    "id": group.id,
+                    "name": group.name,
+                    "created_at": group.created_at,
+                    "surface_area": area_response["data"]["total_surface_area"],
+                    "total_objects": 0,
+                }
+            )
+        return {
+            "data": groups,
+            "message": "Parent groups fetched successfully",
+            "status_code": 200,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching parent groups: {str(e)}")
+        return {
+            "data": [],
+            "message": f"Error fetching parent groups: {str(e)}",
+            "status_code": 500,
+        }
+    
+def get_area_from_geojson(geometry):
+    """
+    Calculate the area of a site from its GeoJSON coordinates record.
+    """
+    try:
+        response = convert_geojson_to_wkt(geometry)
+        geod = Geod(ellps="WGS84")
+        polygon = shapely.wkt.loads(response["data"])
+        area = round(abs(geod.geometry_area_perimeter(polygon)[0]) / 1000000.0, 2)
+        return {"area": area, "status_code": 200}
+    except Exception as e:
+        logger.error(f"Error calculating area from GeoJSON: {str(e)}")
+        return {"area": 0, "status_code": 500}

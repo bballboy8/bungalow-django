@@ -5,23 +5,85 @@ from pyproj import Geod
 from api.services.area_service import convert_geojson_to_wkt
 from core.models import SatelliteCaptureCatalog
 from django.contrib.gis.geos import Polygon
+from django.db.models import Count
+from datetime import datetime, timedelta
 
-def get_all_sites(user_id):
+def get_all_sites(user_id, name=None, page_number:int=1, per_page:int=10):
     logger.info("Fetching all sites")
     try:
-        sites = Site.objects.filter(user__id=user_id)
+
+        if name:
+            sites = Site.objects.filter(user__id=user_id, name__icontains=name)
+        else:
+            sites = Site.objects.filter(user__id=user_id)
+
         if not sites:
             logger.warning("No sites found")
             return {"data": [], "message": "No sites found", "status_code": 404}
+        
+        sites = sites.order_by("id")[(page_number - 1) * per_page : page_number * per_page]
+
+        final_sites = []
+
+        for site in sites:
+            coordinates = site.coordinates_record['coordinates'][0]
+            polygon = Polygon(coordinates)
+            captures = SatelliteCaptureCatalog.objects.filter(location_polygon__intersects=polygon)
+
+            count = captures.count()
+            recent = captures.order_by("-acquisition_datetime").first()
+            recent_clear = captures.filter(cloud_cover=0).order_by("-acquisition_datetime").first()
+
+            frequency = 0
+            recent_captures = captures.order_by("-acquisition_datetime")[:2]
+            if len(recent_captures) == 2:
+                frequency = (recent_captures[0].acquisition_datetime - recent_captures[1].acquisition_datetime).total_seconds()
+
+            gap = 0
+            if len(recent_captures) == 2:
+                gap = (recent_captures[0].acquisition_datetime - recent_captures[1].acquisition_datetime).total_seconds()
+
+            heatmap = captures.filter(acquisition_datetime__gte=datetime.now() - timedelta(days=30)).values("acquisition_datetime").annotate(count=Count("acquisition_datetime")).order_by("acquisition_datetime")
+
+            heatmap_data = []
+            for data in heatmap:
+                heatmap_data.append(
+                    {
+                        "date": data["acquisition_datetime"].date(),
+                        "count": data["count"],
+                    }
+                )
+
+            final_sites.append(
+                {
+                    "id": site.id,
+                    "name": site.name,
+                    "area": site.site_area,
+                    "acquisition_count": count,
+                    "most_recent": recent.acquisition_datetime if recent else None,
+                    "most_recent_clear": recent_clear.acquisition_datetime if recent_clear else None,
+                    "heatmap": heatmap_data,
+                    "frequency": frequency,
+                    "gap": gap
+                }
+            )
+
+        count = Site.objects.filter(user__id=user_id).count()
+
         logger.info("Sites fetched successfully")
         return {
-            "data": sites,
+            "data": final_sites,
+            "page_number": page_number,
+            "per_page": per_page,
+            "total_count": count,
             "message": "Sites fetched successfully",
             "status_code": 200,
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"Error fetching sites: {str(e)}")
-        return {"data": [], "message": "Error fetching sites", "status_code": 500}
+        return {"data": [], "message": f"Error fetching sites{str(e)}", "status_code": 500}
 
 
 def get_group_hierarchy_recursive(group_id):

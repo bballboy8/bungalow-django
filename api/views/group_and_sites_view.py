@@ -101,6 +101,7 @@ class GetSiteView(APIView):
 
     @extend_schema(
         description="Retrieve all sites",
+        parameters=site_search_parameters,
         responses={
             200: OpenApiResponse(
                 description="Sites successfully retrieved.",
@@ -118,13 +119,27 @@ class GetSiteView(APIView):
                 return Response(
                     auth, status=status.HTTP_401_UNAUTHORIZED
                 )
-            user_id = auth["user_id"]            
+            user_id = auth["user_id"]
 
-            sites = get_all_sites(user_id=user_id)
+            name = request.query_params.get("name")
+            page_number = int(request.query_params.get("page_number",1))
+            per_page = int(request.query_params.get("per_page", 10))           
+
+            sites = get_all_sites(
+                user_id=user_id, name=name, page_number=page_number, per_page=per_page
+            )
             if sites["status_code"] != 200:
                 return Response(sites, status=sites["status_code"])
-            serializer = SiteSerializer(sites["data"], many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            serializer = GetSiteSerializer(sites["data"], many=True)
+            return Response(
+                {
+                    "data": serializer.data,
+                    "total_count": sites["total_count"],
+                    "page_number": page_number,
+                    "per_page": per_page,
+                },
+                status=status.HTTP_200_OK,
+            )
         except Exception as e:
             logger.error(f"Error fetching sites: {str(e)}")
             return Response(

@@ -3,10 +3,19 @@ from django.db import models as plane_models
 from django.utils.timezone import now
 
 
+SITE_TYPE_CHOICES = (
+    ("Point", "Point"),
+    ("Rectangle", "Rectangle"),
+    ("Polygon", "Polygon"),
+)
+
 class Site(models.Model):
     name = models.CharField(max_length=255, unique=True)
     location_polygon = models.PolygonField()
     coordinates_record = models.JSONField(null=True, blank=True)
+    site_type = models.CharField(
+        max_length=10, choices=SITE_TYPE_CHOICES, default="Polygon"
+    )
     created_at = models.DateTimeField(default=now, editable=False)
     updated_at = models.DateTimeField(default=now)
 

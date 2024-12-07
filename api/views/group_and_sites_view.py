@@ -7,7 +7,7 @@ from api.services.group_and_sites_service import *
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 
 
-class GroupView(APIView):
+class GetGroupsView(APIView):
 
     @extend_schema(
         description="Retrieve all groups or the full hierarchy of a specific group",
@@ -56,7 +56,37 @@ class GroupView(APIView):
             )
 
 
-class SiteView(APIView):
+class AddGroupView(APIView):
+
+    @extend_schema(
+        description="Create a new group",
+        request=AddGroupSerializer,
+        responses={
+            201: OpenApiResponse(
+                description="Group created successfully.",
+            ),
+            400: OpenApiResponse(description="Invalid input"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def post(self, request):
+        try:
+            serializer = GroupSerializer(data=request.data)
+            if serializer.is_valid():
+                group = serializer.save()
+                return Response(
+                    GroupSerializer(group).data, status=status.HTTP_201_CREATED
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error creating group: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class GetSiteView(APIView):
 
     @extend_schema(
         description="Retrieve all sites",
@@ -75,7 +105,7 @@ class SiteView(APIView):
             sites = get_all_sites()
             if sites["status_code"] != 200:
                 return Response(sites, status=sites["status_code"])
-            serializer = SiteSerializer(sites, many=True)
+            serializer = SiteSerializer(sites["data"], many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error fetching sites: {str(e)}")
@@ -83,9 +113,11 @@ class SiteView(APIView):
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+class AddSiteView(APIView):
     @extend_schema(
         description="Create a new site",
-        request=SiteSerializer,
+        request=AddSiteSerializer,
         responses={
             201: OpenApiResponse(
                 description="Site created successfully.",
@@ -111,11 +143,11 @@ class SiteView(APIView):
             )
 
 
-class GroupSiteView(APIView):
+class AddGroupSiteView(APIView):
 
     @extend_schema(
         description="Assign a site to a group or retrieve all sites in a group",
-        request=GroupSiteSerializer,
+        request=AddGroupSiteSerializer,
         responses={
             200: OpenApiResponse(
                 description="Site assigned to group successfully.",
@@ -138,10 +170,19 @@ class GroupSiteView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            # Check if the site is already assigned to the group
+            assignment = GroupSite.objects.filter(group=group, site=site).first()
+            if assignment:
+                return Response(
+                    {"error": "Site already assigned to the group"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             assignment = assign_site_to_group(group, site)
             if assignment["status_code"] != 200:
                 return Response(assignment, status=assignment["status_code"])
-            serializer = GroupSiteSerializer(assignment)
+
+            serializer = GroupSiteSerializer(assignment["data"])
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except Exception as e:
             logger.error(f"Error assigning site to group: {str(e)}")
@@ -149,6 +190,8 @@ class GroupSiteView(APIView):
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+class GetGroupSiteView(APIView):
     @extend_schema(
         description="Retrieve all sites in a group",
         parameters=[

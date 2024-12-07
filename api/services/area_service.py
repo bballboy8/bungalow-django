@@ -9,13 +9,14 @@ from django.db.models import Q
 from core.utils import s3, bucket_name
 from typing import List
 from datetime import datetime, timedelta
-from core.services.utils import calculate_area_from_geojson
 from api.serializers.area_serializer import NewestInfoSerializer
 from decouple import config
 import requests
 from django.utils.timezone import now
 from concurrent.futures import ThreadPoolExecutor
 from django.contrib.gis.geos import fromstr
+import shapely.wkt
+from pyproj import Geod
 
 
 
@@ -25,16 +26,19 @@ def convert_geojson_to_wkt(geometry):
     try:
         try:
             polygon = shape(geometry)
+            wkt = polygon.wkt
         except Exception as e:
             return {"data": f"Invalid GeoJSON: {str(e)}", "status_code": 400}
         
         try:
-            area = calculate_area_from_geojson(geometry, "geojson_to_wkt")
+            geod = Geod(ellps="WGS84")
+            polygon = shapely.wkt.loads(wkt)
+            area = round(abs(geod.geometry_area_perimeter(polygon)[0]) / 1000000.0, 2)
         except Exception as e:
             return {"data": f"Error calculating area from GeoJSON: {str(e)}", "status_code": 400}
 
         logger.info("GeoJSON converted to WKT successfully")
-        return {"data": polygon.wkt, "area": area, "status_code": 200}
+        return {"data": wkt, "area": area, "status_code": 200}
     except Exception as e:
         logger.error(f"Error converting GeoJSON to WKT: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 400}

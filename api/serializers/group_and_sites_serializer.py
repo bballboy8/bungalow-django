@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from api.models import Group, Site, GroupSite
 from django.contrib.gis.geos import Polygon
-
+from api.services.group_and_sites_service import get_area_from_geojson
 
 class SiteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,6 +31,12 @@ class SiteSerializer(serializers.ModelSerializer):
             validated_data["location_polygon"] = self.validate_location_polygon(
                 location_polygon
             )
+
+        if validated_data.get("coordinates_record"):
+            validated_data["site_area"] = get_area_from_geojson(
+                validated_data["coordinates_record"]
+            )["area"]
+        
         return super().create(validated_data)
 
 
@@ -54,6 +60,13 @@ class GroupSerializer(serializers.ModelSerializer):
         """
         subgroups = obj.subgroups.all()
         return GroupSerializer(subgroups, many=True).data
+    
+class ParentGroupSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    surface_area = serializers.FloatField()
+    total_objects = serializers.IntegerField()
 
 
 class GroupSiteSerializer(serializers.ModelSerializer):
@@ -81,3 +94,8 @@ class AddGroupSiteSerializer(serializers.Serializer):
 class AddGroupSerializer(serializers.Serializer):
     name = serializers.CharField()
     parent = serializers.IntegerField(required=False)
+
+class AreaFromGeoJsonSerializer(serializers.Serializer):
+    coordinates_record = serializers.JSONField(
+        default={"type": "Polygon", "coordinates": []}
+    )

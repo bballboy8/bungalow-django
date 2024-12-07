@@ -280,8 +280,7 @@ class AddGroupSiteView(APIView):
             if assignment["status_code"] != 200:
                 return Response(assignment, status=assignment["status_code"])
 
-            serializer = GroupSiteSerializer(assignment["data"])
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(assignment, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error assigning site to group: {str(e)}")
             return Response(
@@ -316,6 +315,59 @@ class GetGroupSiteView(APIView):
             serializer = SiteSerializer(sites, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class GetParentGroupsListwithDetailsView(APIView):
+    @extend_schema(
+        description="Retrieve all parent groups with details",
+        responses={
+            200: OpenApiResponse(
+                description="Parent groups with details successfully retrieved.",
+            ),
+            404: OpenApiResponse(description="Parent groups not found "),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def get(self, request):
+        try:
+            logger.info("Fetching all parent groups with details")
+            parent_groups = get_parent_groups_with_details()
+            if parent_groups["status_code"] != 200:
+                return Response(parent_groups, status=parent_groups["status_code"])
+            serializer = ParentGroupSerializer(parent_groups["data"], many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error fetching parent groups with details: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class GetAreaFromGeoJsonView(APIView):
+    @extend_schema(
+        description="Calculate area from GeoJSON",
+        request=AreaFromGeoJsonSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Area calculated successfully.",
+            ),
+            400: OpenApiResponse(description="Invalid input"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def post(self, request):
+        try:
+            serializer = AreaFromGeoJsonSerializer(data=request.data)
+            if serializer.is_valid():
+                geojson = serializer.validated_data["coordinates_record"]
+                area = get_area_from_geojson(geojson)
+                return Response({"area": area}, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error calculating area from GeoJSON: {str(e)}")
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

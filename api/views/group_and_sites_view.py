@@ -33,116 +33,12 @@ class GetGroupsForAssignmentAndSearchingView(APIView):
                 f"Fetching group hierarchy for group ID: {group_id}, Name: {group_name}"
             )
 
-            def get_full_hierarchy(group):
-                """
-                Recursive function to build the hierarchy of a group and its subgroups.
-                """
-                children = Group.objects.filter(parent=group)
-                return {
-                    "id": group.id,
-                    "name": group.name,
-                    "parent": group.parent.id if group.parent else None,
-                    "subgroups": [get_full_hierarchy(child) for child in children],
-                }
-
-            if group_id:
-                group = Group.objects.filter(id=group_id).first()
-                if not group:
-                    return Response(
-                        {"error": "Group not found."},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
-
-                group_hierarchy = get_full_hierarchy(group)
-
-                if group_name:
-
-                    def filter_subgroups_by_name(group_hierarchy, name):
-                        """
-                        Recursively filters subgroups to retain only those matching the name.
-                        """
-                        is_match = name.lower() in group_hierarchy["name"].lower()
-
-                        filtered_subgroups = [
-                            filter_subgroups_by_name(subgroup, name)
-                            for subgroup in group_hierarchy["subgroups"]
-                        ]
-
-                        filtered_subgroups = [
-                            subgroup for subgroup in filtered_subgroups if subgroup
-                        ]
-
-                        if is_match or filtered_subgroups:
-                            return {
-                                "id": group_hierarchy["id"],
-                                "name": group_hierarchy["name"],
-                                "subgroups": filtered_subgroups,
-                            }
-                        return None
-
-                    filtered_hierarchy = filter_subgroups_by_name(
-                        group_hierarchy, group_name
-                    )
-
-                    if not filtered_hierarchy:
-                        return Response(
-                            {"error": "No matching subgroup found."},
-                            status=status.HTTP_404_NOT_FOUND,
-                        )
-                    return Response(filtered_hierarchy, status=status.HTTP_200_OK)
-
-                return Response(group_hierarchy, status=status.HTTP_200_OK)
-
-            if group_name:
-                matching_groups = Group.objects.filter(name__icontains=group_name)
-                if not matching_groups.exists():
-                    return Response(
-                        {"error": "No groups found with the given name."},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
-
-                def get_top_level_parent(group):
-                    while group.parent:
-                        group = group.parent
-                    return group
-
-                top_level_parents = {
-                    get_top_level_parent(group) for group in matching_groups
-                }
-
-                def prune_hierarchy(group_hierarchy, matched_ids):
-                    """
-                    Recursively prune the hierarchy to include only matched groups or their ancestors.
-                    """
-                    is_match = group_hierarchy["id"] in matched_ids
-
-                    pruned_subgroups = [
-                        prune_hierarchy(subgroup, matched_ids)
-                        for subgroup in group_hierarchy["subgroups"]
-                    ]
-
-                    pruned_subgroups = [
-                        subgroup for subgroup in pruned_subgroups if subgroup
-                    ]
-
-                    if is_match or pruned_subgroups:
-                        return {
-                            "id": group_hierarchy["id"],
-                            "name": group_hierarchy["name"],
-                            "subgroups": pruned_subgroups,
-                        }
-                    return None
-
-                matched_ids = set(group.id for group in matching_groups)
-                results = [
-                    prune_hierarchy(get_full_hierarchy(parent), matched_ids)
-                    for parent in top_level_parents
-                ]
-
-                results = [result for result in results if result]
-
-                return Response(results, status=status.HTTP_200_OK)
-
+            if group_id or group_name:
+                response = group_searching_and_hierarchy_creation(group_id=group_id, group_name=group_name)
+                if response["status_code"] != 200:
+                    return Response(response, status=response["status_code"])
+                return Response(response, status=status.HTTP_200_OK)
+    
             # Default behavior: Retrieve all top-level groups
             groups = Group.objects.filter(parent=None)
             serializer = GroupSerializer(groups, many=True)

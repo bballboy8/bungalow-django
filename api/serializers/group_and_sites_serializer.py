@@ -45,7 +45,16 @@ class SiteSerializer(serializers.ModelSerializer):
         validated_data["user"] = user_id
         
         return super().create(validated_data)
-
+    
+class GetSiteSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    acquisition_count = serializers.IntegerField()
+    most_recent = serializers.DateTimeField()
+    frequency = serializers.FloatField()
+    gap = serializers.FloatField()
+    most_recent_clear = serializers.DateTimeField()
+    heatmap = serializers.JSONField()
 
 class GroupSerializer(serializers.ModelSerializer):
     subgroups = serializers.SerializerMethodField()

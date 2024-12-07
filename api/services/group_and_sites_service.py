@@ -3,6 +3,8 @@ from logging_module import logger
 import shapely.wkt
 from pyproj import Geod
 from api.services.area_service import convert_geojson_to_wkt
+from core.models import SatelliteCaptureCatalog
+from django.contrib.gis.geos import Polygon
 
 def get_all_sites():
     logger.info("Fetching all sites")
@@ -132,10 +134,13 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
             sites = GroupSite.objects.filter(group=group)
             for site in sites:
                 total_surface_area += site.site_area
-                site_coordinates = site.site.coordinates_record
+                coordinates = site.site.coordinates_record['coordinates'][0]
+                polygon = Polygon(coordinates)
+                count = SatelliteCaptureCatalog.objects.filter(location_polygon__intersects=polygon).count()
+                total_objects += count
         
         return {
-            "data": {"total_surface_area": total_surface_area},
+            "data": {"total_surface_area": total_surface_area, "total_objects": total_objects},
             "message": "Total surface area calculated successfully",
             "status_code": 200,
         }
@@ -164,7 +169,7 @@ def get_parent_groups_with_details():
                     "name": group.name,
                     "created_at": group.created_at,
                     "surface_area": area_response["data"]["total_surface_area"],
-                    "total_objects": 0,
+                    "total_objects": area_response["data"]["total_objects"],
                 }
             )
         return {

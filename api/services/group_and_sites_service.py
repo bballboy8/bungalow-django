@@ -131,6 +131,8 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
         total_objects = 0
         for group in all_groups:
             sites = GroupSite.objects.filter(group=group)
+            if not sites:
+                continue
             for site in sites:
                 total_surface_area += site.site_area
                 coordinates = site.site.coordinates_record['coordinates'][0]
@@ -204,10 +206,16 @@ def get_full_hierarchy(group):
     Recursive function to build the hierarchy of a group and its subgroups.
     """
     children = Group.objects.filter(parent=group)
+
+    area_response = total_surface_area_of_group_and_its_subgroups(group.id)
+
     return {
         "id": group.id,
         "name": group.name,
         "parent": group.parent.id if group.parent else None,
+        "created_at": group.created_at,
+        "surface_area": area_response["data"]["total_surface_area"],
+        "total_objects": area_response["data"]["total_objects"],
         "subgroups": [get_full_hierarchy(child) for child in children],
     }
 

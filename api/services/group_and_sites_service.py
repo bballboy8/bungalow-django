@@ -209,11 +209,24 @@ def get_full_hierarchy(group):
 
     area_response = total_surface_area_of_group_and_its_subgroups(group.id)
 
+    # Get sites assigned to the group
+    sites = GroupSite.objects.filter(group=group)
+    site_details = []
+    for site in sites:
+        site_details.append(
+            {
+                "id": site.site.id,
+                "name": site.site.name,
+                "area": site.site_area,
+            }
+        )
+
     return {
         "id": group.id,
         "name": group.name,
         "parent": group.parent.id if group.parent else None,
         "created_at": group.created_at,
+        "sites": site_details,
         "surface_area": area_response["data"]["total_surface_area"],
         "total_objects": area_response["data"]["total_objects"],
         "subgroups": [get_full_hierarchy(child) for child in children],

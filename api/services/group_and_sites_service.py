@@ -6,10 +6,10 @@ from api.services.area_service import convert_geojson_to_wkt
 from core.models import SatelliteCaptureCatalog
 from django.contrib.gis.geos import Polygon
 
-def get_all_sites():
+def get_all_sites(user_id):
     logger.info("Fetching all sites")
     try:
-        sites = Site.objects.all()
+        sites = Site.objects.filter(user__id=user_id)
         if not sites:
             logger.warning("No sites found")
             return {"data": [], "message": "No sites found", "status_code": 404}
@@ -58,13 +58,14 @@ def get_group_hierarchy_recursive(group_id):
         return {"error": str(e), "status_code": 500}
 
 
-def assign_site_to_group(group, site):
+def assign_site_to_group(group, site, user_id):
     """
     Assign a site to a group.
     """
     try:
         logger.info(f"Assigning site {site.name} to group {group.name}")
-        GroupSite.objects.create(group=group, site=site, site_area=site.site_area)
+        user_id = User.objects.get(id=user_id) # Get user object
+        GroupSite.objects.create(group=group, site=site, site_area=site.site_area, user=user_id)
         return {
             "message": "Site assigned to group",
             "status_code": 200,
@@ -78,13 +79,13 @@ def assign_site_to_group(group, site):
         }
 
 
-def get_sites_in_group(group_id):
+def get_sites_in_group(group_id, user_id):
     """
     Get all sites assigned to a specific group.
     """
     try:
         logger.info(f"Fetching sites for group ID: {group_id}")
-        group_sites = GroupSite.objects.filter(group_id=group_id).select_related("site")
+        group_sites = GroupSite.objects.filter(group_id=group_id, user__id=user_id).select_related("site")
         sites = [{"id": gs.site.id, "name": gs.site.name} for gs in group_sites]
         return {
             "data": sites,
@@ -154,13 +155,13 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
         }
 
 
-def get_parent_groups_with_details():
+def get_parent_groups_with_details(user_id):
     """
     Get all parent groups with their details.
     """
     try:
         logger.info("Fetching parent groups with details")
-        parent_groups = Group.objects.filter(parent=None)
+        parent_groups = Group.objects.filter(parent=None, user__id=user_id)
         groups = []
         for group in parent_groups:
             area_response = total_surface_area_of_group_and_its_subgroups(group.id)
@@ -283,10 +284,10 @@ def get_top_level_parent(group):
     return group
 
 
-def group_searching_and_hierarchy_creation(group_id=None, group_name=None):
+def group_searching_and_hierarchy_creation(group_id=None, group_name=None, user_id=None):
     try:
         if group_id:
-            group = Group.objects.filter(id=group_id).first()
+            group = Group.objects.filter(id=group_id, user__id=user_id).first()
             if not group:
                 return {"error": "Group not found", "status_code": 404}
 
@@ -301,7 +302,7 @@ def group_searching_and_hierarchy_creation(group_id=None, group_name=None):
             return {"data": group_hierarchy, "status_code": 200}
 
         if group_name:
-            matching_groups = Group.objects.filter(name__icontains=group_name)
+            matching_groups = Group.objects.filter(name__icontains=group_name, user__id=user_id)
             if not matching_groups.exists():
                 return {"error": "No groups found with the given name.", "status_code": 404}
             top_level_parents = {get_top_level_parent(group) for group in matching_groups}

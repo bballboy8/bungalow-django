@@ -1,6 +1,7 @@
 from django.contrib.gis.db import models
 from django.db import models as plane_models
 from django.utils.timezone import now
+from django.contrib.auth.models import User
 
 
 SITE_TYPE_CHOICES = (
@@ -19,6 +20,8 @@ class Site(models.Model):
     )
     created_at = models.DateTimeField(default=now, editable=False)
     updated_at = models.DateTimeField(default=now)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=1)
+
 
     def __str__(self):
         return self.name
@@ -36,6 +39,7 @@ class Group(plane_models.Model):
     description = plane_models.TextField(blank=True, null=True)
     created_at = plane_models.DateTimeField(default=now, editable=False)
     updated_at = plane_models.DateTimeField(default=now)
+    user = plane_models.ForeignKey(User, on_delete=plane_models.CASCADE, default=1)
 
     def __str__(self):
         return self.name
@@ -50,6 +54,7 @@ class GroupSite(plane_models.Model):
     )
     assigned_at = models.DateTimeField(default=now)
     site_area = models.FloatField(null=True, blank=True)
+    user = plane_models.ForeignKey(User, on_delete=plane_models.CASCADE, default=1)
 
     class Meta:
         unique_together = ("group", "site")

@@ -6,9 +6,12 @@ from api.serializers.group_and_sites_serializer import *
 from api.services.group_and_sites_service import *
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from api.parameters.group_and_sites_parameters import *
+from rest_framework.permissions import IsAuthenticated
+from api.services.utils import get_user_id_from_token 
 
 
 class GetGroupsForAssignmentAndSearchingView(APIView):
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         description="Retrieve all groups or the full hierarchy of a specific group",
@@ -27,6 +30,12 @@ class GetGroupsForAssignmentAndSearchingView(APIView):
         Retrieve all groups or the full hierarchy of a specific group.
         """
         try:
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
             group_id = request.query_params.get("group_id")
             group_name = request.query_params.get("group_name")
             logger.info(
@@ -34,7 +43,7 @@ class GetGroupsForAssignmentAndSearchingView(APIView):
             )
 
             if group_id or group_name:
-                response = group_searching_and_hierarchy_creation(group_id=group_id, group_name=group_name)
+                response = group_searching_and_hierarchy_creation(group_id=group_id, group_name=group_name, user_id=user_id)
                 if response["status_code"] != 200:
                     return Response(response, status=response["status_code"])
                 return Response(response, status=status.HTTP_200_OK)
@@ -51,6 +60,7 @@ class GetGroupsForAssignmentAndSearchingView(APIView):
 
 
 class AddGroupView(APIView):
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         description="Create a new group",
@@ -66,7 +76,13 @@ class AddGroupView(APIView):
     )
     def post(self, request):
         try:
-            serializer = GroupSerializer(data=request.data)
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+            serializer = GroupSerializer(data=request.data, context={"user_id": user_id})
             if serializer.is_valid():
                 group = serializer.save()
                 return Response(
@@ -81,6 +97,7 @@ class AddGroupView(APIView):
 
 
 class GetSiteView(APIView):
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         description="Retrieve all sites",
@@ -96,7 +113,14 @@ class GetSiteView(APIView):
     def get(self, request):
         try:
             logger.info("Fetching all sites")
-            sites = get_all_sites()
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"]            
+
+            sites = get_all_sites(user_id=user_id)
             if sites["status_code"] != 200:
                 return Response(sites, status=sites["status_code"])
             serializer = SiteSerializer(sites["data"], many=True)
@@ -109,6 +133,8 @@ class GetSiteView(APIView):
 
 
 class AddSiteView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         description="Create a new site",
         request=AddSiteSerializer,
@@ -123,7 +149,14 @@ class AddSiteView(APIView):
     )
     def post(self, request):
         try:
-            serializer = SiteSerializer(data=request.data)
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
+            serializer = SiteSerializer(data=request.data, context={"user_id": user_id})
             if serializer.is_valid():
                 site = serializer.save()
                 return Response(
@@ -138,6 +171,7 @@ class AddSiteView(APIView):
 
 
 class AddGroupSiteView(APIView):
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         description="Assign a site to a group or retrieve all sites in a group",
@@ -153,6 +187,13 @@ class AddGroupSiteView(APIView):
     )
     def post(self, request):
         try:
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
             group_id = request.data.get("group_id")
             site_id = request.data.get("site_id")
             group = Group.objects.filter(id=group_id).first()
@@ -172,7 +213,7 @@ class AddGroupSiteView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            assignment = assign_site_to_group(group, site)
+            assignment = assign_site_to_group(group, site, user_id)
             if assignment["status_code"] != 200:
                 return Response(assignment, status=assignment["status_code"])
 
@@ -185,6 +226,8 @@ class AddGroupSiteView(APIView):
 
 
 class GetGroupSiteView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         description="Retrieve all sites in a group",
         parameters=[
@@ -204,8 +247,15 @@ class GetGroupSiteView(APIView):
     )
     def get(self, request):
         try:
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
             group_id = request.query_params.get("group_id")
-            sites = get_sites_in_group(group_id)
+            sites = get_sites_in_group(group_id, user_id)
             if sites["status_code"] != 200:
                 return Response(sites, status=sites["status_code"])
             serializer = SiteSerializer(sites, many=True)
@@ -216,6 +266,8 @@ class GetGroupSiteView(APIView):
             )
 
 class GetParentGroupsListwithDetailsView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         description="Retrieve all parent groups with details",
         responses={
@@ -230,7 +282,14 @@ class GetParentGroupsListwithDetailsView(APIView):
     def get(self, request):
         try:
             logger.info("Fetching all parent groups with details")
-            parent_groups = get_parent_groups_with_details()
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
+            parent_groups = get_parent_groups_with_details(user_id=user_id)
             if parent_groups["status_code"] != 200:
                 return Response(parent_groups, status=parent_groups["status_code"])
             serializer = ParentGroupSerializer(parent_groups["data"], many=True)
@@ -242,6 +301,8 @@ class GetParentGroupsListwithDetailsView(APIView):
             )
 
 class GetAreaFromGeoJsonView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         description="Calculate area from GeoJSON",
         request=AreaFromGeoJsonSerializer,
@@ -256,6 +317,13 @@ class GetAreaFromGeoJsonView(APIView):
     )
     def post(self, request):
         try:
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
             serializer = AreaFromGeoJsonSerializer(data=request.data)
             if serializer.is_valid():
                 geojson = serializer.validated_data["coordinates_record"]

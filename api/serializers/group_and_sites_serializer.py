@@ -2,6 +2,8 @@ from rest_framework import serializers
 from api.models import Group, Site, GroupSite
 from django.contrib.gis.geos import Polygon
 from api.services.group_and_sites_service import get_area_from_geojson
+from django.contrib.auth.models import User
+
 
 class SiteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -36,6 +38,11 @@ class SiteSerializer(serializers.ModelSerializer):
             validated_data["site_area"] = get_area_from_geojson(
                 validated_data["coordinates_record"]
             )["area"]
+
+        # Access user_id from context
+        user_id = self.context.get("user_id")
+        user_id = User.objects.get(id=user_id)
+        validated_data["user"] = user_id
         
         return super().create(validated_data)
 
@@ -60,6 +67,12 @@ class GroupSerializer(serializers.ModelSerializer):
         """
         subgroups = obj.subgroups.all()
         return GroupSerializer(subgroups, many=True).data
+    
+    def create(self, validated_data):
+        user_id = self.context.get("user_id")  # Access user_id from context
+        user = User.objects.get(id=user_id)
+        group = Group.objects.create(user=user, **validated_data)
+        return group
     
 class ParentGroupSerializer(serializers.Serializer):
     id = serializers.IntegerField()

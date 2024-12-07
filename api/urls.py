@@ -13,11 +13,11 @@ urlpatterns = [
     path("get-pin-selection-analytics", GetPinSelectionAnalyticsAndLocation.as_view(), name="get-selection-pin-analytics"),
     path("get-polygon-selection-acquisition-calender-days-frequency", GetPolygonSelectionAcquisitionCalenderDaysFrequencyView.as_view(), name="get-polygon-selection-acquisition-calender-days-frequency"),
     path("get-pin-selection-acquisition-calender-days-frequency", GetPinSelectionAcquisitionCalenderDaysFrequencyView.as_view(), name="get-pin-selection-acquisition-calender-days-frequency"),
-    path('get-groups/', GroupView.as_view(), name='group_list'),
-    path('get-nested-groups/<int:group_id>/', GroupView.as_view(), name='group_hierarchy'),
-    path('get-sites/', SiteView.as_view(), name='site_list'),
-    path('get-group-sites/', GroupSiteView.as_view(), name='assign_site_to_group'),
-    path('get-nested-group-sites/<int:group_id>/', GroupSiteView.as_view(), name='get_sites_in_group'),
+    path('get-groups', GroupView.as_view(), name='group_list'),
+    path('get-nested-groups', GroupView.as_view(), name='group_hierarchy'),
+    path('get-sites', SiteView.as_view(), name='site_list'),
+    path('get-group-sites', GroupSiteView.as_view(), name='assign_site_to_group'),
+    path('get-nested-group-sites', GroupSiteView.as_view(), name='get_sites_in_group'),
 
 
 ]

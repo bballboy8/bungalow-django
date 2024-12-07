@@ -24,7 +24,6 @@ def get_all_sites():
         return {"data": [], "message": "Error fetching sites", "status_code": 500}
 
 
-
 def get_group_hierarchy_recursive(group_id):
     """
     Retrieve the hierarchy of a group, including all subgroups recursively.
@@ -113,7 +112,7 @@ def get_subgroups_recursive(group):
     
     return all_subgroups
 
-    
+
 def total_surface_area_of_group_and_its_subgroups(group_id):
     """
     Calculate the total surface area of a group and its subgroups.
@@ -184,7 +183,7 @@ def get_parent_groups_with_details():
             "message": f"Error fetching parent groups: {str(e)}",
             "status_code": 500,
         }
-    
+
 def get_area_from_geojson(geometry):
     """
     Calculate the area of a site from its GeoJSON coordinates record.
@@ -198,3 +197,102 @@ def get_area_from_geojson(geometry):
     except Exception as e:
         logger.error(f"Error calculating area from GeoJSON: {str(e)}")
         return {"area": 0, "status_code": 500}
+
+
+def get_full_hierarchy(group):
+    """
+    Recursive function to build the hierarchy of a group and its subgroups.
+    """
+    children = Group.objects.filter(parent=group)
+    return {
+        "id": group.id,
+        "name": group.name,
+        "parent": group.parent.id if group.parent else None,
+        "subgroups": [get_full_hierarchy(child) for child in children],
+    }
+
+
+def prune_hierarchy(group_hierarchy, matched_ids):
+    """
+    Recursively prune the hierarchy to include only matched groups or their ancestors.
+    """
+    is_match = group_hierarchy["id"] in matched_ids
+
+    pruned_subgroups = [
+        prune_hierarchy(subgroup, matched_ids)
+        for subgroup in group_hierarchy["subgroups"]
+    ]
+
+    pruned_subgroups = [subgroup for subgroup in pruned_subgroups if subgroup]
+
+    if is_match or pruned_subgroups:
+        return {
+            "id": group_hierarchy["id"],
+            "name": group_hierarchy["name"],
+            "subgroups": pruned_subgroups,
+        }
+    return None
+
+
+def group_searching_and_hierarchy_creation(group_id=None, group_name=None):
+    if group_id:
+        group = Group.objects.filter(id=group_id).first()
+        if not group:
+            return {"error": "Group not found", "status_code": 404}
+
+        group_hierarchy = get_full_hierarchy(group)
+
+        if group_name:
+
+            def filter_subgroups_by_name(group_hierarchy, name):
+                """
+                Recursively filters subgroups to retain only those matching the name.
+                """
+                is_match = name.lower() in group_hierarchy["name"].lower()
+
+                filtered_subgroups = [
+                    filter_subgroups_by_name(subgroup, name)
+                    for subgroup in group_hierarchy["subgroups"]
+                ]
+
+                filtered_subgroups = [
+                    subgroup for subgroup in filtered_subgroups if subgroup
+                ]
+
+                if is_match or filtered_subgroups:
+                    return {
+                        "id": group_hierarchy["id"],
+                        "name": group_hierarchy["name"],
+                        "subgroups": filtered_subgroups,
+                    }
+                return None
+
+            filtered_hierarchy = filter_subgroups_by_name(group_hierarchy, group_name)
+
+            if not filtered_hierarchy:
+                return {"error": "No matching subgroup found.", "status_code": 404}
+            return {"data": filtered_hierarchy, "status_code": 200}
+
+        return {"data": group_hierarchy, "status_code": 200}
+
+    if group_name:
+        matching_groups = Group.objects.filter(name__icontains=group_name)
+        if not matching_groups.exists():
+            return {"error": "No groups found with the given name.", "status_code": 404}
+
+        def get_top_level_parent(group):
+            while group.parent:
+                group = group.parent
+            return group
+
+        top_level_parents = {get_top_level_parent(group) for group in matching_groups}
+
+        matched_ids = set(group.id for group in matching_groups)
+        results = [
+            prune_hierarchy(get_full_hierarchy(parent), matched_ids)
+            for parent in top_level_parents
+        ]
+
+        results = [result for result in results if result]
+
+        return {"data": results, "status_code": 200}

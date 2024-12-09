@@ -8,10 +8,9 @@ from django.contrib.gis.geos import Polygon
 from django.db.models import Count
 from datetime import datetime, timedelta
 
-def get_all_sites(user_id, name=None, page_number:int=1, per_page:int=10):
+def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10):
     logger.info("Fetching all sites")
     try:
-
         if name:
             sites = Site.objects.filter(user__id=user_id, name__icontains=name)
         else:
@@ -20,71 +19,86 @@ def get_all_sites(user_id, name=None, page_number:int=1, per_page:int=10):
         if not sites:
             logger.warning("No sites found")
             return {"data": [], "message": "No sites found", "status_code": 404}
-        
+
         sites = sites.order_by("id")[(page_number - 1) * per_page : page_number * per_page]
 
         final_sites = []
 
         for site in sites:
-            coordinates = site.coordinates_record['coordinates'][0]
+            coordinates = site.coordinates_record["coordinates"][0]
             polygon = Polygon(coordinates)
             captures = SatelliteCaptureCatalog.objects.filter(location_polygon__intersects=polygon)
 
-            count = captures.count()
-            recent = captures.order_by("-acquisition_datetime").first()
-            recent_clear = captures.filter(cloud_cover=0).order_by("-acquisition_datetime").first()
+            total_records = captures.count()
+            most_recent_capture = captures.order_by("-acquisition_datetime").first()
+            most_recent_clear_capture = captures.filter(cloud_cover=0).order_by("-acquisition_datetime").first()
 
-            frequency = 0
-            recent_captures = captures.order_by("-acquisition_datetime")[:2]
-            if len(recent_captures) == 2:
-                frequency = (recent_captures[0].acquisition_datetime - recent_captures[1].acquisition_datetime).total_seconds()
+            if not most_recent_capture:
+                logger.warning(f"No captures found for site {site.id}")
+                records_per_acquisition = 0
+                time_between_acquisitions = 0
+            else:
+                latest_capture_date = most_recent_capture.acquisition_datetime.date()
+                latest_day_captures = captures.filter(acquisition_datetime__date=latest_capture_date)
+                prior_day_captures = captures.filter(acquisition_datetime__date__lt=latest_capture_date)
 
-            gap = 0
-            if len(recent_captures) == 2:
-                gap = (recent_captures[0].acquisition_datetime - recent_captures[1].acquisition_datetime).total_seconds()
+                # Calculate records per acquisition
+                acquisitions_today = latest_day_captures.values("acquisition_datetime").distinct().count()
+                records_per_acquisition = latest_day_captures.count() / acquisitions_today if acquisitions_today else 0
 
-            heatmap = captures.filter(acquisition_datetime__gte=datetime.now() - timedelta(days=30)).values("acquisition_datetime").annotate(count=Count("acquisition_datetime")).order_by("acquisition_datetime")
+                # Calculate time between acquisitions
+                if prior_day_captures.exists():
+                    last_prior_capture = prior_day_captures.order_by("-acquisition_datetime").first()
+                    first_latest_capture = latest_day_captures.order_by("acquisition_datetime").first()
+                    time_between_acquisitions = (
+                        first_latest_capture.acquisition_datetime - last_prior_capture.acquisition_datetime
+                    ).total_seconds() / 86400 
+                else:
+                    time_between_acquisitions = 0
 
-            heatmap_data = []
-            for data in heatmap:
-                heatmap_data.append(
-                    {
-                        "date": data["acquisition_datetime"].date(),
-                        "count": data["count"],
-                    }
-                )
+            heatmap = captures.filter(
+                acquisition_datetime__gte=datetime.now() - timedelta(days=90)
+            ).values("acquisition_datetime").annotate(count=Count("acquisition_datetime")).order_by("acquisition_datetime")
+
+            heatmap_data = [
+                {"date": data["acquisition_datetime"].date(), "count": data["count"]}
+                for data in heatmap
+            ]
 
             final_sites.append(
                 {
                     "id": site.id,
                     "name": site.name,
                     "area": site.site_area,
-                    "acquisition_count": count,
-                    "most_recent": recent.acquisition_datetime if recent else None,
-                    "most_recent_clear": recent_clear.acquisition_datetime if recent_clear else None,
+                    "acquisition_count": total_records,
+                    "most_recent": most_recent_capture.acquisition_datetime if most_recent_capture else None,
+                    "most_recent_clear": most_recent_clear_capture.acquisition_datetime if most_recent_clear_capture else None,
                     "heatmap": heatmap_data,
-                    "frequency": frequency,
-                    "gap": gap
+                    "frequency": records_per_acquisition,
+                    "gap": time_between_acquisitions,
                 }
             )
 
-        count = Site.objects.filter(user__id=user_id).count()
+        total_count = Site.objects.filter(user__id=user_id).count()
 
         logger.info("Sites fetched successfully")
         return {
             "data": final_sites,
             "page_number": page_number,
             "per_page": per_page,
-            "total_count": count,
+            "total_count": total_count,
             "message": "Sites fetched successfully",
             "status_code": 200,
         }
     except Exception as e:
         import traceback
         traceback.print_exc()
-        logger.error(f"Error fetching sites: {str(e)}")
-        return {"data": [], "message": f"Error fetching sites{str(e)}", "status_code": 500}
-
+        logger.error(f"Error fetching sites {str(e)}")
+        return {
+            "data": [],
+            "message": f"Error fetching sites: {str(e)}",
+            "status_code": 500,
+        }
 
 def get_group_hierarchy_recursive(group_id):
     """

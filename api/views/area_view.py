@@ -99,6 +99,7 @@ class SatelliteCaptureCatalogView(APIView):
                 longitude=longitude,
                 distance=distance,
                 wkt_polygon=wkt_polygon,
+                source=source
             )
 
             if service_response["status_code"] != 200:

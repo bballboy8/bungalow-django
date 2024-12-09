@@ -10,9 +10,10 @@ class GeoJSONToWKTSerializer(serializers.Serializer):
 
 
 class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
+    presigned_url = serializers.CharField(required=False, allow_blank=True)
     class Meta:
         model = SatelliteCaptureCatalog
-        exclude = ["location_polygon", "created_at", "updated_at"]
+        exclude = ["location_polygon", "created_at", "updated_at", "image_uploaded"]
 
 
 class SatelliteCaptureImageByIdAndVendorSerializer(serializers.Serializer):

@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from django.contrib.gis.geos import fromstr
 import shapely.wkt
 from pyproj import Geod
-from api.services.vendor_service import get_image_url_by_vendor_name_and_id
+from api.services.vendor_service import generate_proxy_url, get_capella_record_images_by_ids
 
 
 
@@ -53,11 +53,13 @@ def get_satellite_records(
     latitude: float = None,
     longitude: float = None,
     distance: float = None,
-    source: str = "home"
+    source: str = "home",
+    request=None
 ):
     logger.info("Inside get satellite records service")
     
     try:
+        start_time = datetime.now()
         captures = SatelliteCaptureCatalog.objects.all()
 
         filters = Q()
@@ -81,34 +83,52 @@ def get_satellite_records(
         paginator = Paginator(captures, page_size)
         page = paginator.get_page(page_number)
 
-
+        proxy_urls = {}
         if source != "home":
             missing_images = [
-                {"vendor": record.vendor_name, "id": record.vendor_id}
+                {"vendor_name": record.vendor_name, "id": record.vendor_id}
                 for record in page
                 if not record.image_uploaded
             ]
 
+            capella_ids = []
             if missing_images:
-                get_image_url_by_vendor_name_and_id(missing_images)
+                for record in missing_images:
+                    if record["vendor_name"] != 'capella':
+                        url = generate_proxy_url(request, record["vendor_name"], record["id"])
+                        proxy_urls[record["id"]] = url
+                    else:
+                        capella_ids.append(record["id"])
+
+            if capella_ids:
+                response = get_capella_record_images_by_ids(capella_ids)
+                if response["status_code"] == 200:
+                    for record in response["data"]:
+                        proxy_urls[record["id"]] = record["thumbnail"]
 
         final_response = []
 
         for record in page:
             file_name = f"{record.vendor_id}.png"
             if source != "home":
-                presigned_url = s3.generate_presigned_url(
+                if record.image_uploaded:
+                    presigned_url = s3.generate_presigned_url(
                     "get_object",
                     Params={"Bucket": bucket_name, "Key": f"{record.vendor_name}/{file_name}"},
                     ExpiresIn=3600
-                )
-                record.presigned_url = presigned_url
+                    )
+                    record.presigned_url = presigned_url
+                else:
+                    record.presigned_url = proxy_urls.get(record.vendor_id)
+                
             final_response.append(record)
 
+        end_time = datetime.now()
 
         logger.info("Satellite records fetched successfully")
         return {
             "data": final_response,
+            "time_taken": str(end_time - start_time),
             "total_records": paginator.count,
             "page_number": page_number,
             "page_size": page_size,

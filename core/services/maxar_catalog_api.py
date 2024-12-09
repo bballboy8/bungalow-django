@@ -100,9 +100,10 @@ def upload_to_s3(feature, folder="thumbnails"):
     try:
         headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
         url = feature.get("assets", {}).get("browse", {}).get("href")
+        filename = feature.get("vendor_id").split("-")[0]
+        url = "https://api.maxar.com/browse-archive/v1/browse/show?image_id=" + filename
         response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
         response.raise_for_status()
-        filename = feature.get("vendor_id").split("-")[0]
         tif_content = response.content
         save_image_in_s3_and_get_url(tif_content, filename, folder , "tif")
         url = ""

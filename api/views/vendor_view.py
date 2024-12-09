@@ -6,6 +6,8 @@ from api.serializers.vendor_serializer import *
 from rest_framework.permissions import IsAuthenticated
 from logging_module import logger
 import time
+from django.http import StreamingHttpResponse, HttpResponse
+from decouple import config
 
 
 class AirbusVendorView(APIView):
@@ -226,3 +228,48 @@ class CapellaVendorView(APIView):
         except Exception as e:
             logger.error(f"Error in Capella Vendor View: {str(e)}")
             return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+
+
+class ProxyImageAPIView(APIView):
+    def get(self, request, *args, **kwargs):
+        vendor_name = request.GET.get("vendor_name")
+        vendor_id = request.GET.get("vendor_id")
+
+        if not vendor_name or not vendor_id:
+            return HttpResponse("Missing vendor_name or vendor_id", status=400)
+
+        if vendor_name == "maxar":
+            vendor_id = vendor_id.split("-")[0]
+            image_url = f"https://api.maxar.com/browse-archive/v1/browse/show?image_id={vendor_id}"
+            headers = {"Accept": "application/json", "MAXAR-API-KEY": AUTH_TOKEN}
+        elif vendor_name == "planet":
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": "api-key " + config("PLANET_API_KEY"),
+            }
+            image_url = f"https://tiles.planet.com/data/v1/item-types/SkySatCollect/items/{vendor_id}/thumb"
+        elif vendor_name == "blacksky":
+            headers = {"Authorization": BLACKSKY_AUTH_TOKEN}
+            image_url = f"{BLACKSKY_BASE_URL}/v1/browse/{vendor_id}"
+        elif vendor_name == "airbus":
+            image_url = f"https://access.foundation.api.oneatlas.airbus.com/api/v1/items/{vendor_id}/thumbnail"
+        else:
+            return HttpResponse("Unsupported vendor", status=400)
+
+        # Fetch the image
+        response = requests.get(image_url, headers=headers, stream=True)
+        if response.status_code == 200:
+
+            def generate():
+                for chunk in response.iter_content(chunk_size=128):
+                    yield chunk
+
+            content_type = response.headers.get(
+                "Content-Type", "application/octet-stream"
+            )
+            return StreamingHttpResponse(generate(), content_type=content_type)
+
+        return HttpResponse(
+            f"Failed to fetch image: {response.status_code}",
+            status=response.status_code,
+        )

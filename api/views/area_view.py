@@ -99,7 +99,8 @@ class SatelliteCaptureCatalogView(APIView):
                 longitude=longitude,
                 distance=distance,
                 wkt_polygon=wkt_polygon,
-                source=source
+                source=source,
+                request=request
             )
 
             if service_response["status_code"] != 200:
@@ -123,6 +124,7 @@ class SatelliteCaptureCatalogView(APIView):
                     "page_number": service_response["page_number"],
                     "page_size": service_response["page_size"],
                     "total_records": service_response["total_records"],
+                    "time_taken": service_response["time_taken"],
                     "status_code": 200,
                 }
             )

@@ -7,6 +7,8 @@ from core.models import SatelliteCaptureCatalog
 from django.contrib.gis.geos import Polygon
 from django.db.models import Count
 from datetime import datetime, timedelta
+from django.db.models.functions import TruncDate
+
 
 def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10):
     logger.info("Fetching all sites")
@@ -56,12 +58,17 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10):
                 else:
                     time_between_acquisitions = 0
 
-            heatmap = captures.filter(
-                acquisition_datetime__gte=datetime.now() - timedelta(days=90)
-            ).values("acquisition_datetime").annotate(count=Count("acquisition_datetime")).order_by("acquisition_datetime")
+            # Generate heatmap
+            heatmap = (
+                captures.filter(acquisition_datetime__gte=datetime.now() - timedelta(days=365))
+                .annotate(date=TruncDate("acquisition_datetime"))  # Truncate datetime to date
+                .values("date")  # Group by date
+                .annotate(count=Count("acquisition_datetime"))  # Count records for each date
+                .order_by("date")  # Sort by date
+            )
 
             heatmap_data = [
-                {"date": data["acquisition_datetime"].date(), "count": data["count"]}
+                {"date": data["date"], "count": data["count"]}
                 for data in heatmap
             ]
 

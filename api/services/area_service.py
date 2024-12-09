@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from django.contrib.gis.geos import fromstr
 import shapely.wkt
 from pyproj import Geod
+from api.services.vendor_service import get_image_url_by_vendor_name_and_id
 
 
 
@@ -52,6 +53,7 @@ def get_satellite_records(
     latitude: float = None,
     longitude: float = None,
     distance: float = None,
+    source: str = "home"
 ):
     logger.info("Inside get satellite records service")
     
@@ -79,9 +81,34 @@ def get_satellite_records(
         paginator = Paginator(captures, page_size)
         page = paginator.get_page(page_number)
 
+
+        if source != "home":
+            missing_images = [
+                {"vendor": record.vendor_name, "id": record.vendor_id}
+                for record in page
+                if not record.image_uploaded
+            ]
+
+            if missing_images:
+                get_image_url_by_vendor_name_and_id(missing_images)
+
+        final_response = []
+
+        for record in page:
+            file_name = f"{record.vendor_id}.png"
+            if source != "home":
+                presigned_url = s3.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": bucket_name, "Key": f"{record.vendor_name}/{file_name}"},
+                    ExpiresIn=3600
+                )
+                record.presigned_url = presigned_url
+            final_response.append(record)
+
+
         logger.info("Satellite records fetched successfully")
         return {
-            "data": list(page),
+            "data": final_response,
             "total_records": paginator.count,
             "page_number": page_number,
             "page_size": page_size,

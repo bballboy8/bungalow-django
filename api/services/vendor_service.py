@@ -299,3 +299,43 @@ def get_capella_record_images_by_ids(ids: List[str]):
     except Exception as e:
         logger.error(f"Error in Capella Vendor View: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}
+
+
+def get_image_url_by_vendor_name_and_id(data: dict):
+    vendor_data = {}
+    for item in data:
+        vendor_name = item.get("vendor")
+        vendor_id = item.get("id")
+        if vendor_name not in vendor_data:
+            vendor_data[vendor_name] = []
+        vendor_data[vendor_name].append(vendor_id)
+
+    def fetch_images(vendor_name, vendor_ids):
+        if vendor_name == "airbus":
+            return {vendor_name: get_airbus_record_images_by_ids(vendor_ids)}
+        elif vendor_name == "maxar":
+            return {vendor_name: get_maxar_record_images_by_ids(vendor_ids)}
+        elif vendor_name == "blacksky":
+            return {vendor_name: get_blacksky_record_images_by_ids(vendor_ids)}
+        elif vendor_name == "planet":
+            return {vendor_name: get_planet_record_images_by_ids(vendor_ids)}
+        elif vendor_name == "capella":
+            return {vendor_name: get_capella_record_images_by_ids(vendor_ids)}
+        else:
+            return {vendor_name: {"data": "Vendor not supported", "status_code": 400}}
+
+    final_data = {}
+    with ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(fetch_images, vendor_name, vendor_ids)
+            for vendor_name, vendor_ids in vendor_data.items()
+        ]
+
+        for future in futures:
+            try:
+                result = future.result()
+                final_data.update(result)
+            except Exception as e:
+                final_data["error"] = f"Error fetching images: {str(e)}"
+    print(final_data)
+    return final_data

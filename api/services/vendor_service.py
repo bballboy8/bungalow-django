@@ -24,6 +24,7 @@ from core.services.capella_master_collector import (
     PASSWORD as CAPELLA_PASSWORD,
     API_URL as CAPELLA_API_URL,
 )
+from django.urls import reverse
 
 
 def get_airbus_record_images_by_ids(ids: List[str]):
@@ -110,9 +111,10 @@ def get_maxar_record_images_by_ids(ids: List[str]):
                     feature["vendor_id"] = feature_id
                     url = maxar_upload_to_s3(feature, "maxar")  
 
-                    SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
-                        image_uploaded=True
-                    )
+                    if url:
+                        SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
+                            image_uploaded=True
+                        )
                     return url
                 except Exception as e:
                     logger.error(f"Error processing feature Maxar {feature_id}: {str(e)}")
@@ -130,6 +132,8 @@ def get_maxar_record_images_by_ids(ids: List[str]):
 
         except Exception as e:
             logger.error(f"Error in Maxar Vendor View 1: {str(e)}")
+
+        print(all_urls)
 
         return {
             "vendor": "maxar",
@@ -232,7 +236,81 @@ def get_planet_record_images_by_ids(ids: List[str]):
     except Exception as e:
         logger.error(f"Error in Planet Vendor View: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "planet"}
+    
+def capella_celery_processing(all_features, final_urls):
+    def process_feature(feature):
+                try:
+                    feature_id = feature.get("id")
+                    thumbnail_url = feature.get("assets", {}).get("thumbnail", {}).get("href")
+                    if not thumbnail_url:
+                        logger.error(f"No thumbnail URL found for feature {feature_id}")
+                        pass
 
+                    # Upload to S3
+                    record = {"id": feature_id, "thumbnail_url": thumbnail_url}
+
+                    url = capella_upload_to_s3(record, "capella")
+
+                    # Update database
+                    if url:
+                        SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
+                            image_uploaded=True
+                        )
+                    return url
+                except Exception as e:
+                    logger.error(f"Error processing feature {feature.get('id')}: {str(e)}")
+                    return None
+
+            # Use ThreadPoolExecutor for concurrent processing
+            
+    with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust max_workers as needed
+        future_to_feature = {executor.submit(process_feature, feature): feature for feature in all_features}
+        for future in as_completed(future_to_feature):
+            try:
+                result = future.result()
+                if result:
+                    final_urls.append(result)
+            except Exception as e:
+                logger.error(f"Error in future processing: {str(e)}")
+
+
+
+def get_capella_record_thumbnails_by_ids(ids: List[str]):
+    try:
+        access_token = get_access_token(CAPELLA_USERNAME, CAPELLA_PASSWORD)
+        access_token = access_token.get("accessToken")
+        request_body = {
+            "ids": ids,
+            "fields": {
+                "include": [
+                    "id",
+                    "assets:thumbnail",
+                ]
+            },
+        }
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        response = requests.post(CAPELLA_API_URL, json=request_body, headers=headers)
+        response.raise_for_status()
+        response_json = response.json()
+        all_features = []
+        thumbnail_urls = []
+
+        if response_json.get("features"):
+            all_features = response_json.get("features")
+            thumbnail_urls = [{"id": feature.get("id"), "thumbnail": feature.get("assets", {}).get("thumbnail", {}).get("href")} for feature in all_features]
+            
+        return {
+            "vendor": "capella",
+            "data": thumbnail_urls,
+            "status_code": 200,
+        }
+    except Exception as e:
+        logger.error(f"Error in Capella Vendor View: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}
+    
 
 def get_capella_record_images_by_ids(ids: List[str]):
     try:
@@ -255,42 +333,12 @@ def get_capella_record_images_by_ids(ids: List[str]):
         response.raise_for_status()
         response_json = response.json()
         all_features = []
+
         final_urls = []
         if response_json.get("features"):
             all_features = response_json.get("features")
-            def process_feature(feature):
-                try:
-                    feature_id = feature.get("id")
-                    thumbnail_url = feature.get("assets", {}).get("thumbnail", {}).get("href")
-                    if not thumbnail_url:
-                        logger.error(f"No thumbnail URL found for feature {feature_id}")
-                        return None
-
-                    # Upload to S3
-                    record = {"id": feature_id, "thumbnail_url": thumbnail_url}
-                    url = capella_upload_to_s3(record, "capella")
-
-                    # Update database
-                    if url:
-                        SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
-                            image_uploaded=True
-                        )
-                    return url
-                except Exception as e:
-                    logger.error(f"Error processing feature {feature.get('id')}: {str(e)}")
-                    return None
-
-            # Use ThreadPoolExecutor for concurrent processing
+            capella_celery_processing(all_features, final_urls)
             
-            with ThreadPoolExecutor(max_workers=4) as executor:  # Adjust max_workers as needed
-                future_to_feature = {executor.submit(process_feature, feature): feature for feature in all_features}
-                for future in as_completed(future_to_feature):
-                    try:
-                        result = future.result()
-                        if result:
-                            final_urls.append(result)
-                    except Exception as e:
-                        logger.error(f"Error in future processing: {str(e)}")
         return {
             "vendor": "capella",
             "data": final_urls,
@@ -301,41 +349,8 @@ def get_capella_record_images_by_ids(ids: List[str]):
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}
 
 
-def get_image_url_by_vendor_name_and_id(data: dict):
-    vendor_data = {}
-    for item in data:
-        vendor_name = item.get("vendor")
-        vendor_id = item.get("id")
-        if vendor_name not in vendor_data:
-            vendor_data[vendor_name] = []
-        vendor_data[vendor_name].append(vendor_id)
 
-    def fetch_images(vendor_name, vendor_ids):
-        if vendor_name == "airbus":
-            return {vendor_name: get_airbus_record_images_by_ids(vendor_ids)}
-        elif vendor_name == "maxar":
-            return {vendor_name: get_maxar_record_images_by_ids(vendor_ids)}
-        elif vendor_name == "blacksky":
-            return {vendor_name: get_blacksky_record_images_by_ids(vendor_ids)}
-        elif vendor_name == "planet":
-            return {vendor_name: get_planet_record_images_by_ids(vendor_ids)}
-        elif vendor_name == "capella":
-            return {vendor_name: get_capella_record_images_by_ids(vendor_ids)}
-        else:
-            return {vendor_name: {"data": "Vendor not supported", "status_code": 400}}
-
-    final_data = {}
-    with ThreadPoolExecutor() as executor:
-        futures = [
-            executor.submit(fetch_images, vendor_name, vendor_ids)
-            for vendor_name, vendor_ids in vendor_data.items()
-        ]
-
-        for future in futures:
-            try:
-                result = future.result()
-                final_data.update(result)
-            except Exception as e:
-                final_data["error"] = f"Error fetching images: {str(e)}"
-    print(final_data)
-    return final_data
+def generate_proxy_url(request, vendor_name, vendor_id):
+    return request.build_absolute_uri(
+        reverse('proxy_image') + f"?vendor_name={vendor_name}&vendor_id={vendor_id}"
+    )

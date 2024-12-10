@@ -13,7 +13,7 @@ class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
     presigned_url = serializers.CharField(required=False, allow_blank=True)
     class Meta:
         model = SatelliteCaptureCatalog
-        exclude = ["location_polygon", "created_at", "updated_at", "image_uploaded"]
+        exclude = ["location_polygon", "created_at", "updated_at"]
 
 
 class SatelliteCaptureImageByIdAndVendorSerializer(serializers.Serializer):
@@ -34,4 +34,8 @@ class NewestInfoSerializer(serializers.Serializer):
     cloud_cover = serializers.FloatField()
 
 class PolygonSelectionAnalyticsAndLocationSerializer(serializers.Serializer):
+    polygon_wkt = serializers.CharField()
+
+
+class AreaFromPolygonWktSerializer(serializers.Serializer):
     polygon_wkt = serializers.CharField()

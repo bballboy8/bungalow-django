@@ -237,7 +237,7 @@ def get_planet_record_images_by_ids(ids: List[str]):
         logger.error(f"Error in Planet Vendor View: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "planet"}
     
-def capella_celery_task(all_features):
+def capella_celery_processing(all_features, final_urls):
     def process_feature(feature):
                 try:
                     feature_id = feature.get("id")
@@ -268,12 +268,14 @@ def capella_celery_task(all_features):
         for future in as_completed(future_to_feature):
             try:
                 result = future.result()
+                if result:
+                    final_urls.append(result)
             except Exception as e:
                 logger.error(f"Error in future processing: {str(e)}")
 
 
 
-def get_capella_record_images_by_ids(ids: List[str]):
+def get_capella_record_thumbnails_by_ids(ids: List[str]):
     try:
         access_token = get_access_token(CAPELLA_USERNAME, CAPELLA_PASSWORD)
         access_token = access_token.get("accessToken")
@@ -296,11 +298,9 @@ def get_capella_record_images_by_ids(ids: List[str]):
         all_features = []
         thumbnail_urls = []
 
-        final_urls = []
         if response_json.get("features"):
             all_features = response_json.get("features")
             thumbnail_urls = [{"id": feature.get("id"), "thumbnail": feature.get("assets", {}).get("thumbnail", {}).get("href")} for feature in all_features]
-            # capella_celery_task(all_features)
             
         return {
             "vendor": "capella",
@@ -310,45 +310,44 @@ def get_capella_record_images_by_ids(ids: List[str]):
     except Exception as e:
         logger.error(f"Error in Capella Vendor View: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}
+    
 
+def get_capella_record_images_by_ids(ids: List[str]):
+    try:
+        access_token = get_access_token(CAPELLA_USERNAME, CAPELLA_PASSWORD)
+        access_token = access_token.get("accessToken")
+        request_body = {
+            "ids": ids,
+            "fields": {
+                "include": [
+                    "id",
+                    "assets:thumbnail",
+                ]
+            },
+        }
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        response = requests.post(CAPELLA_API_URL, json=request_body, headers=headers)
+        response.raise_for_status()
+        response_json = response.json()
+        all_features = []
 
-def get_image_url_by_vendor_name_and_id(data: dict):
-    vendor_data = {}
-    for item in data:
-        vendor_name = item.get("vendor")
-        vendor_id = item.get("id")
-        if vendor_name not in vendor_data:
-            vendor_data[vendor_name] = []
-        vendor_data[vendor_name].append(vendor_id)
+        final_urls = []
+        if response_json.get("features"):
+            all_features = response_json.get("features")
+            capella_celery_processing(all_features, final_urls)
+            
+        return {
+            "vendor": "capella",
+            "data": final_urls,
+            "status_code": 200,
+        }
+    except Exception as e:
+        logger.error(f"Error in Capella Vendor View: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}
 
-    def fetch_images(vendor_name, vendor_ids):
-        if vendor_name == "airbus":
-            return {vendor_name: get_airbus_record_images_by_ids(vendor_ids)}
-        elif vendor_name == "maxar":
-            return {vendor_name: get_maxar_record_images_by_ids(vendor_ids)}
-        elif vendor_name == "blacksky":
-            return {vendor_name: get_blacksky_record_images_by_ids(vendor_ids)}
-        elif vendor_name == "planet":
-            return {vendor_name: get_planet_record_images_by_ids(vendor_ids)}
-        elif vendor_name == "capella":
-            return {vendor_name: get_capella_record_images_by_ids(vendor_ids)}
-        else:
-            return {vendor_name: {"data": "Vendor not supported", "status_code": 400}}
-
-    final_data = {}
-    with ThreadPoolExecutor() as executor:
-        futures = [
-            executor.submit(fetch_images, vendor_name, vendor_ids)
-            for vendor_name, vendor_ids in vendor_data.items()
-        ]
-
-        for future in futures:
-            try:
-                result = future.result()
-                final_data.update(result)
-            except Exception as e:
-                final_data["error"] = f"Error fetching images: {str(e)}"
-    return final_data
 
 
 def generate_proxy_url(request, vendor_name, vendor_id):

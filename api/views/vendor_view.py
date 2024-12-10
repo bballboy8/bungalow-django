@@ -8,6 +8,7 @@ from logging_module import logger
 import time
 from django.http import StreamingHttpResponse, HttpResponse
 from decouple import config
+from api.parameters.vendor_parameters import *
 
 
 class AirbusVendorView(APIView):
@@ -231,6 +232,18 @@ class CapellaVendorView(APIView):
 
 
 class ProxyImageAPIView(APIView):
+    @extend_schema(
+        description="Get Proxy images by vendor name and id.",
+        parameters=get_proxy_images_parameters,
+        responses={
+            200: OpenApiResponse(
+                description="Proxy image successfully retrieved.",
+            ),
+            400: OpenApiResponse(description="Bad Request - Invalid ids."),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Vendors"],
+    )
     def get(self, request, *args, **kwargs):
         vendor_name = request.GET.get("vendor_name")
         vendor_id = request.GET.get("vendor_id")

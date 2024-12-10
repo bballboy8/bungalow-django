@@ -121,6 +121,7 @@ class SatelliteCaptureCatalogView(APIView):
             return Response(
                 {
                     "data": data,
+                    "polygon_area_km2": service_response["polygon_area_km2"],
                     "page_number": service_response["page_number"],
                     "page_size": service_response["page_size"],
                     "total_records": service_response["total_records"],
@@ -381,4 +382,52 @@ class GetPinSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Pin Selection Calender Days Frequency View: {str(e)}")
+            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+        
+
+class GetAreaFromPolygonWkt(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Get area from WKT polygon.",
+        request=AreaFromPolygonWktSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Area successfully retrieved.",
+            ),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Satellite Capture"],
+    )
+
+    def post(self, request, *args, **kwargs):
+        logger.info("Inside Post method of Area from Polygon WKT View")
+        try:
+            polygon_wkt = request.data.get("polygon_wkt", None)
+            if not polygon_wkt:
+                return Response(
+                    {
+                        "data": "WKT Polygon is required",
+                        "status_code": 400,
+                    },
+                    status=400,
+                )
+
+            logger.info(f"WKT Polygon: {polygon_wkt}")
+            service_response = get_area_from_polygon_wkt(
+                polygon_wkt=polygon_wkt
+            )
+
+            if service_response["status_code"] != 200:
+                return Response(
+                    service_response, status=service_response["status_code"]
+                )
+
+            logger.info("Area from Polygon WKT View response")
+            return Response(
+                {"data": service_response["data"], "status_code": 200}
+            )
+        except Exception as e:
+            logger.error(f"Error in Area from Polygon WKT View: {str(e)}")
             return Response({"data": f"{str(e)}", "status_code": 500}, status=500)

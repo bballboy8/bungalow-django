@@ -17,8 +17,19 @@ from concurrent.futures import ThreadPoolExecutor
 from django.contrib.gis.geos import fromstr
 import shapely.wkt
 from pyproj import Geod
-from api.services.vendor_service import generate_proxy_url, get_capella_record_images_by_ids
+from api.services.vendor_service import *
 
+
+def get_area_from_polygon_wkt(polygon_wkt: str):
+    logger.info("Inside get area from WKT service")
+    try:
+        polygon = GEOSGeometry(polygon_wkt)
+        area = round(polygon.area / 1000000.0, 2)
+        logger.info("Area fetched successfully")
+        return {"data": area, "status_code": 200}
+    except Exception as e:
+        logger.error(f"Error fetching area from WKT: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 400}
 
 
 
@@ -44,6 +55,7 @@ def convert_geojson_to_wkt(geometry):
         logger.error(f"Error converting GeoJSON to WKT: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 400}
 
+
 def get_satellite_records(
     page_number: int = 1,
     page_size: int = 10,
@@ -57,87 +69,119 @@ def get_satellite_records(
     request=None
 ):
     logger.info("Inside get satellite records service")
-    
-    try:
-        start_time = datetime.now()
-        captures = SatelliteCaptureCatalog.objects.all()
+    start_time = datetime.now()
 
+    try:
+        captures = SatelliteCaptureCatalog.objects.all()
         filters = Q()
-        
+
+        polygon_area = None
+
         if wkt_polygon:
-            polygon = GEOSGeometry(wkt_polygon)
-            filters &= Q(location_polygon__intersects=polygon)
-        
+            try:
+                area_response = get_area_from_polygon_wkt(wkt_polygon)
+                if area_response["status_code"] == 200:
+                    polygon_area = area_response["data"]
+                    if polygon_area > 100000:
+                        logger.warning("Area is too large for processing")
+                        return {"data": "Area is too large for processing", "status_code": 400}
+                else:
+                    logger.warning(f"Failed to calculate area: {area_response['data']}")
+            except Exception as e:
+                logger.error(f"Error calculating polygon area: {str(e)}")
+
+            filters &= Q(location_polygon__intersects=GEOSGeometry(wkt_polygon))
+
         if latitude and longitude and distance:
-            point = Point(longitude, latitude, srid=4326)
-            filters &= Q(location_polygon__distance_lte=(point, D(km=distance)))
+            filters &= Q(
+                location_polygon__distance_lte=(
+                    Point(longitude, latitude, srid=4326),
+                    D(km=distance),
+                )
+            )
 
         if start_date:
             filters &= Q(acquisition_datetime__gte=start_date)
-        
         if end_date:
             filters &= Q(acquisition_datetime__lte=end_date)
 
-        captures = captures.filter(filters).order_by('-acquisition_datetime')
+        captures = captures.filter(filters).order_by("-acquisition_datetime")
 
-        paginator = Paginator(captures, page_size)
-        page = paginator.get_page(page_number)
+        if source == "home":
+            if not wkt_polygon or (latitude and longitude and distance):
+                return {"data": "Please provide a valid polygon or latitude, longitude, and distance", "status_code": 400}
+            
+            captures = list(captures)
+            final_response = list(captures)
+            total_records = captures.count()
+        else:
+            paginator = Paginator(captures, page_size)
+            page = paginator.get_page(page_number)
 
-        proxy_urls = {}
-        if source != "home":
+            proxy_urls = {}
             missing_images = [
                 {"vendor_name": record.vendor_name, "id": record.vendor_id}
                 for record in page
                 if not record.image_uploaded
             ]
 
-            capella_ids = []
+            capella_ids = [
+                record["id"] for record in missing_images if record["vendor_name"] == "capella"
+            ]
+
             if missing_images:
-                for record in missing_images:
-                    if record["vendor_name"] != 'capella':
-                        url = generate_proxy_url(request, record["vendor_name"], record["id"])
-                        proxy_urls[record["id"]] = url
-                    else:
-                        capella_ids.append(record["id"])
+                proxy_urls.update({
+                    record["id"]: generate_proxy_url(request, record["vendor_name"], record["id"])
+                    for record in missing_images
+                    if record["vendor_name"] != "capella"
+                })
 
             if capella_ids:
-                response = get_capella_record_images_by_ids(capella_ids)
+                response = get_capella_record_thumbnails_by_ids(capella_ids)
                 if response["status_code"] == 200:
-                    for record in response["data"]:
-                        proxy_urls[record["id"]] = record["thumbnail"]
+                    proxy_urls.update({
+                        record["id"]: record["thumbnail"]
+                        for record in response["data"]
+                    })
 
-        final_response = []
+            final_response = []
+            for record in page:
+                if record.vendor_name == "maxar":
+                    file_name = f"{record.vendor_id.split("-")[0]}.png"
+                else:
+                    file_name = f"{record.vendor_id}.png"
+                record.presigned_url = None
 
-        for record in page:
-            file_name = f"{record.vendor_id}.png"
-            if source != "home":
                 if record.image_uploaded:
-                    presigned_url = s3.generate_presigned_url(
-                    "get_object",
-                    Params={"Bucket": bucket_name, "Key": f"{record.vendor_name}/{file_name}"},
-                    ExpiresIn=3600
+                    record.presigned_url = s3.generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": bucket_name, "Key": f"{record.vendor_name}/{file_name}"},
+                        ExpiresIn=3600,
                     )
-                    record.presigned_url = presigned_url
                 else:
                     record.presigned_url = proxy_urls.get(record.vendor_id)
-                
-            final_response.append(record)
 
-        end_time = datetime.now()
+                final_response.append(record)
 
+            total_records = paginator.count
+
+        # Success response
         logger.info("Satellite records fetched successfully")
         return {
             "data": final_response,
-            "time_taken": str(end_time - start_time),
-            "total_records": paginator.count,
-            "page_number": page_number,
-            "page_size": page_size,
-            "status_code": 200
+            "polygon_area_km2": polygon_area,
+            "time_taken": str(datetime.now() - start_time),
+            "total_records": total_records,
+            "page_number": page_number if source != "home" else None,
+            "page_size": page_size if source != "home" else None,
+            "status_code": 200,
         }
-    
+
     except Exception as e:
         logger.error(f"Error fetching satellite records: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 400}
+        return {"data": str(e), "status_code": 400}
+
+
     
 def get_presigned_url_by_vendor_name_and_id(record:List[dict]):
     logger.info("Inside get presigned URL by vendor name and id service")

@@ -23,8 +23,9 @@ from api.services.vendor_service import *
 def get_area_from_polygon_wkt(polygon_wkt: str):
     logger.info("Inside get area from WKT service")
     try:
-        polygon = GEOSGeometry(polygon_wkt)
-        area = round(polygon.area / 1000000.0, 2)
+        geod = Geod(ellps="WGS84")
+        polygon = shapely.wkt.loads(polygon_wkt)
+        area = round(abs(geod.geometry_area_perimeter(polygon)[0]) / 1000000.0, 2)
         logger.info("Area fetched successfully")
         return {"data": area, "status_code": 200}
     except Exception as e:

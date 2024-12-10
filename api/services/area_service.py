@@ -111,9 +111,9 @@ def get_satellite_records(
             if not wkt_polygon or (latitude and longitude and distance):
                 return {"data": "Please provide a valid polygon or latitude, longitude, and distance", "status_code": 400}
             
+            total_records = captures.count()
             captures = list(captures)
             final_response = list(captures)
-            total_records = captures.count()
         else:
             paginator = Paginator(captures, page_size)
             page = paginator.get_page(page_number)

@@ -83,7 +83,7 @@ def get_satellite_records(
                 area_response = get_area_from_polygon_wkt(wkt_polygon)
                 if area_response["status_code"] == 200:
                     polygon_area = area_response["data"]
-                    if polygon_area > 10000000000:
+                    if polygon_area > 1000000000:
                         logger.warning("Area is too large for processing")
                         return {"data": "Area is too large for processing", "status_code": 400}
                 else:

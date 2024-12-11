@@ -79,6 +79,17 @@ def get_satellite_records(
         polygon_area = None
 
         if wkt_polygon:
+            try:
+                area_response = get_area_from_polygon_wkt(wkt_polygon)
+                if area_response["status_code"] == 200:
+                    polygon_area = area_response["data"]
+                    if polygon_area > 10000000:
+                        logger.warning("Area is too large for processing")
+                        return {"data": "Area is too large for processing", "status_code": 400}
+                else:
+                    logger.warning(f"Failed to calculate area: {area_response['data']}")
+            except Exception as e:
+                logger.error(f"Error calculating polygon area: {str(e)}")
             filters &= Q(location_polygon__intersects=GEOSGeometry(wkt_polygon))
 
         if latitude and longitude and distance:

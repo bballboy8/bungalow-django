@@ -431,3 +431,87 @@ class GetAreaFromPolygonWkt(APIView):
         except Exception as e:
             logger.error(f"Error in Area from Polygon WKT View: {str(e)}")
             return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+        
+
+class GenerateCirclePolygonAPIView(APIView):
+    """
+    API to generate a GeoJSON Polygon for a circle based on center latitude, longitude, and radius.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Generate GeoJSON Polygon for a circle.",
+        request=GenerateCirclePolygonSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="GeoJSON Polygon successfully generated.",
+            ),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Circle Operations"],
+    )
+    def post(self, request, *args, **kwargs):
+        try:
+            latitude = request.data.get("latitude")
+            longitude = request.data.get("longitude")
+            distance_km = request.data.get("distance_km")
+
+            if latitude is None or longitude is None or distance_km is None:
+                return Response(
+                    {"data": "latitude, longitude, and distance_km are required", "status_code": 400},
+                    status=400,
+                )
+
+            geojson_polygon = generate_circle_polygon_geojson(latitude, longitude, distance_km)
+            return Response({"data": geojson_polygon, "status_code": 200}, status=200)
+
+        except Exception as e:
+            logger.error(f"Error generating GeoJSON Polygon: {str(e)}")
+            return Response({"data": str(e), "status_code": 500}, status=500)
+
+
+class ExtractCircleParametersAPIView(APIView):
+    """
+    API to extract center latitude, longitude, and radius from a GeoJSON Polygon.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Extract original parameters from a GeoJSON Polygon.",
+        request=ExtractCircleParametersSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Parameters successfully extracted.",
+            ),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Circle Operations"],
+    )
+    def post(self, request, *args, **kwargs):
+        try:
+            geojson_polygon = request.data.get("geojson_polygon")
+
+            if not geojson_polygon:
+                return Response(
+                    {"data": "geojson_polygon is required", "status_code": 400},
+                    status=400,
+                )
+
+            latitude, longitude, distance_km = get_circle_parameters_from_geojson(geojson_polygon)
+            return Response(
+                {
+                    "data": {
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "distance_km": distance_km
+                    },
+                    "status_code": 200,
+                },
+                status=200
+            )
+
+        except Exception as e:
+            logger.error(f"Error extracting parameters from GeoJSON: {str(e)}")
+            return Response({"data": str(e), "status_code": 500}, status=500)

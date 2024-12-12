@@ -18,6 +18,7 @@ from django.contrib.gis.geos import fromstr
 import shapely.wkt
 from pyproj import Geod
 from api.services.vendor_service import *
+import math
 
 
 def get_area_from_polygon_wkt(polygon_wkt: str):
@@ -584,3 +585,82 @@ def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, d
         traceback.print_exc()
         logger.error(f"Error fetching pin selection calendar days frequency: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500}
+    
+
+
+
+def generate_circle_polygon_geojson(latitude, longitude, distance_km, num_points=36):
+    """
+    Generates a GeoJSON polygon representing a circle centered at a given latitude and longitude.
+
+    Args:
+        latitude (float): Latitude of the center in decimal degrees.
+        longitude (float): Longitude of the center in decimal degrees.
+        distance_km (float): Radius of the circle in kilometers.
+        num_points (int): Number of points to approximate the circle.
+
+    Returns:
+        dict: GeoJSON dictionary representing the circle as a polygon.
+    """
+    EARTH_RADIUS_KM = 6371.0
+    radius_radians = distance_km / EARTH_RADIUS_KM
+
+    points = []
+    for i in range(num_points + 1):  # +1 to close the polygon
+        angle = 2 * math.pi * i / num_points  # Angle in radians
+        lat = math.asin(math.sin(math.radians(latitude)) * math.cos(radius_radians) +
+                        math.cos(math.radians(latitude)) * math.sin(radius_radians) * math.cos(angle))
+        lon = math.radians(longitude) + math.atan2(math.sin(angle) * math.sin(radius_radians) * math.cos(math.radians(latitude)),
+                                                   math.cos(radius_radians) - math.sin(math.radians(latitude)) * math.sin(lat))
+        points.append([math.degrees(lon), math.degrees(lat)])  # GeoJSON uses [lon, lat]
+
+    geojson_polygon = {
+        "type": "Point",
+        "coordinates": [points]
+    }
+    return geojson_polygon
+
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the Haversine distance between two points in kilometers.
+
+    Args:
+        lat1, lon1: Latitude and longitude of the first point in degrees.
+        lat2, lon2: Latitude and longitude of the second point in degrees.
+
+    Returns:
+        float: Distance in kilometers.
+    """
+    EARTH_RADIUS_KM = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return EARTH_RADIUS_KM * c
+
+
+def get_circle_parameters_from_geojson(geojson_polygon):
+    """
+    Extract the center (latitude, longitude) and radius (distance) from a GeoJSON polygon.
+
+    Args:
+        geojson_polygon (dict): GeoJSON dictionary representing a circle as a polygon.
+
+    Returns:
+        tuple: (latitude, longitude, radius_km)
+    """
+    coordinates = geojson_polygon["coordinates"][0]  # Outer ring of the polygon
+
+    # Calculate the center (approximation by averaging points)
+    lon_sum = sum(point[0] for point in coordinates)
+    lat_sum = sum(point[1] for point in coordinates)
+    num_points = len(coordinates)
+    center_lon = lon_sum / num_points
+    center_lat = lat_sum / num_points
+
+    # Calculate the radius using the first point
+    first_point = coordinates[0]
+    radius_km = haversine_distance(center_lat, center_lon, first_point[1], first_point[0])
+
+    return center_lat, center_lon, radius_km

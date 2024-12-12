@@ -42,5 +42,7 @@ urlpatterns = [
     path("get-area-from-geojson", GetAreaFromGeoJsonView.as_view(), name="get-area-from-geojson"),
     path("proxy-image/", ProxyImageAPIView.as_view(), name="proxy_image"),
     path("get-area-from-polygon-wkt", GetAreaFromPolygonWkt.as_view(), name="get-area-from-polygon-wkt"),
+    path('generate-circle-polygon/', GenerateCirclePolygonAPIView.as_view(), name='generate-circle-polygon'),
+    path('extract-circle-parameters/', ExtractCircleParametersAPIView.as_view(), name='extract-circle-parameters'),
 
 ]

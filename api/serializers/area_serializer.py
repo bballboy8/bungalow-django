@@ -39,3 +39,13 @@ class PolygonSelectionAnalyticsAndLocationSerializer(serializers.Serializer):
 
 class AreaFromPolygonWktSerializer(serializers.Serializer):
     polygon_wkt = serializers.CharField()
+
+
+class GenerateCirclePolygonSerializer(serializers.Serializer):
+    latitude = serializers.FloatField(help_text="Center latitude of the circle.")
+    longitude = serializers.FloatField(help_text="Center longitude of the circle.")
+    distance_km = serializers.FloatField(help_text="Radius of the circle in kilometers.")
+
+
+class ExtractCircleParametersSerializer(serializers.Serializer):
+    geojson_polygon = serializers.JSONField(help_text="GeoJSON Polygon representing a circle.")

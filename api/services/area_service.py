@@ -136,6 +136,10 @@ def get_satellite_records(
                 record["id"] for record in missing_images if record["vendor_name"] == "capella"
             ]
 
+            skfyi_ids = [
+                record["id"] for record in missing_images if "skyfi" in record["vendor_name"]
+            ]
+
             if missing_images:
                 proxy_urls.update({
                     record["id"]: generate_proxy_url(request, record["vendor_name"], record["id"])
@@ -145,6 +149,14 @@ def get_satellite_records(
 
             if capella_ids:
                 response = get_capella_record_thumbnails_by_ids(capella_ids)
+                if response["status_code"] == 200:
+                    proxy_urls.update({
+                        record["id"]: record["thumbnail"]
+                        for record in response["data"]
+                    })
+
+            if skfyi_ids:
+                response = get_skyfi_record_thumbnails_by_ids(skfyi_ids)
                 if response["status_code"] == 200:
                     proxy_urls.update({
                         record["id"]: record["thumbnail"]

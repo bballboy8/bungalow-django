@@ -15,6 +15,7 @@ def run_image_seeder(captures):
             "airbus": get_airbus_record_images_by_ids,
             "planet": get_planet_record_images_by_ids,
             "capella": get_capella_record_images_by_ids,
+            "skyfi": get_skyfi_record_images_by_ids
         }
         
         # Define a thread pool

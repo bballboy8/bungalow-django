@@ -316,7 +316,7 @@ class SkyfiVendorView(APIView):
                     status=400,
                 )
 
-            service_response = get_skyfi_record_thumbnails_by_ids(ids)
+            service_response = get_skyfi_record_images_by_ids(ids)
 
             if service_response["status_code"] != 200:
                 return Response(

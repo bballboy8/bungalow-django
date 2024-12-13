@@ -286,3 +286,47 @@ class ProxyImageAPIView(APIView):
             f"Failed to fetch image: {response.status_code}",
             status=response.status_code,
         )
+
+
+class SkyfiVendorView(APIView):
+
+    @extend_schema(
+        description="Save Skyfi record images by ids.",
+        request=SkyfiVendorImagesSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Skyfi record images successfully retrieved.",
+            ),
+            400: OpenApiResponse(description="Bad Request - Invalid ids."),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Vendors"],
+    )
+    def put(self, request, *args, **kwargs):
+        logger.info("Inside Post method of Skyfi Vendor View")
+
+        try:
+            ids = request.data.get("ids", None)
+            if not ids:
+                return Response(
+                    {
+                        "data": "ids is required",
+                        "status_code": 400,
+                    },
+                    status=400,
+                )
+
+            service_response = get_skyfi_record_thumbnails_by_ids(ids)
+
+            if service_response["status_code"] != 200:
+                return Response(
+                    service_response, status=service_response["status_code"]
+                )
+
+            logger.info("Skyfi Vendor View response")
+
+            return Response({"data": service_response["data"], "status_code": 200})
+
+        except Exception as e:
+            logger.error(f"Error in Skyfi Vendor View: {str(e)}")
+            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)

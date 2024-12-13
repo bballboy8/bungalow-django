@@ -18,6 +18,7 @@ urlpatterns = [
     path("planet/add-images", PlanetVendorView.as_view(), name="planet-vendor"),
     path("blacksky/add-images", BlackskyVendorView.as_view(), name="blacksky-vendor"),
     path("capella/add-images", CapellaVendorView.as_view(), name="capella-vendor"),
+    path("skyfi/add-images", SkyfiVendorView.as_view(), name="skyfire-vendor"),
     path(
         "get-pin-selection-analytics",
         GetPinSelectionAnalyticsAndLocation.as_view(),

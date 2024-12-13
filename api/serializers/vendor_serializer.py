@@ -16,3 +16,6 @@ class PlanetVendorImagesSerializer(serializers.Serializer):
 
 class CapellaVendorImagesSerializer(serializers.Serializer):
     ids = serializers.ListField(child=serializers.CharField())
+
+class SkyfiVendorImagesSerializer(serializers.Serializer):
+    ids = serializers.ListField(child=serializers.CharField())

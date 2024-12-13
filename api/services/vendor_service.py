@@ -24,6 +24,7 @@ from core.services.capella_master_collector import (
     PASSWORD as CAPELLA_PASSWORD,
     API_URL as CAPELLA_API_URL,
 )
+from core.services.skyfi_catalog_api import API_KEY as SKYFI_API_KEY
 from django.urls import reverse
 
 
@@ -354,3 +355,33 @@ def generate_proxy_url(request, vendor_name, vendor_id):
     return request.build_absolute_uri(
         reverse('proxy_image') + f"?vendor_name={vendor_name}&vendor_id={vendor_id}"
     )
+
+def get_skyfi_record_thumbnails_by_ids(ids: List[str]):
+    try:
+        url = "https://app.skyfi.com/platform-api/archives"
+        headers = {"X-Skyfi-Api-Key": SKYFI_API_KEY, "Content-Type": "application/json"}
+        all_archives = []
+        
+        for archive_id in ids:
+            try:
+                response = requests.get(f"{url}/{archive_id}", headers=headers)
+                response.raise_for_status()
+                archive_data = response.json()
+                image_url = list(archive_data.get("thumbnailUrls").values())[0]
+                all_archives.append({
+                    "id": archive_id,
+                    "thumbnail": image_url,
+                })
+            except Exception as e:
+                logger.error(f"Error fetching archive {archive_id}: {str(e)}")
+                pass
+
+        return {
+            "vendor": "skyfi",
+            "data": all_archives,
+            "status_code": 200,
+        }
+    
+    except Exception as e:
+        logger.error(f"Error in Blacksky Vendor View: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi"}

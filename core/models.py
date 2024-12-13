@@ -12,7 +12,7 @@ VENDOR_CHOICES = [
     ('planet', 'planet'),
     ('maxar', 'maxar'),
     ('capella', 'capella'),
-    ('skyfi', 'skyfi'),
+    ('skyfi-umbra', 'skyfi-umbra'),
 ]
 
 class SatelliteCaptureCatalog(models.Model):
@@ -78,3 +78,21 @@ class SatelliteDateRetrievalPipelineHistory(plane_models.Model):
         if self.start_datetime and self.end_datetime:
             return self.end_datetime - self.start_datetime
         return None
+    
+class SatelliteCaptureCatalogMetadata(plane_models.Model):
+    vendor_name = plane_models.CharField(max_length=50, choices=VENDOR_CHOICES)
+    vendor_id = plane_models.CharField(max_length=255, null=True, blank=True)
+    acquisition_datetime = plane_models.DateTimeField(null=True, blank=True)
+    metadata = plane_models.JSONField(null=True, blank=True)
+    created_at = plane_models.DateTimeField(auto_now_add=True)
+    updated_at = plane_models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['vendor_name']),
+            models.Index(fields=['vendor_id']),
+            models.Index(fields=['acquisition_datetime']),
+        ]
+
+    def __str__(self):
+        return f"Metadata for {self.vendor_name} - {self.acquisition_datetime}"

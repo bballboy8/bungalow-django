@@ -25,6 +25,11 @@ urlpatterns = [
         name="get-selection-pin-analytics",
     ),
     path(
+        "get-polygon-selection-analytics",
+        GetPolygonSelectionAnalyticsAndLocation.as_view(),
+        name="get-selection-polygon-analytics",
+    ),
+    path(
         "get-polygon-selection-acquisition-calender-days-frequency",
         GetPolygonSelectionAcquisitionCalenderDaysFrequencyView.as_view(),
         name="get-polygon-selection-acquisition-calender-days-frequency",

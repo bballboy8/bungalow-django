@@ -237,7 +237,7 @@ def get_planet_record_images_by_ids(ids: List[str]):
     except Exception as e:
         logger.error(f"Error in Planet Vendor View: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "planet"}
-    
+
 def capella_celery_processing(all_features, final_urls):
     def process_feature(feature):
                 try:
@@ -275,7 +275,6 @@ def capella_celery_processing(all_features, final_urls):
                 logger.error(f"Error in future processing: {str(e)}")
 
 
-
 def get_capella_record_thumbnails_by_ids(ids: List[str]):
     try:
         access_token = get_access_token(CAPELLA_USERNAME, CAPELLA_PASSWORD)
@@ -311,7 +310,7 @@ def get_capella_record_thumbnails_by_ids(ids: List[str]):
     except Exception as e:
         logger.error(f"Error in Capella Vendor View: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}
-    
+
 
 def get_capella_record_images_by_ids(ids: List[str]):
     try:
@@ -350,7 +349,6 @@ def get_capella_record_images_by_ids(ids: List[str]):
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}
 
 
-
 def generate_proxy_url(request, vendor_name, vendor_id):
     return request.build_absolute_uri(
         reverse('proxy_image') + f"?vendor_name={vendor_name}&vendor_id={vendor_id}"
@@ -361,7 +359,7 @@ def get_skyfi_record_thumbnails_by_ids(ids: List[str]):
         url = "https://app.skyfi.com/platform-api/archives"
         headers = {"X-Skyfi-Api-Key": SKYFI_API_KEY, "Content-Type": "application/json"}
         all_archives = []
-        
+
         for archive_id in ids:
             try:
                 response = requests.get(f"{url}/{archive_id}", headers=headers)
@@ -381,7 +379,63 @@ def get_skyfi_record_thumbnails_by_ids(ids: List[str]):
             "data": all_archives,
             "status_code": 200,
         }
-    
+
+    except Exception as e:
+        logger.error(f"Error in Blacksky Vendor View: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi"}
+
+
+def get_skyfi_record_images_by_ids(ids: List[str]):
+    try:
+        response = get_skyfi_record_thumbnails_by_ids(ids)
+
+        if response.get("status_code") != 200:
+            return response
+
+        all_archives = response.get("data")
+
+        def process_archive(archive):
+            try:
+                response = requests.get(
+                    archive.get("thumbnail"), stream=True, timeout=(10, 30)
+                )
+                response.raise_for_status()
+                content = response.content
+                filename = archive.get("id")
+                response_url = save_image_in_s3_and_get_url(
+                    content, filename, "skyfi-umbra"
+                )
+                if response_url:
+                    SatelliteCaptureCatalog.objects.filter(vendor_id=filename).update(
+                        image_uploaded=True
+                    )
+                archive["image_url"] = response_url
+            except Exception as e:
+                logger.error(
+                    f"Error fetching image for archive {archive.get('id')}: {str(e)}"
+                )
+            return archive
+
+        final_urls = []
+
+        with ThreadPoolExecutor(
+            max_workers=4
+        ) as executor:  # Adjust max_workers based on your requirements
+            futures = [
+                executor.submit(process_archive, archive) for archive in all_archives
+            ]
+
+            for future in as_completed(futures):
+                try:
+                    archive = (
+                        future.result()
+                    )
+                    if archive.get("image_url"):
+                        final_urls.append(archive["image_url"])
+                except Exception as e:
+                    logger.error(f"Exception in processing archive: {str(e)}")
+
+        return {"data": final_urls, "status_code": 200}
     except Exception as e:
         logger.error(f"Error in Blacksky Vendor View: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi"}

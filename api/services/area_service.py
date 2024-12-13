@@ -359,7 +359,7 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
             return {"data": "No records found for the given location", "status_code": 404}
 
         # Multithreaded calculation of counts and percentages
-        durations = [1, 4, 30, 60, 90, 180]
+        durations = [1, 4, 7, 30, 90]
         results = {}
         with ThreadPoolExecutor() as executor:
             future_to_duration = {
@@ -447,7 +447,7 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
             return {"data": "No records found for the given location", "status_code": 404}
 
         # Multithreaded calculation of counts and percentages for various durations
-        durations = [1, 4, 30, 60, 90, 180]
+        durations = [1, 4, 7, 30, 90 ]
         results = {}
         with ThreadPoolExecutor() as executor:
             future_to_duration = {

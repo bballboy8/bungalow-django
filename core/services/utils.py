@@ -325,8 +325,8 @@ def generate_land_grids(shapefile_path):
     
     return land_grids
 
-from shapely.geometry import Polygon, shape
-from pyproj import Transformer, CRS
+from shapely.geometry import shape
+import shapely.wkt
 def calculate_area_from_geojson(geojson, id):
     """
     Calculates the area of a polygon given in GeoJSON format.
@@ -339,25 +339,21 @@ def calculate_area_from_geojson(geojson, id):
         float: Area in square meters.
     """
     try:
-        polygon = shape(geojson)  
-
-        # Determine UTM zone dynamically based on the polygon centroid
-        lon, lat = polygon.centroid.x, polygon.centroid.y
-        utm_zone = int((lon + 180) / 6) + 1
-        is_southern = lat < 0
-        utm_crs = CRS.from_proj4(f"+proj=utm +zone={utm_zone} +{'south' if is_southern else 'north'} +datum=WGS84 +units=m +no_defs")
-
-        # Transformer to reproject to the appropriate UTM zone
-        transformer = Transformer.from_crs("epsg:4326", utm_crs, always_xy=True)
-
-        # Transform coordinates to UTM
-        utm_coords = [transformer.transform(x, y) for x, y in polygon.exterior.coords]
-        utm_polygon = Polygon(utm_coords)
-
-        # Calculate and return the area in square meters
-        area_sq_m = utm_polygon.area
-        return area_sq_m
-
+        try:
+            polygon = shape(geojson)
+            wkt = polygon.wkt
+        except Exception as e:
+            print(f"Error converting GeoJSON to WKT for id {id}: {e}")
+            return 0
+        
+        try:
+            geod = Geod(ellps="WGS84")
+            polygon = shapely.wkt.loads(wkt)
+            area = round(abs(geod.geometry_area_perimeter(polygon)[0]) / 1000000.0, 2)
+            return area
+        except Exception as e:
+            print(f"Error calculating area for id {id}: {e}")
+            return 0
     except Exception as e:
         print(f"Error calculating area for id {id}: {e}")
         return 0

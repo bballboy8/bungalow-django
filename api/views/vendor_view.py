@@ -265,6 +265,8 @@ class ProxyImageAPIView(APIView):
             headers = {"Authorization": BLACKSKY_AUTH_TOKEN}
             image_url = f"{BLACKSKY_BASE_URL}/v1/browse/{vendor_id}"
         elif vendor_name == "airbus":
+            access_token = get_acces_token()
+            headers = {"Authorization": "Bearer " + access_token}
             image_url = f"https://access.foundation.api.oneatlas.airbus.com/api/v1/items/{vendor_id}/thumbnail"
         else:
             return HttpResponse("Unsupported vendor", status=400)

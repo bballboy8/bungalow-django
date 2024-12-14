@@ -21,7 +21,7 @@ from io import BytesIO
 from PIL import Image
 from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
-from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
+from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory, SatelliteCaptureCatalogMetadata
 import pytz
 from core.services.utils import calculate_area_from_geojson
 
@@ -31,7 +31,6 @@ columns = shutil.get_terminal_size().columns
 
 API_KEY = config("AIRBUS_API_KEY")
 
-GEOHASH = "w"
 ITEMS_PER_PAGE = 50
 START_PAGE = 1
 BATCH_SIZE = 28
@@ -63,44 +62,6 @@ def get_acces_token():
 access_token = get_acces_token()
 
 
-def calculate_withhold_time(acquisition_date, publication_date):
-    """Calculate the withhold time as total hours and human-readable format."""
-    acq_date = parser.isoparse(acquisition_date)
-    pub_date = parser.isoparse(publication_date)
-    delta = pub_date - acq_date
-    total_hours = int(delta.total_seconds() / 3600)  # convert to hours
-    days = delta.days
-    hours = delta.seconds // 3600
-    return f"{days} days {hours} hours", total_hours
-
-
-def sanitize_value(value):
-    """Ensure values are suitable for GeoJSON by converting them to strings if necessary, except for None."""
-    if isinstance(value, (int, float)):
-        return str(value)
-    if value is None:
-        return None
-    return value
-
-
-def format_datetime(datetime_str):
-    """Format datetime string to 'YYYY-MM-DD HH:MM:SS.xx'."""
-    try:
-        dt = parser.isoparse(datetime_str)
-        return dt.strftime("%Y-%m-%d %H:%M:%S.%f")[
-            :-4
-        ]  # Truncate to two decimal places
-    except (ValueError, TypeError):
-        return datetime_str
-
-
-def format_float(value, precision=2):
-    """Format float to a string with the given precision."""
-    try:
-        return f"{float(value):.{precision}f}"
-    except (ValueError, TypeError):
-        return None
-
 def process_features(all_features):
     thumbnail_urls = []
     converted_features = []
@@ -130,6 +91,7 @@ def process_features(all_features):
                 "resolution": f"{properties.get("resolution")}m",
                 "location_polygon": geometry,
                 "coordinates_record": geometry,
+                "metadata": feature
             }
             converted_features.append(model_params)
             download_thumbnails_dict = {
@@ -191,11 +153,20 @@ def download_and_upload_images(images, path, max_workers=5):
 def process_database_catalog(features, start_time, end_time, batch_size=100):
     valid_features = []
     invalid_features = []
+    metadata = []
 
     for feature in features:
         serializer = SatelliteCaptureCatalogSerializer(data=feature)
         if serializer.is_valid():
             valid_features.append(serializer.validated_data)
+            metadata.append(
+                {
+                    "vendor_name": feature["vendor_name"],
+                    "vendor_id": feature["vendor_id"],
+                    "acquisition_datetime": feature["acquisition_datetime"],
+                    "metadata": feature["metadata"],
+                }
+            )
         else:
             print(f"Error in serializer: {serializer.errors}")
             invalid_features.append(feature)
@@ -206,6 +177,9 @@ def process_database_catalog(features, start_time, end_time, batch_size=100):
             SatelliteCaptureCatalog.objects.bulk_create(
                 [SatelliteCaptureCatalog(**feature) for feature in valid_features]
             )
+            SatelliteCaptureCatalogMetadata.objects.bulk_create(
+                [SatelliteCaptureCatalogMetadata(**meta) for meta in metadata]
+            )
         except IntegrityError as e:
             print(f"Error during bulk insert: {e}")
 
@@ -213,30 +187,30 @@ def process_database_catalog(features, start_time, end_time, batch_size=100):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
+    # try:
+    #     last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+    #     last_acquisition_datetime = datetime.strftime(
+    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+    #     )
+    # except Exception as e:
+    #     last_acquisition_datetime = end_time
 
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "airbus",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
+    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+    #     data={
+    #         "start_datetime": convert_iso_to_datetime(start_time),
+    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+    #         "vendor_name": "airbus",
+    #         "message": {
+    #             "total_records": len(features),
+    #             "valid_records": len(valid_features),
+    #             "invalid_records": len(invalid_features),
+    #         },
+    #     }
+    # )
+    # if history_serializer.is_valid():
+    #     history_serializer.save()
+    # else:
+    #     print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def get_polygon_bounding_box(polygon):
@@ -286,7 +260,6 @@ def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=Non
         return geotiff_url
 
 
-
 def airbus_catalog_api(bbox, start_date, end_date, current_page):
     try:
         search_headers = {
@@ -328,7 +301,7 @@ def search_images(bbox, start_date, end_date):
             current_page = START_PAGE
             while True:
                 start_date_str = current_date.isoformat()
-                if (end_date - current_date).days > 1 > 1:
+                if (end_date - current_date).days > 1:
                     end_date_str = (
                         current_date + timedelta(days=BATCH_SIZE)
                     ).isoformat()
@@ -349,7 +322,7 @@ def search_images(bbox, start_date, end_date):
             current_date += timedelta(days=BATCH_SIZE)
         
         data, images = process_features(all_features)
-        download_and_upload_images(images, "airbus/thumbnails")
+        # download_and_upload_images(images, "airbus/thumbnails")
         process_database_catalog(data, start_date.isoformat(), end_date.isoformat())
         print("Completed Processing Airbus: Total Items: {}".format(total_items))
     else:
@@ -379,3 +352,24 @@ def run_airbus_catalog_api():
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
     response = search_images(BBOX, START_DATE, END_DATE)
     return response
+
+def run_airbus_catalog_api_bulk():
+    BBOX = "-180,-90,180,90"
+    START_DATE = datetime(2024, 12, 6, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 12, 14, tzinfo=pytz.utc)
+
+    import time
+    while START_DATE < END_LIMIT:
+        END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+        
+        response = search_images(BBOX, START_DATE, END_DATE)
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+
+        START_DATE = END_DATE
+    return response
+
+# from core.services.airbus_catalog_api import run_airbus_catalog_api_bulk
+# run_airbus_catalog_api_bulk()

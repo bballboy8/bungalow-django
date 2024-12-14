@@ -25,7 +25,7 @@ from io import BytesIO
 from PIL import Image
 from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
-from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
+from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory, SatelliteCaptureCatalogMetadata
 import pytz
 from core.services.utils import calculate_area_from_geojson
 
@@ -172,19 +172,7 @@ def query_api_with_retries(access_token, bbox, start_datetime, end_datetime):
                 "bbox": bbox,
                 "datetime": f"{start_datetime}/{end_datetime}",
                 "limit": 100,
-                "page": page,
-                "fields": {
-                    "include": [
-                    "id",
-                    "properties.datetime",
-                    "properties.view:incidence_angle",
-                    "properties.instruments",
-                    "properties.capella:resolution_ground_range",
-                    "properties.eo:cloud_cover"
-                    "geometry",
-                    "assets:thumbnail",
-                ]
-                },
+                "page": page
             }
             headers = {
                 "Authorization": f"Bearer {access_token}",
@@ -253,6 +241,7 @@ def process_features(features):
                 "coordinates_record": feature["geometry"],
                 "thumbnail_url": thumbnail_url,
                 "geometry": feature["geometry"],
+                "metadata": feature
             }
             response.append(model_params)
 
@@ -265,11 +254,20 @@ def process_features(features):
 def process_database_catalog(features, start_time, end_time):
     valid_features = []
     invalid_features = []
+    metadata = []
 
     for feature in features:
         serializer = SatelliteCaptureCatalogSerializer(data=feature)
         if serializer.is_valid():
             valid_features.append(serializer.validated_data)
+            metadata.append(
+                {
+                    "vendor_name": feature["vendor_name"],
+                    "vendor_id": feature["vendor_id"],
+                    "acquisition_datetime": feature["acquisition_datetime"],
+                    "metadata": feature["metadata"],
+                }
+            )
         else:
             invalid_features.append(feature)
     
@@ -279,6 +277,9 @@ def process_database_catalog(features, start_time, end_time):
             SatelliteCaptureCatalog.objects.bulk_create(
                 [SatelliteCaptureCatalog(**feature) for feature in valid_features]
             )
+            SatelliteCaptureCatalogMetadata.objects.bulk_create(
+                [SatelliteCaptureCatalogMetadata(**meta) for meta in metadata]
+            )
         except IntegrityError as e:
             print(f"Error during bulk insert: {e}")
 
@@ -286,30 +287,30 @@ def process_database_catalog(features, start_time, end_time):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
+    # try:
+    #     last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+    #     last_acquisition_datetime = datetime.strftime(
+    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+    #     )
+    # except Exception as e:
+    #     last_acquisition_datetime = end_time
 
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "capella",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
+    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+    #     data={
+    #         "start_datetime": convert_iso_to_datetime(start_time),
+    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+    #         "vendor_name": "capella",
+    #         "message": {
+    #             "total_records": len(features),
+    #             "valid_records": len(valid_features),
+    #             "invalid_records": len(invalid_features),
+    #         },
+    #     }
+    # )
+    # if history_serializer.is_valid():
+    #     history_serializer.save()
+    # else:
+    #     print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def search_images(start_date, end_date, bbox):
@@ -352,7 +353,7 @@ def search_images(start_date, end_date, bbox):
 
     print("Total Records: ", len(total_records))
     converted_records = process_features(total_records)
-    download_and_upload_images(converted_records, "capella/thumbnails")
+    # download_and_upload_images(converted_records, "capella/thumbnails")
     process_database_catalog(converted_records, start_date.isoformat(), end_date.isoformat())
 
 def run_capella_catalog_api():
@@ -377,3 +378,25 @@ def run_capella_catalog_api():
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
     response = search_images(START_DATE, END_DATE, BBOX)
     return response
+
+
+def run_capella_catalog_bulk_api():
+    BBOX = "-180,-90,180,90"
+    START_DATE = datetime(2024, 12, 6, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 12, 14, tzinfo=pytz.utc)
+
+    import time
+    while START_DATE < END_LIMIT:
+        END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+        
+        response = search_images(START_DATE, END_DATE, BBOX)
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+
+        START_DATE = END_DATE
+    return response 
+
+# from core.services.capella_master_collector import run_capella_catalog_bulk_api
+# run_capella_catalog_bulk_api()

@@ -40,7 +40,7 @@ from io import BytesIO
 from PIL import Image
 from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
-from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
+from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory, SatelliteCaptureCatalogMetadata
 import pytz
 from core.services.utils import calculate_bbox_npolygons, calculate_area_from_geojson
 
@@ -56,36 +56,6 @@ BATCH_SIZE = 28
 MAX_THREADS = 10
 
 
-
-# Function to calculate the withhold time
-def calculate_withhold_time(acquisition_date, publication_date):
-    """Calculate the withhold time as total hours and formatted string."""
-    acq_date = parser.isoparse(acquisition_date)
-    pub_date = parser.isoparse(publication_date)
-    delta = pub_date - acq_date
-    total_hours = int(delta.total_seconds() / 3600)
-    days, remaining_hours = divmod(total_hours, 24)
-    readable = f"{days} days {remaining_hours} hours"
-    return readable, total_hours
-
-
-# Function to format datetime
-def format_datetime(datetime_str):
-    """Format datetime string to 'YYYY-MM-DD HH:MM:SS.xx'."""
-    try:
-        dt = parser.isoparse(datetime_str)
-        return dt.strftime('%Y-%m-%d %H:%M:%S.%f')[:-4]  # Truncate to two decimal places
-    except (ValueError, TypeError):
-        return datetime_str
-
-
-# Function to format float
-def format_float(value, precision=2):
-    """Format float to a string with the given precision."""
-    try:
-        return f"{float(value):.{precision}f}"
-    except ValueError:
-        return "0.00"  # Default if there's an error
 
 
 # Function to query Planet data
@@ -238,11 +208,18 @@ def download_and_upload_images(features, path, max_workers=5):
 def process_database_catalog(features, start_time, end_time):
     valid_features = []
     invalid_features = []
+    metadata = []
 
     for feature in features:
         serializer = SatelliteCaptureCatalogSerializer(data=feature)
         if serializer.is_valid():
             valid_features.append(serializer.validated_data)
+            metadata.append({
+                    "vendor_name": feature["vendor_name"],
+                    "vendor_id": feature["vendor_id"],
+                    "acquisition_datetime": feature["acquisition_datetime"],
+                    "metadata": feature["metadata"],
+                })
         else:
             invalid_features.append(feature)
     
@@ -252,6 +229,9 @@ def process_database_catalog(features, start_time, end_time):
             SatelliteCaptureCatalog.objects.bulk_create(
                 [SatelliteCaptureCatalog(**feature) for feature in valid_features]
             )
+            SatelliteCaptureCatalogMetadata.objects.bulk_create(
+                [SatelliteCaptureCatalogMetadata(**meta) for meta in metadata]
+            )
         except IntegrityError as e:
             print(f"Error during bulk insert: {e}")
 
@@ -259,30 +239,30 @@ def process_database_catalog(features, start_time, end_time):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
+    # try:
+    #     last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+    #     last_acquisition_datetime = datetime.strftime(
+    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+    #     )
+    # except Exception as e:
+    #     last_acquisition_datetime = end_time
 
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "planet",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
+    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+    #     data={
+    #         "start_datetime": convert_iso_to_datetime(start_time),
+    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+    #         "vendor_name": "planet",
+    #         "message": {
+    #             "total_records": len(features),
+    #             "valid_records": len(valid_features),
+    #             "invalid_records": len(invalid_features),
+    #         },
+    #     }
+    # )
+    # if history_serializer.is_valid():
+    #     history_serializer.save()
+    # else:
+    #     print(f"Error in history serializer: {history_serializer.errors}")
 
 def process_features(features):
     response = []
@@ -313,6 +293,7 @@ def process_features(features):
                 "resolution": f"{properties['gsd']}m",
                 "location_polygon": geometry,
                 "coordinates_record": geometry,
+                "metadata": feature
             }
             response.append(model_params)
         except Exception as e:
@@ -358,7 +339,7 @@ def main(START_DATE, END_DATE, BBOX):
         current_date += timedelta(days=BATCH_SIZE)
     print(f"Total features: {len(all_features)}")
     converted_features = process_features(all_features)
-    download_and_upload_images(all_features, "planet/thumbnails")
+    # download_and_upload_images(all_features, "planet/thumbnails")
     process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
 
 
@@ -404,3 +385,26 @@ def run_planet_catalog_api():
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
     response = main(START_DATE, END_DATE, BBOX)
     return response
+
+
+def run_planet_catalog_bulk_api():
+    BBOX = "-180,-90,180,90"
+    BBOX = bbox_to_geojson(BBOX)
+    START_DATE = datetime(2024, 12, 6, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 12, 14, tzinfo=pytz.utc)
+
+    import time
+    while START_DATE < END_LIMIT:
+        END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+        
+        response = main(START_DATE, END_DATE, BBOX)
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+
+        START_DATE = END_DATE
+    return response
+
+# from core.services.planet_catalog_api import run_planet_catalog_bulk_api
+# run_planet_catalog_bulk_api()

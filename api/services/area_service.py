@@ -18,7 +18,9 @@ from django.contrib.gis.geos import fromstr
 import shapely.wkt
 from pyproj import Geod
 from api.services.vendor_service import *
+from api.models import Site
 import math
+from django.contrib.gis.db.models.functions import Distance
 
 
 def get_area_from_polygon_wkt(polygon_wkt: str):
@@ -195,6 +197,15 @@ def get_satellite_records(
             address_response = get_address_from_lat_long_via_google_maps(latitude, longitude)
             if address_response["status_code"] == 200:
                 first_record.address = address_response["data"]
+
+            location_polygon = first_record.location_polygon
+            nearest_site = Site.objects.annotate(distance=Distance("location_polygon", location_polygon)).order_by("distance").first()
+            if nearest_site:
+                nearest_site_details = {
+                    "name": nearest_site.name,
+                    "distance": nearest_site.distance.km
+                }
+                first_record.nearest_site = nearest_site_details
 
         # Success response
         logger.info("Satellite records fetched successfully")

@@ -32,6 +32,7 @@ class GeoJSONToWKTSerializer(serializers.Serializer):
 class SatelliteCaptureCatalogListSerializer(serializers.ModelSerializer):
     presigned_url = serializers.CharField(required=False, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True)
+    nearest_site = serializers.JSONField(required=False)
     class Meta:
         model = SatelliteCaptureCatalog
         exclude = ["location_polygon", "created_at", "updated_at"]

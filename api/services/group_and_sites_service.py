@@ -372,14 +372,14 @@ def group_searching_and_hierarchy_creation(group_id=None, group_name=None, user_
         if group_id:
             group = Group.objects.filter(id=group_id, user__id=user_id).first()
             if not group:
-                return {"error": "Group not found", "status_code": 404}
+                return {"error": "Group not found", "status_code": 404, "data":[]}
 
             group_hierarchy = get_full_hierarchy(group)
             if group_name:
                 filtered_hierarchy = filter_subgroups_by_name(group_hierarchy, group_name)
 
                 if not filtered_hierarchy:
-                    return {"error": "No matching subgroup found.", "status_code": 404}
+                    return {"error": "No matching subgroup found.", "status_code": 404, "data":[]}
                 return {"data": filtered_hierarchy, "status_code": 200}
 
             return {"data": group_hierarchy, "status_code": 200}
@@ -387,7 +387,7 @@ def group_searching_and_hierarchy_creation(group_id=None, group_name=None, user_
         if group_name:
             matching_groups = Group.objects.filter(name__icontains=group_name, user__id=user_id)
             if not matching_groups.exists():
-                return {"error": "No groups found with the given name.", "status_code": 404}
+                return {"error": "No groups found with the given name.", "status_code": 404, "data":[]}
             top_level_parents = {get_top_level_parent(group) for group in matching_groups}
 
             matched_ids = set(group.id for group in matching_groups)
@@ -401,4 +401,4 @@ def group_searching_and_hierarchy_creation(group_id=None, group_name=None, user_
             return {"data": results, "status_code": 200}
     except Exception as e:
         logger.error(f"Error fetching group hierarchy: {str(e)}")
-        return {"error": str(e), "status_code": 500}
+        return {"error": str(e), "status_code": 500, "data":[]}

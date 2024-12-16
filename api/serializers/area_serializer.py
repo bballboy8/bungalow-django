@@ -38,7 +38,7 @@ class SatelliteCaptureCatalogListSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        if 'cloud_cover' in data and data['cloud_cover'] <= 1:
+        if 'cloud_cover' in data and data["cloud_cover"] and data['cloud_cover'] <= 1:
             data['cloud_cover'] *= 100   
         if "coordinates_record" in data:
             response = get_area(data["coordinates_record"])

@@ -171,6 +171,15 @@ class AddSiteView(APIView):
                 )
             user_id = auth["user_id"] 
 
+            # check if site name already exists
+            site_name = request.data.get("name")
+            site = Site.objects.filter(name=site_name).first()
+            if site:
+                return Response(
+                    {"error": "Site name already exists", "site_id": site.id},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             serializer = SiteSerializer(data=request.data, context={"user_id": user_id})
             if serializer.is_valid():
                 site = serializer.save()

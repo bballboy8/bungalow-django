@@ -105,6 +105,7 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10):
             "data": [],
             "message": f"Error fetching sites: {str(e)}",
             "status_code": 500,
+            "error": f"Error fetching sites: {str(e)}",
         }
 
 def get_group_hierarchy_recursive(group_id):
@@ -159,6 +160,7 @@ def assign_site_to_group(group, site, user_id):
             "data": None,
             "message": f"Error assigning site to group {e}",
             "status_code": 500,
+            "error": f"Error assigning site to group: {str(e)}",
         }
 
 
@@ -181,6 +183,7 @@ def get_sites_in_group(group_id, user_id):
             "data": [],
             "message": f"Error fetching sites for group: {str(e)}",
             "status_code": 500,
+            "error": f"Error fetching sites for group: {str(e)}",
         }
 
 def get_subgroups_recursive(group):
@@ -268,6 +271,7 @@ def get_parent_groups_with_details(user_id):
             "data": [],
             "message": f"Error fetching parent groups: {str(e)}",
             "status_code": 500,
+            "error": f"Error fetching parent groups: {str(e)}",
         }
 
 def get_area_from_geojson(geometry):
@@ -282,7 +286,7 @@ def get_area_from_geojson(geometry):
         return {"area": area, "status_code": 200}
     except Exception as e:
         logger.error(f"Error calculating area from GeoJSON: {str(e)}")
-        return {"area": 0, "status_code": 500}
+        return {"area": 0, "status_code": 500, "error": f"Error calculating area from GeoJSON: {str(e)}"}
 
 
 def get_full_hierarchy(group):

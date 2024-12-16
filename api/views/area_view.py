@@ -32,8 +32,9 @@ class GeoJSONToWKTView(APIView):
             if not geometry:
                 return Response(
                     {
-                        "data": "Geometry (GeoJSON format) is required",
+                        "data": [],
                         "status_code": 400,
+                        "error": "Geometry (GeoJSON format) is required",
                     },
                     status=400,
                 )
@@ -51,7 +52,7 @@ class GeoJSONToWKTView(APIView):
             )
         except Exception as e:
             logger.error(f"Error in GeoJSON to WKT View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": [], "status_code": 500, "error": f"{str(e)}"}, status=500)
 
 
 class SatelliteCaptureCatalogView(APIView):
@@ -133,7 +134,7 @@ class SatelliteCaptureCatalogView(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Satellite Capture Catalog View")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
 
 
 class GetSatelliteCapturedImageByIdAndVendorView(APIView):
@@ -183,7 +184,7 @@ class GetSatelliteCapturedImageByIdAndVendorView(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Satellite Capture Image By ID and Vendor View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
 
 
 
@@ -237,7 +238,7 @@ class GetPinSelectionAnalyticsAndLocation(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Pin Selection Analytics and Location View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
         
 
 class GetPolygonSelectionAnalyticsAndLocation(APIView):
@@ -285,7 +286,7 @@ class GetPolygonSelectionAnalyticsAndLocation(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Polygon Selection Analytics and Location View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
         
 class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
     permission_classes = [IsAuthenticated]
@@ -332,7 +333,7 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Polygon Selection Calender Days Frequency View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
         
 class GetPinSelectionAcquisitionCalenderDaysFrequencyView(APIView):
     permission_classes = [IsAuthenticated]
@@ -384,7 +385,7 @@ class GetPinSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Pin Selection Calender Days Frequency View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
         
 
 class GetAreaFromPolygonWkt(APIView):
@@ -432,7 +433,7 @@ class GetAreaFromPolygonWkt(APIView):
             )
         except Exception as e:
             logger.error(f"Error in Area from Polygon WKT View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
         
 
 class GenerateCirclePolygonAPIView(APIView):
@@ -470,7 +471,7 @@ class GenerateCirclePolygonAPIView(APIView):
 
         except Exception as e:
             logger.error(f"Error generating GeoJSON Polygon: {str(e)}")
-            return Response({"data": str(e), "status_code": 500}, status=500)
+            return Response({"data": str(e), "status_code": 500, "error": f"{str(e)}"}, status=500)
 
 
 class ExtractCircleParametersAPIView(APIView):
@@ -516,4 +517,4 @@ class ExtractCircleParametersAPIView(APIView):
 
         except Exception as e:
             logger.error(f"Error extracting parameters from GeoJSON: {str(e)}")
-            return Response({"data": str(e), "status_code": 500}, status=500)
+            return Response({"data": str(e), "status_code": 500, "error": f"{str(e)}"}, status=500)

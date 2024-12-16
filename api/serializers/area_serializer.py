@@ -10,16 +10,16 @@ def get_area(geometry):
             polygon = shape(geometry)
             wkt = polygon.wkt
         except Exception as e:
-            return {"data": f"Invalid GeoJSON: {str(e)}", "status_code": 400}
+            return {"data": [], "status_code": 400, "error": f"Invalid GeoJSON: {str(e)}"}
         try:
             geod = Geod(ellps="WGS84")
             polygon = shapely.wkt.loads(wkt)
             area = round(abs(geod.geometry_area_perimeter(polygon)[0]) / 1000000.0, 2)
         except Exception as e:
-            return {"data": f"Error calculating area from GeoJSON: {str(e)}", "status_code": 400}
+            return {"data": [], "status_code": 400, "error": f"Error calculating area from GeoJSON: {str(e)}"}
         return { "area": area, "status_code": 200}
     except Exception as e:
-        return {"data": f"{str(e)}", "status_code": 400}
+        return {"data": [], "status_code": 400, "error": f"Error: {str(e)}"}
 
 class SatelliteCatalogFilterSerializer(serializers.Serializer):
     wkt_polygon = serializers.CharField(default="")

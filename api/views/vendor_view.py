@@ -52,7 +52,7 @@ class AirbusVendorView(APIView):
 
         except Exception as e:
             logger.error(f"Error in Airbus Vendor View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
 
 
 class MaxarVendorView(APIView):
@@ -96,7 +96,7 @@ class MaxarVendorView(APIView):
 
         except Exception as e:
             logger.error(f"Error in Maxar Vendor View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
 
 
 class BlackskyVendorView(APIView):
@@ -140,7 +140,7 @@ class BlackskyVendorView(APIView):
 
         except Exception as e:
             logger.error(f"Error in Blacksky Vendor View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
 
 
 class PlanetVendorView(APIView):
@@ -184,7 +184,7 @@ class PlanetVendorView(APIView):
 
         except Exception as e:
             logger.error(f"Error in Planet Vendor View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
 
 
 class CapellaVendorView(APIView):
@@ -228,7 +228,7 @@ class CapellaVendorView(APIView):
 
         except Exception as e:
             logger.error(f"Error in Capella Vendor View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)
 
 
 class ProxyImageAPIView(APIView):
@@ -331,4 +331,4 @@ class SkyfiVendorView(APIView):
 
         except Exception as e:
             logger.error(f"Error in Skyfi Vendor View: {str(e)}")
-            return Response({"data": f"{str(e)}", "status_code": 500}, status=500)
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)

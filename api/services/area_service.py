@@ -33,7 +33,7 @@ def get_area_from_polygon_wkt(polygon_wkt: str):
         return {"data": area, "status_code": 200}
     except Exception as e:
         logger.error(f"Error fetching area from WKT: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 400}
+        return {"data": [], "status_code": 400, "error": f"Error: {str(e)}"}
 
 
 
@@ -44,20 +44,20 @@ def convert_geojson_to_wkt(geometry):
             polygon = shape(geometry)
             wkt = polygon.wkt
         except Exception as e:
-            return {"data": f"Invalid GeoJSON: {str(e)}", "status_code": 400}
+            return {"data": [], "status_code": 400, "error": f"Invalid GeoJSON: {str(e)}"}
         
         try:
             geod = Geod(ellps="WGS84")
             polygon = shapely.wkt.loads(wkt)
             area = round(abs(geod.geometry_area_perimeter(polygon)[0]) / 1000000.0, 2)
         except Exception as e:
-            return {"data": f"Error calculating area from GeoJSON: {str(e)}", "status_code": 400}
+            return {"data": [], "status_code": 400, "error": f"Error calculating area from GeoJSON: {str(e)}"}
 
         logger.info("GeoJSON converted to WKT successfully")
         return {"data": wkt, "area": area, "status_code": 200}
     except Exception as e:
         logger.error(f"Error converting GeoJSON to WKT: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 400}
+        return {"data": [], "status_code": 400, "error": f"Error: {str(e)}"}
 
 
 def get_satellite_records(
@@ -221,7 +221,7 @@ def get_satellite_records(
 
     except Exception as e:
         logger.error(f"Error fetching satellite records: {str(e)}")
-        return {"data": str(e), "status_code": 400}
+        return {"data": str(e), "status_code": 400, "error": f"Error: {str(e)}"}
 
 
     
@@ -245,7 +245,7 @@ def get_presigned_url_by_vendor_name_and_id(record:List[dict]):
         }
     except Exception as e:
         logger.error(f"Error fetching presigned URL: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 400}
+        return {"data": f"{str(e)}", "status_code": 400, "error": f"Error: {str(e)}"}
     
 
 def group_by_vendor(data):
@@ -289,7 +289,7 @@ def get_address_from_lat_long_via_google_maps(latitude: float, longitude: float)
         return {"data": address, "status_code": 200}
     except Exception as e:
         logger.error(f"Error fetching address from latitude and longitude: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
 
 def calculate_percentage_change(current_count, previous_count):
     """Helper to calculate percentage change."""
@@ -428,7 +428,7 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
         import traceback
         traceback.print_exc()
         logger.error(f"Error fetching pin selection analytics and location: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
     
 
 def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
@@ -516,7 +516,7 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         import traceback
         traceback.print_exc()
         logger.error(f"Error fetching pin selection analytics and location: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
     
 
 def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt):
@@ -567,7 +567,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt):
         import traceback
         traceback.print_exc()
         logger.error(f"Error fetching polygon selection calendar days frequency: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
 
 def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, distance):
     """
@@ -619,7 +619,7 @@ def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, d
         import traceback
         traceback.print_exc()
         logger.error(f"Error fetching pin selection calendar days frequency: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500}
+        return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
     
 
 

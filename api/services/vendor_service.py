@@ -90,7 +90,7 @@ def get_airbus_record_images_by_ids(ids: List[str]):
         }
     except Exception as e:
         logger.error(f"Error in Airbus Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "vendor": "airbus"}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "airbus", "error": f"{str(e)}"}
 
 
 def get_maxar_record_images_by_ids(ids: List[str]):
@@ -184,7 +184,7 @@ def get_blacksky_record_images_by_ids(ids: List[str]):
         }
     except Exception as e:
         logger.error(f"Error in Blacksky Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "vendor": "blacksky"}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "blacksky", "error": f"{str(e)}"}
 
 
 def get_planet_record_images_by_ids(ids: List[str]):
@@ -237,7 +237,7 @@ def get_planet_record_images_by_ids(ids: List[str]):
         }
     except Exception as e:
         logger.error(f"Error in Planet Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "vendor": "planet"}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "planet", "error": f"{str(e)}"}
 
 def capella_celery_processing(all_features, final_urls):
     def process_feature(feature):
@@ -310,7 +310,7 @@ def get_capella_record_thumbnails_by_ids(ids: List[str]):
         }
     except Exception as e:
         logger.error(f"Error in Capella Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella", "error": f"{str(e)}"}
 
 
 def get_capella_record_images_by_ids(ids: List[str]):
@@ -347,7 +347,7 @@ def get_capella_record_images_by_ids(ids: List[str]):
         }
     except Exception as e:
         logger.error(f"Error in Capella Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella"}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "capella", "error": f"{str(e)}"}
 
 
 def generate_proxy_url(request, vendor_name, vendor_id):
@@ -383,7 +383,7 @@ def get_skyfi_record_thumbnails_by_ids(ids: List[str]):
 
     except Exception as e:
         logger.error(f"Error in Blacksky Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi"}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi", "error": f"{str(e)}"}
 
 
 def get_skyfi_record_images_by_ids(ids: List[str]):
@@ -439,4 +439,4 @@ def get_skyfi_record_images_by_ids(ids: List[str]):
         return {"data": final_urls, "status_code": 200}
     except Exception as e:
         logger.error(f"Error in Blacksky Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi"}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi", "error": f"{str(e)}"}

@@ -68,6 +68,7 @@ def get_satellite_records(
     longitude: float = None,
     distance: float = None,
     source: str = "home",
+    vendor_id: str = None,
     request=None
 ):
     logger.info("Inside get satellite records service")
@@ -110,11 +111,14 @@ def get_satellite_records(
         if not start_date:
             start_date = "2024-12-05"
             filters &= Q(acquisition_datetime__gte=start_date)
+
+        if vendor_id:
+            filters &= Q(vendor_id=vendor_id)
         
 
         captures = captures.filter(filters).order_by("-acquisition_datetime")
 
-        if source == "home":
+        if source == "home" and not vendor_id:
             if not wkt_polygon or (latitude and longitude and distance):
                 return {"data": "Please provide a valid polygon or latitude, longitude, and distance", "status_code": 400}
             
@@ -183,6 +187,14 @@ def get_satellite_records(
                 final_response.append(record)
 
             total_records = paginator.count
+
+        if vendor_id and len(final_response) == 1:
+            first_record = final_response[0]
+            latitude = first_record.location_polygon.centroid.y
+            longitude = first_record.location_polygon.centroid.x
+            address_response = get_address_from_lat_long_via_google_maps(latitude, longitude)
+            if address_response["status_code"] == 200:
+                first_record.address = address_response["data"]
 
         # Success response
         logger.info("Satellite records fetched successfully")

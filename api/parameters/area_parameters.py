@@ -23,6 +23,13 @@ satellite_capture_catalog_params = [
         description="Number of records per page",
     ),
     OpenApiParameter(
+        name="vendor_id",
+        type=str,
+        location
+        =OpenApiParameter.QUERY,
+        description="Filter records by vendor id",
+    ),
+    OpenApiParameter(
         name="start_date",
         type=str,
         location=OpenApiParameter.QUERY,

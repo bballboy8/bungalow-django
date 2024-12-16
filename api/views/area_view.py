@@ -82,12 +82,13 @@ class SatelliteCaptureCatalogView(APIView):
             longitude = int(request.query_params.get("longitude", 0))
             distance = int(request.query_params.get("distance", 0))
             source = request.query_params.get("source", "home")
+            vendor_id = request.query_params.get("vendor_id", None)
 
             # Request body
             wkt_polygon = request.data.get("wkt_polygon", None)
 
             logger.info(
-                f"Page Number: {page_number}, Page Size: {page_size}, Start Date: {start_date}, End Date: {end_date} Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}"
+                f"Page Number: {page_number}, Page Size: {page_size}, Start Date: {start_date}, End Date: {end_date} Latitude: {latitude}, Longitude: {longitude}, Distance: {distance} Source: {source}, Vendor ID: {vendor_id}, WKT Polygon: {wkt_polygon}"
             )
 
             service_response = get_satellite_records(
@@ -100,6 +101,7 @@ class SatelliteCaptureCatalogView(APIView):
                 distance=distance,
                 wkt_polygon=wkt_polygon,
                 source=source,
+                vendor_id=vendor_id,
                 request=request
             )
 
@@ -108,7 +110,7 @@ class SatelliteCaptureCatalogView(APIView):
                     service_response, status=service_response["status_code"]
                 )
 
-            serializer = SatelliteCaptureCatalogSerializer(
+            serializer = SatelliteCaptureCatalogListSerializer(
                 service_response["data"], many=True
             )
             data = serializer.data

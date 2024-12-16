@@ -151,7 +151,7 @@ class AddSiteView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        description="Create a new site",
+        description="Create a new site, Site type: Polygon, Rectangle, Point",
         request=AddSiteSerializer,
         responses={
             201: OpenApiResponse(

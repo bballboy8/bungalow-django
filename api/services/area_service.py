@@ -109,15 +109,9 @@ def get_satellite_records(
         if end_date:
             filters &= Q(acquisition_datetime__lte=end_date)
 
-        # if not start_date use 5 december 2024 as start
-        if not start_date:
-            start_date = "2024-12-05"
-            filters &= Q(acquisition_datetime__gte=start_date)
-
         if vendor_id:
             filters &= Q(vendor_id=vendor_id)
         
-
         captures = captures.filter(filters).order_by("-acquisition_datetime")
 
         if source == "home" and not vendor_id:

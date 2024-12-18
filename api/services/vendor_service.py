@@ -376,14 +376,14 @@ def get_skyfi_record_thumbnails_by_ids(ids: List[str]):
                 pass
 
         return {
-            "vendor": "skyfi",
+            "vendor": "skyfi-umbra",
             "data": all_archives,
             "status_code": 200,
         }
 
     except Exception as e:
         logger.error(f"Error in Blacksky Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi", "error": f"{str(e)}"}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi-umbra", "error": f"{str(e)}"}
 
 
 def get_skyfi_record_images_by_ids(ids: List[str]):
@@ -439,4 +439,4 @@ def get_skyfi_record_images_by_ids(ids: List[str]):
         return {"data": final_urls, "status_code": 200}
     except Exception as e:
         logger.error(f"Error in Blacksky Vendor View: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi", "error": f"{str(e)}"}
+        return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi-umbra", "error": f"{str(e)}"}

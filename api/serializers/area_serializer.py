@@ -55,6 +55,8 @@ class PinSelectionAnalyticsAndLocationSerializer(serializers.Serializer):
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
     distance = serializers.FloatField()
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
 
 class NewestInfoSerializer(serializers.Serializer):
     # id, vendor, vendor_id, acquisition_datetime, cloud_coverage
@@ -66,6 +68,8 @@ class NewestInfoSerializer(serializers.Serializer):
 
 class PolygonSelectionAnalyticsAndLocationSerializer(serializers.Serializer):
     polygon_wkt = serializers.CharField()
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
 
 
 class AreaFromPolygonWktSerializer(serializers.Serializer):

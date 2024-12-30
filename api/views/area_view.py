@@ -308,6 +308,9 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
         logger.info("Inside Post method of Polygon Selection Calender Days Frequency View")
         try:
             polygon_wkt = request.data.get("polygon_wkt", None)
+            start_date = request.data.get("start_date", None)
+            end_date = request.data.get("end_date", None)
+
             if not polygon_wkt:
                 return Response(
                     {
@@ -319,7 +322,9 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
 
             logger.info(f"WKT Polygon: {polygon_wkt}")
             service_response = get_polygon_selection_acquisition_calender_days_frequency(
-                polygon_wkt=polygon_wkt
+                polygon_wkt=polygon_wkt,
+                start_date=start_date,
+                end_date=end_date
             )
 
             if service_response["status_code"] != 200:
@@ -357,6 +362,8 @@ class GetPinSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             latitude = request.data.get("latitude", None)
             longitude = request.data.get("longitude", None)
             distance = request.data.get("distance", None)
+            start_date = request.data.get("start_date", None)
+            end_date = request.data.get("end_date", None)
 
             if not latitude or not longitude or not distance:
                 return Response(
@@ -371,7 +378,7 @@ class GetPinSelectionAcquisitionCalenderDaysFrequencyView(APIView):
                 f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}"
             )
             service_response = get_pin_selection_acquisition_calender_days_frequency(
-                latitude=latitude, longitude=longitude, distance=distance
+                latitude=latitude, longitude=longitude, distance=distance, start_date=start_date, end_date=end_date
             )
 
             if service_response["status_code"] != 200:

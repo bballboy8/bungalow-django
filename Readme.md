@@ -3,7 +3,7 @@
 ## Clone Project
 
 1. Clone the Project on Local Machine.
-2. Paste .env in Main Directory.
+2. Paste .env in Main Directory
 
 ## Runtime
 

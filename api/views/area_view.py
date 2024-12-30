@@ -334,7 +334,7 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
 
             logger.info("Polygon Selection Calender Days Frequency View response")
             return Response(
-                {"data": service_response["data"], "status_code": 200}
+                {"data": service_response["data"], "status_code": 200, "time_taken": service_response["time_taken"]}
             )
         except Exception as e:
             logger.error(f"Error in Polygon Selection Calender Days Frequency View: {str(e)}")

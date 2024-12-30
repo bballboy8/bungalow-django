@@ -21,6 +21,8 @@ from api.services.vendor_service import *
 from api.models import Site
 import math
 from django.contrib.gis.db.models.functions import Distance
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 
 
 def get_area_from_polygon_wkt(polygon_wkt: str):
@@ -512,112 +514,117 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         logger.error(f"Error fetching pin selection analytics and location: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
     
-
 def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start_date, end_date):
     """
     Retrieve the frequency of image captures for each calendar day in the selected area.
 
-    This function calculates the frequency of image captures for each calendar day within the 
-    selected area using the WKT polygon representation. The function returns a dictionary with 
-    the date as the key and the count of images captured on that date as the value.
-
     Args:
         polygon_wkt (str): WKT representation of the selected area polygon.
+        start_date (datetime): Start date for the acquisition range.
+        end_date (datetime): End date for the acquisition range.
 
     Returns:
         dict: A dictionary containing the frequency of image captures for each calendar day.
     """
     try:
-        logger.info("Inside get polygon selection calendar days frequency service")
+        logger.info("Starting frequency calculation for polygon selection.")
+
+        # Start time tracking
         func_start_time = now()
 
-        # Convert the WKT string to a Polygon object
+        # Convert WKT string to a Polygon object
         polygon = fromstr(polygon_wkt)
+        logger.debug(f"Polygon WKT: {polygon_wkt}")
 
-        logger.info(f"Polygon WKT: {polygon_wkt}")
+        # Fetch frequency data directly from the database
+        frequency_data = (
+            SatelliteCaptureCatalog.objects.filter(
+                location_polygon__intersects=polygon,
+                acquisition_datetime__gte=start_date,
+                acquisition_datetime__lte=end_date
+            )
+            .annotate(date=TruncDate('acquisition_datetime'))  # Extract the date part
+            .values('date')  # Group by the date
+            .annotate(count=Count('id'))  # Count captures for each date
+            .order_by('date')  # Sort by date
+        )
 
-        # Fetch the records within the selected area
-        records = SatelliteCaptureCatalog.objects.filter(
-            location_polygon__intersects=polygon,
-            acquisition_datetime__gte=start_date,
-            acquisition_datetime__lte=end_date
-        ).order_by("acquisition_datetime")
+        # Convert QuerySet to dictionary
+        frequency_dict = {entry['date'].strftime("%Y-%m-%d"): entry['count'] for entry in frequency_data}
 
-        # Calculate the frequency of image captures for each calendar day
-        frequency_data = {}
-        for record in records:
-            date = record.acquisition_datetime.date()
-            frequency_data[date.strftime("%Y-%m-%d")] = frequency_data.get(date, 0) + 1
-
+        # Calculate time taken
         func_end_time = now()
         net_time = func_end_time - func_start_time
-        logger.info(f"Time taken to fetch polygon selection calendar days frequency: {net_time}")
+        logger.info(f"Frequency calculation completed in {net_time} seconds.")
 
         return {
-            "data": frequency_data,
+            "data": frequency_dict,
             "time_taken": str(net_time),
             "status_code": 200,
         }
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        logger.error(f"Error fetching polygon selection calendar days frequency: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
+        logger.error(f"Error in frequency calculation: {str(e)}", exc_info=True)
+        return {"data": None, "status_code": 500, "error": f"Error: {str(e)}"}
+
 
 def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, distance, start_date, end_date):
     """
     Retrieve the frequency of image captures for each calendar day around the selected pin.
 
-    This function calculates the frequency of image captures for each calendar day within the 
-    selected area around the pin location. The function returns a dictionary with the date as the 
-    key and the count of images captured on that date as the value.
-
     Args:
         latitude (float): Latitude of the selected pin.
         longitude (float): Longitude of the selected pin.
-        distance (float): The radius in kilometers around the selected pin for which the frequency is calculated.
+        distance (float): Radius in kilometers around the selected pin.
+        start_date (datetime): Start date for the acquisition range.
+        end_date (datetime): End date for the acquisition range.
 
     Returns:
         dict: A dictionary containing the frequency of image captures for each calendar day.
     """
     try:
-        logger.info("Inside get pin selection calendar days frequency service")
+        logger.info("Starting frequency calculation for pin selection.")
+
+        # Start time tracking
         func_start_time = now()
 
+        # Create a point and buffer it
         point = Point(longitude, latitude, srid=4326)
-        buffered_polygon = point.buffer(distance / 111.32)
+        buffered_polygon = point.buffer(distance / 111.32)  # Approximation for 1 degree = ~111.32 km
 
-        logger.info(f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}")
+        logger.debug(f"Pin Location: Latitude={latitude}, Longitude={longitude}, Distance={distance} km")
 
-        # Fetch the records within the selected area
-        records = SatelliteCaptureCatalog.objects.filter(
-            location_polygon__intersects=buffered_polygon,
-            acquisition_datetime__gte=start_date,
-            acquisition_datetime__lte=end_date
-        ).order_by("acquisition_datetime")
+        # Fetch frequency data directly from the database
+        frequency_data = (
+            SatelliteCaptureCatalog.objects.filter(
+                location_polygon__intersects=buffered_polygon,
+                acquisition_datetime__gte=start_date,
+                acquisition_datetime__lte=end_date
+            )
+            .annotate(date=TruncDate('acquisition_datetime'))  # Extract the date part
+            .values('date')  # Group by the date
+            .annotate(count=Count('id'))  # Count captures for each date
+            .order_by('date')  # Sort by date
+        )
 
-        # Calculate the frequency of image captures for each calendar day
-        frequency_data = {}
-        for record in records:
-            date = record.acquisition_datetime.date()
-            frequency_data[date.strftime("%Y-%m-%d")] = frequency_data.get(date, 0) + 1
+        # Convert QuerySet to dictionary
+        frequency_dict = {entry['date'].strftime("%Y-%m-%d"): entry['count'] for entry in frequency_data}
 
+        # Calculate time taken
         func_end_time = now()
         net_time = func_end_time - func_start_time
-        logger.info(f"Time taken to fetch pin selection calendar days frequency: {net_time}")
+        logger.info(f"Frequency calculation completed in {net_time} seconds.")
 
         return {
-            "data": frequency_data,
+            "data": frequency_dict,
             "time_taken": str(net_time),
             "status_code": 200,
         }
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        logger.error(f"Error fetching pin selection calendar days frequency: {str(e)}")
-        return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
+        logger.error(f"Error in frequency calculation: {str(e)}", exc_info=True)
+        return {"data": None, "status_code": 500, "error": f"Error: {str(e)}"}
+
     
 
 

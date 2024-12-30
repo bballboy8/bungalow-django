@@ -513,7 +513,7 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
     
 
-def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt):
+def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start_date, end_date):
     """
     Retrieve the frequency of image captures for each calendar day in the selected area.
 
@@ -538,7 +538,9 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt):
 
         # Fetch the records within the selected area
         records = SatelliteCaptureCatalog.objects.filter(
-            location_polygon__intersects=polygon
+            location_polygon__intersects=polygon,
+            acquisition_datetime__gte=start_date,
+            acquisition_datetime__lte=end_date
         ).order_by("acquisition_datetime")
 
         # Calculate the frequency of image captures for each calendar day
@@ -563,7 +565,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt):
         logger.error(f"Error fetching polygon selection calendar days frequency: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
 
-def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, distance):
+def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, distance, start_date, end_date):
     """
     Retrieve the frequency of image captures for each calendar day around the selected pin.
 
@@ -590,7 +592,9 @@ def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, d
 
         # Fetch the records within the selected area
         records = SatelliteCaptureCatalog.objects.filter(
-            location_polygon__intersects=buffered_polygon
+            location_polygon__intersects=buffered_polygon,
+            acquisition_datetime__gte=start_date,
+            acquisition_datetime__lte=end_date
         ).order_by("acquisition_datetime")
 
         # Calculate the frequency of image captures for each calendar day

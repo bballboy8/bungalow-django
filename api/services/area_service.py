@@ -73,7 +73,9 @@ def get_satellite_records(
     distance: float = None,
     source: str = "home",
     vendor_id: str = None,
-    request=None
+    request=None,
+    sort_by: str = None,
+    sort_order: str = None
 ):
     logger.info("Inside get satellite records service")
     start_time = datetime.now()
@@ -84,6 +86,23 @@ def get_satellite_records(
 
         polygon_area = None
 
+
+        if start_date:
+            filters &= Q(acquisition_datetime__gte=start_date)
+        if end_date:
+            filters &= Q(acquisition_datetime__lte=end_date)
+
+        if vendor_id:
+            filters &= Q(vendor_id=vendor_id)
+
+        if latitude and longitude and distance:
+            filters &= Q(
+                location_polygon__distance_lte=(
+                    Point(longitude, latitude, srid=4326),
+                    D(km=distance),
+                )
+            )
+        
         if wkt_polygon:
             try:
                 area_response = get_area_from_polygon_wkt(wkt_polygon)
@@ -96,25 +115,18 @@ def get_satellite_records(
                     logger.warning(f"Failed to calculate area: {area_response['data']}")
             except Exception as e:
                 logger.error(f"Error calculating polygon area: {str(e)}")
+            logger.debug("Polygon WKT provided")
             filters &= Q(location_polygon__intersects=GEOSGeometry(wkt_polygon))
 
-        if latitude and longitude and distance:
-            filters &= Q(
-                location_polygon__distance_lte=(
-                    Point(longitude, latitude, srid=4326),
-                    D(km=distance),
-                )
-            )
 
-        if start_date:
-            filters &= Q(acquisition_datetime__gte=start_date)
-        if end_date:
-            filters &= Q(acquisition_datetime__lte=end_date)
-
-        if vendor_id:
-            filters &= Q(vendor_id=vendor_id)
-        
+        print(filters)
         captures = captures.filter(filters).order_by("-acquisition_datetime")
+
+        if sort_by and sort_order:
+            if sort_order == "asc":
+                captures = captures.order_by(sort_by)
+            else:
+                captures = captures.order_by(f"-{sort_by}")
 
         if source == "home" and not vendor_id:
             if not wkt_polygon or (latitude and longitude and distance):

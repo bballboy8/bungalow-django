@@ -60,4 +60,18 @@ satellite_capture_catalog_params = [
         location=OpenApiParameter.QUERY,
         description="Distance in kilometers from the location",
     ),
+    OpenApiParameter(
+        name="sort_by",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        default="acquisition_datetime",
+        description="Sort records by field. Default is acquisition_datetime, vendor_name, sensor",
+    ),
+    OpenApiParameter(
+        name="sort_order",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        default="desc",
+        description="Sort order. Default is desc",
+    ),
 ]

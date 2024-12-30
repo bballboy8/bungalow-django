@@ -15,9 +15,11 @@ def get_area(geometry):
             geod = Geod(ellps="WGS84")
             polygon = shapely.wkt.loads(wkt)
             area = round(abs(geod.geometry_area_perimeter(polygon)[0]) / 1000000.0, 2)
+            centroid = polygon.centroid
+            lat, lon = centroid.y, centroid.x
         except Exception as e:
             return {"data": [], "status_code": 400, "error": f"Error calculating area from GeoJSON: {str(e)}"}
-        return { "area": area, "status_code": 200}
+        return { "area": area, "centroid":(lat, lon), "status_code": 200}
     except Exception as e:
         return {"data": [], "status_code": 400, "error": f"Error: {str(e)}"}
 
@@ -45,6 +47,7 @@ class SatelliteCaptureCatalogListSerializer(serializers.ModelSerializer):
             response = get_area(data["coordinates_record"])
             if response["status_code"] == 200:
                 data["area"] = response["area"]
+                data["centroid"] = response["centroid"]
         return data
 
 class SatelliteCaptureImageByIdAndVendorSerializer(serializers.Serializer):

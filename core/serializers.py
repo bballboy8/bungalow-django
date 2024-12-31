@@ -25,10 +25,10 @@ class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
             validated_data["location_polygon"] = self.validate_location_polygon(location_polygon)
         return super().create(validated_data)
 
-    # def validate_vendor_id(self, value):
-    #     if SatelliteCaptureCatalog.objects.filter(vendor_id=value).exists():
-    #         raise serializers.ValidationError("A record with this vendor_id already exists.")
-    #     return value
+    def validate_vendor_id(self, value):
+        if SatelliteCaptureCatalog.objects.filter(vendor_id=value).exists():
+            raise serializers.ValidationError("A record with this vendor_id already exists.")
+        return value
     
 
 class SatelliteDateRetrievalPipelineHistorySerializer(serializers.ModelSerializer):

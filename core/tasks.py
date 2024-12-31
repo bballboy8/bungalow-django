@@ -36,7 +36,7 @@ def run_all_catalogs():
     except Exception as e:
         print(f"Error occurred while running Maxar API: {e}")
 
-    try:
-        run_skyfi_catalog_api()
-    except Exception as e:
-        print(f"Error occurred while running SkyFi API: {e}")
+    # try:
+    #     run_skyfi_catalog_api()
+    # except Exception as e:
+    #     print(f"Error occurred while running SkyFi API: {e}")

@@ -55,6 +55,7 @@ class GetSiteSerializer(serializers.Serializer):
     gap = serializers.FloatField()
     most_recent_clear = serializers.DateTimeField()
     heatmap = serializers.JSONField()
+    site_type = serializers.CharField()
 
 class GroupSerializer(serializers.ModelSerializer):
     subgroups = serializers.SerializerMethodField()

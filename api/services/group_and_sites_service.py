@@ -83,6 +83,7 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10):
                     "heatmap": heatmap_data,
                     "frequency": records_per_acquisition,
                     "gap": time_between_acquisitions,
+                    "site_type": site.site_type,
                 }
             )
 

@@ -179,6 +179,16 @@ class AddSiteView(APIView):
                     {"error": "Site name already exists", "site_id": site.id},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            
+            coordinates_record = request.data.get("coordinates_record")
+
+            area = get_area_from_geojson(coordinates_record)
+            if area > 100000:
+                return Response(
+                    {"error": "Area of the site exceeds 100000 sq. km"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+                
 
             serializer = SiteSerializer(data=request.data, context={"user_id": user_id})
             if serializer.is_valid():

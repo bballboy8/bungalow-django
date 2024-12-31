@@ -60,7 +60,7 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10):
 
             # Generate heatmap
             heatmap = (
-                captures.filter(acquisition_datetime__gte=datetime.now() - timedelta(days=365))
+                captures.filter(acquisition_datetime__gte=datetime.now() - timedelta(days=30))
                 .annotate(date=TruncDate("acquisition_datetime"))  # Truncate datetime to date
                 .values("date")  # Group by date
                 .annotate(count=Count("acquisition_datetime"))  # Count records for each date

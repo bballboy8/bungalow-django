@@ -99,30 +99,30 @@ def process_database_catalog(features, start_time, end_time):
         print(f"No records Found for {start_time} to {end_time}")
         return
 
-    # try:
-    #     last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
-    #     last_acquisition_datetime = datetime.strftime(
-    #         last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-    #     )
-    # except Exception as e:
-    #     last_acquisition_datetime = end_time
+    try:
+        last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
+        last_acquisition_datetime = datetime.strftime(
+            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+        )
+    except Exception as e:
+        last_acquisition_datetime = end_time
 
-    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-    #     data={
-    #         "start_datetime": convert_iso_to_datetime(start_time),
-    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-    #         "vendor_name": "blacksky",
-    #         "message": {
-    #             "total_records": len(features),
-    #             "valid_records": len(valid_features),
-    #             "invalid_records": len(invalid_features),
-    #         },
-    #     }
-    # )
-    # if history_serializer.is_valid():
-    #     history_serializer.save()
-    # else:
-    #     print(f"Error in history serializer: {history_serializer.errors}")
+    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+        data={
+            "start_datetime": convert_iso_to_datetime(start_time),
+            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+            "vendor_name": "blacksky",
+            "message": {
+                "total_records": len(features),
+                "valid_records": len(valid_features),
+                "invalid_records": len(invalid_features),
+            },
+        }
+    )
+    if history_serializer.is_valid():
+        history_serializer.save()
+    else:
+        print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def get_polygon_bounding_box(polygon):

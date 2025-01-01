@@ -14,9 +14,9 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10):
     logger.info("Fetching all sites")
     try:
         if name:
-            sites = Site.objects.filter(user__id=user_id, name__icontains=name)
+            sites = Site.objects.filter(user__id=user_id, name__icontains=name, is_deleted=False)
         else:
-            sites = Site.objects.filter(user__id=user_id)
+            sites = Site.objects.filter(user__id=user_id, is_deleted=False)
 
         if not sites:
             logger.warning("No sites found")
@@ -84,6 +84,7 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10):
                     "frequency": records_per_acquisition,
                     "gap": time_between_acquisitions,
                     "site_type": site.site_type,
+                    "notification": site.notification,
                 }
             )
 
@@ -115,12 +116,12 @@ def get_group_hierarchy_recursive(group_id):
     """
     try:
         logger.info(f"Fetching group hierarchy for group ID: {group_id}")
-        group = Group.objects.filter(id=group_id).first()
+        group = Group.objects.filter(id=group_id, is_deleted=False).first()
         if not group:
             return {"error": "Group not found", "status_code": 404}
 
         def fetch_subgroups(group):
-            subgroups = Group.objects.filter(parent=group)
+            subgroups = Group.objects.filter(parent=group, is_deleted=False)
             return [
                 {
                     "id": subgroup.id,
@@ -171,7 +172,7 @@ def get_sites_in_group(group_id, user_id):
     """
     try:
         logger.info(f"Fetching sites for group ID: {group_id}")
-        group_sites = GroupSite.objects.filter(group_id=group_id, user__id=user_id).select_related("site")
+        group_sites = GroupSite.objects.filter(group_id=group_id, user__id=user_id, is_deleted=False).select_related("site")
         sites = [{"id": gs.site.id, "name": gs.site.name} for gs in group_sites]
         return {
             "data": sites,
@@ -191,7 +192,7 @@ def get_subgroups_recursive(group):
     """
     Recursively retrieve all subgroups for a given group, including indirect subgroups.
     """
-    subgroups = Group.objects.filter(parent=group)
+    subgroups = Group.objects.filter(parent=group, is_deleted=False)
     all_subgroups = list(subgroups)
     
     # Recursively get subgroups of each subgroup
@@ -207,7 +208,7 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
     """
     try:
         logger.info(f"Calculating total surface area for group ID: {group_id}")
-        group = Group.objects.filter(id=group_id).first()
+        group = Group.objects.filter(id=group_id, is_deleted=False).first()
         if not group:
             return {"error": "Group not found", "status_code": 404}
         
@@ -218,7 +219,7 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
         total_surface_area = 0
         total_objects = 0
         for group in all_groups:
-            sites = GroupSite.objects.filter(group=group)
+            sites = GroupSite.objects.filter(group=group, is_deleted=False)
             if not sites:
                 continue
             for site in sites:
@@ -248,7 +249,7 @@ def get_parent_groups_with_details(user_id):
     """
     try:
         logger.info("Fetching parent groups with details")
-        parent_groups = Group.objects.filter(parent=None, user__id=user_id)
+        parent_groups = Group.objects.filter(parent=None, user__id=user_id, is_deleted=False)
         groups = []
         for group in parent_groups:
             area_response = total_surface_area_of_group_and_its_subgroups(group.id)
@@ -294,12 +295,12 @@ def get_full_hierarchy(group):
     """
     Recursive function to build the hierarchy of a group and its subgroups.
     """
-    children = Group.objects.filter(parent=group)
+    children = Group.objects.filter(parent=group, is_deleted=False)
 
     area_response = total_surface_area_of_group_and_its_subgroups(group.id)
 
     # Get sites assigned to the group
-    sites = GroupSite.objects.filter(group=group)
+    sites = GroupSite.objects.filter(group=group, is_deleted=False)
     site_details = []
     for site in sites:
         site_details.append(
@@ -375,7 +376,7 @@ def get_top_level_parent(group):
 def group_searching_and_hierarchy_creation(group_id=None, group_name=None, user_id=None):
     try:
         if group_id:
-            group = Group.objects.filter(id=group_id, user__id=user_id).first()
+            group = Group.objects.filter(id=group_id, user__id=user_id, is_deleted=False).first()
             if not group:
                 return {"error": "Group not found", "status_code": 404, "data":[]}
 
@@ -390,7 +391,7 @@ def group_searching_and_hierarchy_creation(group_id=None, group_name=None, user_
             return {"data": group_hierarchy, "status_code": 200}
 
         if group_name:
-            matching_groups = Group.objects.filter(name__icontains=group_name, user__id=user_id)
+            matching_groups = Group.objects.filter(name__icontains=group_name, user__id=user_id, is_deleted=False)
             if not matching_groups.exists():
                 return {"error": "No groups found with the given name.", "status_code": 404, "data":[]}
             top_level_parents = {get_top_level_parent(group) for group in matching_groups}

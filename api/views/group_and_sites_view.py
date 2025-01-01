@@ -49,7 +49,7 @@ class GetGroupsForAssignmentAndSearchingView(APIView):
                 return Response(response, status=status.HTTP_200_OK)
     
             # Default behavior: Retrieve all top-level groups
-            groups = Group.objects.filter(parent=None)
+            groups = Group.objects.filter(parent=None, is_deleted=False)
             serializer = GroupSerializer(groups, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
@@ -233,7 +233,7 @@ class AddGroupSiteView(APIView):
 
             group_id = request.data.get("group_id")
             site_id = request.data.get("site_id")
-            group = Group.objects.filter(id=group_id).first()
+            group = Group.objects.filter(id=group_id, is_deleted=False).first()
             site = Site.objects.filter(id=site_id).first()
 
             if not group or not site:
@@ -243,7 +243,7 @@ class AddGroupSiteView(APIView):
                 )
 
             # Check if the site is already assigned to the group
-            assignment = GroupSite.objects.filter(group=group, site=site).first()
+            assignment = GroupSite.objects.filter(group=group, site=site, is_deleted=False).first()
             if assignment:
                 return Response(
                     {"error": "Site already assigned to the group"},
@@ -369,6 +369,148 @@ class GetAreaFromGeoJsonView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Error calculating area from GeoJSON: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class UpdateSiteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Update site details",
+        request=UpdateSiteSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Site updated successfully.",
+            ),
+            400: OpenApiResponse(description="Invalid input"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def put(self, request):
+        try:
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
+            site_id = request.data.get("site_id")
+            site = Site.objects.filter(id=site_id).first()
+            if not site:
+                return Response(
+                    {"error": "Invalid site ID"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            serializer = UpdateSiteSerializer(site, data=request.data, context={"user_id": user_id})
+            if serializer.is_valid():
+                site = serializer.save()
+                return Response(
+                    SiteSerializer(site).data, status=status.HTTP_200_OK
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            logger.error(f"Error updating site: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class UpdateGroupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Update group details",
+        request=UpdateGroupSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Group updated successfully.",
+            ),
+            400: OpenApiResponse(description="Invalid input"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def put(self, request):
+        try:
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
+            group_id = request.data.get("group_id")
+            group = Group.objects.filter(id=group_id, is_deleted=False).first()
+            if not group:
+                return Response(
+                    {"error": "Invalid group ID"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            serializer = UpdateGroupSerializer(group, data=request.data, context={"user_id": user_id})
+            if serializer.is_valid():
+                group = serializer.save()
+                return Response(
+                    GroupSerializer(group).data, status=status.HTTP_200_OK
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error updating group: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class RemoveGroupSiteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Remove a site from a group",
+        parameters=[
+            OpenApiParameter(
+                name="group_site_id",
+                type=int,
+                description="ID of the site to be removed from group.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Site removed from group successfully.",
+            ),
+            400: OpenApiResponse(description="Invalid input"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def delete(self, request):
+        try:
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
+            group_site_id = request.query_params.get("group_site_id")
+            group_site = GroupSite.objects.filter(id=group_site_id, is_deleted=False).first()
+            if not group_site:
+                return Response(
+                    {"error": "Invalid group site ID"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            group_site.is_deleted = True
+            group_site.save()
+            return Response(
+                {"message": "Site removed from group successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.error(f"Error removing site from group: {str(e)}")
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

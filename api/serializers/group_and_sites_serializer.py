@@ -15,6 +15,7 @@ class SiteSerializer(serializers.ModelSerializer):
             "updated_at",
             "site_type",
             "coordinates_record",
+            "notification",
         ]
 
     def validate_location_polygon(self, value):
@@ -56,6 +57,7 @@ class GetSiteSerializer(serializers.Serializer):
     most_recent_clear = serializers.DateTimeField()
     heatmap = serializers.JSONField()
     site_type = serializers.CharField()
+    notification = serializers.BooleanField()
 
 class GroupSerializer(serializers.ModelSerializer):
     subgroups = serializers.SerializerMethodField()
@@ -69,6 +71,7 @@ class GroupSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "subgroups",
+            "notification",
         ]
 
     def get_subgroups(self, obj):
@@ -107,16 +110,45 @@ class AddSiteSerializer(serializers.Serializer):
         default={"type": "Polygon", "coordinates": []}
     )
     site_type = serializers.CharField(default="Polygon")
+    notification = serializers.BooleanField(default=False)
+
+class UpdateSiteSerializer(serializers.Serializer):
+    site_id = serializers.IntegerField()
+    name = serializers.CharField()
+    notification = serializers.BooleanField(default=False)
+    is_deleted = serializers.BooleanField(default=False)
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 
 class AddGroupSiteSerializer(serializers.Serializer):
     group_id = serializers.IntegerField()
     site_id = serializers.IntegerField()
 
+class RemoveGroupSiteSerializer(serializers.Serializer):
+    group_site_id = serializers.IntegerField()
+
 
 class AddGroupSerializer(serializers.Serializer):
     name = serializers.CharField()
     parent = serializers.IntegerField(required=False)
+    notification = serializers.BooleanField(default=False)
+
+class UpdateGroupSerializer(serializers.Serializer):
+    group_id = serializers.IntegerField()
+    name = serializers.CharField()
+    notification = serializers.BooleanField(default=False)
+    is_deleted = serializers.BooleanField(default=False)
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 class AreaFromGeoJsonSerializer(serializers.Serializer):
     coordinates_record = serializers.JSONField(

@@ -21,6 +21,8 @@ class Site(models.Model):
     created_at = models.DateTimeField(default=now, editable=False)
     updated_at = models.DateTimeField(default=now)
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=1)
+    is_deleted = models.BooleanField(default=False)
+    notification = models.BooleanField(default=False)
 
 
     def __str__(self):
@@ -40,6 +42,8 @@ class Group(plane_models.Model):
     created_at = plane_models.DateTimeField(default=now, editable=False)
     updated_at = plane_models.DateTimeField(default=now)
     user = plane_models.ForeignKey(User, on_delete=plane_models.CASCADE, default=1)
+    is_deleted = plane_models.BooleanField(default=False)
+    notification = plane_models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -55,6 +59,7 @@ class GroupSite(plane_models.Model):
     assigned_at = models.DateTimeField(default=now)
     site_area = models.FloatField(null=True, blank=True)
     user = plane_models.ForeignKey(User, on_delete=plane_models.CASCADE, default=1)
+    is_deleted = plane_models.BooleanField(default=False)
 
     class Meta:
         unique_together = ("group", "site")

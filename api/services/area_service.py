@@ -23,6 +23,7 @@ import math
 from django.contrib.gis.db.models.functions import Distance
 from django.db.models import Count
 from django.db.models.functions import TruncDate
+from itertools import chain
 
 
 def get_area_from_polygon_wkt(polygon_wkt: str):
@@ -36,7 +37,6 @@ def get_area_from_polygon_wkt(polygon_wkt: str):
     except Exception as e:
         logger.error(f"Error fetching area from WKT: {str(e)}")
         return {"data": [], "status_code": 400, "error": f"Error: {str(e)}"}
-
 
 
 def convert_geojson_to_wkt(geometry):
@@ -75,7 +75,8 @@ def get_satellite_records(
     vendor_id: str = None,
     request=None,
     sort_by: str = None,
-    sort_order: str = None
+    sort_order: str = None,
+    zoomed_wkt: str = None
 ):
     logger.info("Inside get satellite records service")
     start_time = datetime.now()
@@ -85,7 +86,6 @@ def get_satellite_records(
         filters = Q()
 
         polygon_area = None
-
 
         if start_date:
             filters &= Q(acquisition_datetime__gte=start_date)
@@ -102,7 +102,7 @@ def get_satellite_records(
                     D(km=distance),
                 )
             )
-        
+
         if wkt_polygon:
             try:
                 area_response = get_area_from_polygon_wkt(wkt_polygon)
@@ -116,27 +116,52 @@ def get_satellite_records(
             except Exception as e:
                 logger.error(f"Error calculating polygon area: {str(e)}")
             logger.debug("Polygon WKT provided")
-            filters &= Q(location_polygon__intersects=GEOSGeometry(wkt_polygon))
+            wkt_polygon_geom = GEOSGeometry(wkt_polygon)
+            filters &= Q(location_polygon__intersects=wkt_polygon_geom)
 
+        zoomed_captures = []
+        if zoomed_wkt:
+            try:
+                zoomed_geom = GEOSGeometry(zoomed_wkt)
+                if not zoomed_geom.within(wkt_polygon_geom):
+                    logger.warning("Zoomed WKT is not within the WKT polygon")
+                    return {"data": "Zoomed WKT must be inside WKT polygon", "status_code": 400}
+                zoomed_filters = filters & Q(location_polygon__intersects=zoomed_geom)
+                zoomed_captures = captures.filter(zoomed_filters)
 
-        print(filters)
-        captures = captures.filter(filters).order_by("-acquisition_datetime")
+                if sort_by and sort_order:
+                    zoomed_captures = (
+                        zoomed_captures.order_by(sort_by)
+                        if sort_order == "asc"
+                        else zoomed_captures.order_by(f"-{sort_by}")
+                    )
 
+                logger.debug(f"Zoomed WKT matches {len(zoomed_captures)} records")
+            except Exception as e:
+                logger.error(f"Error processing zoomed WKT: {str(e)}")
+                return {"data": str(e), "status_code": 400}
+
+        captures = captures.filter(filters).exclude(id__in=[record.id for record in zoomed_captures])
         if sort_by and sort_order:
-            if sort_order == "asc":
-                captures = captures.order_by(sort_by)
-            else:
-                captures = captures.order_by(f"-{sort_by}")
+            captures = (
+                        captures.order_by(sort_by)
+                        if sort_order == "asc"
+                        else captures.order_by(f"-{sort_by}")
+                    )
+
+        if zoomed_captures:
+            combined_captures = list(chain(zoomed_captures, captures))
+        else:
+            combined_captures = list(captures)
 
         if source == "home" and not vendor_id:
             if not wkt_polygon or (latitude and longitude and distance):
                 return {"data": "Please provide a valid polygon or latitude, longitude, and distance", "status_code": 400}
-            
-            total_records = captures.count()
-            captures = list(captures)
-            final_response = list(captures)
+
+            total_records = len(combined_captures)
+            final_response = combined_captures
         else:
-            paginator = Paginator(captures, page_size)
+            paginator = Paginator(combined_captures, page_size)
             page = paginator.get_page(page_number)
 
             proxy_urls = {}
@@ -218,6 +243,7 @@ def get_satellite_records(
         # Success response
         logger.info("Satellite records fetched successfully")
         return {
+            "zoomed_captures_count": len(zoomed_captures),
             "data": final_response,
             "polygon_area_km2": polygon_area,
             "time_taken": str(datetime.now() - start_time),
@@ -228,11 +254,12 @@ def get_satellite_records(
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"Error fetching satellite records: {str(e)}")
         return {"data": str(e), "status_code": 400, "error": f"Error: {str(e)}"}
 
 
-    
 def get_presigned_url_by_vendor_name_and_id(record:List[dict]):
     logger.info("Inside get presigned URL by vendor name and id service")
     try:
@@ -254,7 +281,7 @@ def get_presigned_url_by_vendor_name_and_id(record:List[dict]):
     except Exception as e:
         logger.error(f"Error fetching presigned URL: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 400, "error": f"Error: {str(e)}"}
-    
+
 
 def group_by_vendor(data):
     """
@@ -272,7 +299,6 @@ def group_by_vendor(data):
         if vendor_name and not item.get("image_uploaded"):
             grouped_data.setdefault(vendor_name, []).append(item['vendor_id'])
     return grouped_data
-
 
 
 def get_address_from_lat_long_via_google_maps(latitude: float, longitude: float):
@@ -437,7 +463,7 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
         traceback.print_exc()
         logger.error(f"Error fetching pin selection analytics and location: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
-    
+
 
 def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
     """
@@ -525,7 +551,7 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         traceback.print_exc()
         logger.error(f"Error fetching pin selection analytics and location: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
-    
+
 def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start_date, end_date):
     """
     Retrieve the frequency of image captures for each calendar day in the selected area.
@@ -636,9 +662,6 @@ def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, d
     except Exception as e:
         logger.error(f"Error in frequency calculation: {str(e)}", exc_info=True)
         return {"data": None, "status_code": 500, "error": f"Error: {str(e)}"}
-
-    
-
 
 
 def generate_circle_polygon_geojson(latitude, longitude, distance_km, num_points=36):

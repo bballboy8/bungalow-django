@@ -59,7 +59,6 @@ def get_acces_token():
         return access_token
 
 
-access_token = get_acces_token()
 
 
 def process_features(all_features):
@@ -105,9 +104,10 @@ def process_features(all_features):
             pass
     return converted_features, thumbnail_urls
 
-def upload_to_s3(feature, folder="thumbnails"):
+def upload_to_s3(feature, access_token, folder="thumbnails"):
     """Downloads an image from the URL in the feature and uploads it to S3."""
     try:
+
         headers = {"Authorization": "Bearer " + access_token}
         url = feature.get("url")
         response = requests.get(url, headers=headers, stream=True, timeout=(10, 30))
@@ -130,12 +130,12 @@ def upload_to_s3(feature, folder="thumbnails"):
         print(f"Failed to upload {url}: {e}")
         return False
 
-def download_and_upload_images(images, path, max_workers=5):
+def download_and_upload_images(images, path, access_token, max_workers=5):
     """Download images from URLs in images and upload them to S3."""
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(upload_to_s3, feature, path): feature
+            executor.submit(upload_to_s3, feature, access_token, path): feature
             for feature in images
         }
 
@@ -260,7 +260,7 @@ def geotiff_conversion_and_s3_upload(content, filename, tiff_folder, polygon=Non
         return geotiff_url
 
 
-def airbus_catalog_api(bbox, start_date, end_date, current_page):
+def airbus_catalog_api(bbox, start_date, end_date, current_page, access_token):
     try:
         search_headers = {
             "Authorization": f"Bearer {access_token}",
@@ -287,6 +287,7 @@ def airbus_catalog_api(bbox, start_date, end_date, current_page):
 def search_images(bbox, start_date, end_date):
     """Search for images in the Airbus OneAtlas catalog."""
     all_features = []
+    access_token = get_acces_token()
     if access_token:
         current_date = start_date
         global BATCH_SIZE
@@ -309,7 +310,7 @@ def search_images(bbox, start_date, end_date):
                     end_date_str = end_date.isoformat()
 
                 response_data = airbus_catalog_api(
-                    bbox, start_date_str, end_date_str, current_page
+                    bbox, start_date_str, end_date_str, current_page, access_token
                 )
                 if response_data:
                     all_features.extend(response_data.get("features", []))
@@ -322,7 +323,7 @@ def search_images(bbox, start_date, end_date):
             current_date += timedelta(days=BATCH_SIZE)
         
         data, images = process_features(all_features)
-        # download_and_upload_images(images, "airbus/thumbnails")
+        # download_and_upload_images(images, access_token, "airbus/thumbnails")
         process_database_catalog(data, start_date.isoformat(), end_date.isoformat())
         print("Completed Processing Airbus: Total Items: {}".format(total_items))
     else:

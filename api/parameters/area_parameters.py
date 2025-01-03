@@ -25,8 +25,7 @@ satellite_capture_catalog_params = [
     OpenApiParameter(
         name="vendor_id",
         type=str,
-        location
-        =OpenApiParameter.QUERY,
+        location=OpenApiParameter.QUERY,
         description="Filter records by vendor id",
     ),
     OpenApiParameter(
@@ -73,5 +72,11 @@ satellite_capture_catalog_params = [
         location=OpenApiParameter.QUERY,
         default="desc",
         description="Sort order. Default is desc",
+    ),
+    OpenApiParameter(
+        name="zoomed_wkt",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="Zoomed WKT polygon",
     ),
 ]

@@ -438,7 +438,17 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
             cloud_cover__lte=0
         ).order_by("-acquisition_datetime").first()
 
+
+        # Count for each vendor in the selected area airbus, maxar, planet, blacksky, capella, skyfi-umbra
+
+        vendor_counts = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=buffered_polygon
+        ).values('vendor_name').annotate(count=Count('id'))
+
+        vendor_count = {vendor['vendor_name']: vendor['count'] for vendor in vendor_counts}
+
         analytics = {
+            "vendor_count": vendor_count,
             "total_count": sum(result["current_count"] for result in results.values()),
             "average_per_day": sum(result["current_count"] for result in results.values()) /
                                (now() - longest_period_start).days,
@@ -526,8 +536,16 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
             cloud_cover__lte=0
         ).order_by("-acquisition_datetime").first()
 
+        # vendor count
+        vendor_counts = SatelliteCaptureCatalog.objects.filter(
+            location_polygon__intersects=polygon
+        ).values('vendor_name').annotate(count=Count('id'))
+
+        vendor_count = {vendor['vendor_name']: vendor['count'] for vendor in vendor_counts}
+
         # Prepare analytics data
         analytics = {
+            "vendor_count": vendor_count,
             "total_count": sum(result["current_count"] for result in results.values()),
             "average_per_day": sum(result["current_count"] for result in results.values()) / (now() - longest_period_start).days,
             "oldest_date": longest_period_start,

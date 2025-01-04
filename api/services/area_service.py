@@ -537,15 +537,15 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         ).order_by("-acquisition_datetime").first()
 
         # vendor count
-        vendor_counts = SatelliteCaptureCatalog.objects.filter(
-            location_polygon__intersects=polygon
-        ).values('vendor_name').annotate(count=Count('id'))
+        # vendor_counts = SatelliteCaptureCatalog.objects.filter(
+        #     location_polygon__intersects=polygon
+        # ).values('vendor_name').annotate(count=Count('id'))
 
-        vendor_count = {vendor['vendor_name']: vendor['count'] for vendor in vendor_counts}
+        # vendor_count = {vendor['vendor_name']: vendor['count'] for vendor in vendor_counts}
 
         # Prepare analytics data
         analytics = {
-            "vendor_count": vendor_count,
+            # "vendor_count": vendor_count,
             "total_count": sum(result["current_count"] for result in results.values()),
             "average_per_day": sum(result["current_count"] for result in results.values()) / (now() - longest_period_start).days,
             "oldest_date": longest_period_start,

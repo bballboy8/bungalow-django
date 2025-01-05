@@ -447,10 +447,12 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
 
         vendor_count = {vendor['vendor_name']: vendor['count'] for vendor in vendor_counts}
 
+        total_vendor_count = sum(vendor_count.values())
+
         analytics = {
             "vendor_count": vendor_count,
-            "total_count": sum(result["current_count"] for result in results.values()),
-            "average_per_day": sum(result["current_count"] for result in results.values()) /
+            "total_count": total_vendor_count,
+            "average_per_day": total_vendor_count /
                                (now() - longest_period_start).days,
             "oldest_date": longest_period_start,
             "newest_info": NewestInfoSerializer(newest_record_instance).data if newest_record_instance else None,

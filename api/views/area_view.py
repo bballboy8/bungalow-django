@@ -87,6 +87,7 @@ class SatelliteCaptureCatalogView(APIView):
             sort_by = request.query_params.get("sort_by", "acquisition_datetime")
             sort_order = request.query_params.get("sort_order", "desc")
             zoomed_wkt = request.query_params.get("zoomed_wkt", None)
+            vendor_name = request.query_params.get("vendor_name", None)
 
             # Request body
             wkt_polygon = request.data.get("wkt_polygon", None)
@@ -94,7 +95,7 @@ class SatelliteCaptureCatalogView(APIView):
             logger.info(
                 f"Page Number: {page_number}, Page Size: {page_size}, Start Date: {start_date}, End Date: {end_date} Latitude: {latitude}, Longitude: {longitude}, Distance: {distance} Source: {source}, Vendor ID: {vendor_id} "
             )
-            logger.info(f"Sort By: {sort_by}, Sort Order: {sort_order}, Zoomed WKT: {zoomed_wkt} WKT Polygon: {wkt_polygon}")
+            logger.info(f"Sort By: {sort_by}, Sort Order: {sort_order}, Zoomed WKT: {zoomed_wkt} WKT Polygon: {wkt_polygon} Vendor Name: {vendor_name}")
 
             service_response = get_satellite_records(
                 page_number=page_number,
@@ -110,7 +111,8 @@ class SatelliteCaptureCatalogView(APIView):
                 request=request,
                 sort_by=sort_by,
                 sort_order=sort_order,
-                zoomed_wkt=zoomed_wkt
+                zoomed_wkt=zoomed_wkt,
+                vendor_name=vendor_name
             )
 
             if service_response["status_code"] != 200:

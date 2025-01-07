@@ -514,3 +514,46 @@ class RemoveGroupSiteView(APIView):
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+class GetGroupSiteByGroupIdView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Retrieve all sites in a group",
+        parameters=[
+            OpenApiParameter(
+                name="group_id",
+                type=int,
+                description="ID of the group to retrieve the sites.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Sites in group successfully retrieved.",
+            ),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def get(self, request):
+        try:
+            logger.info("Fetching all sites in a group")
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
+            group_id = request.query_params.get("group_id")
+            # get that group
+            group = Group.objects.filter(id=group_id).first()
+            sites = get_full_hierarchy_by_group(group)
+
+            return Response(sites, status=status.HTTP_200_OK)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

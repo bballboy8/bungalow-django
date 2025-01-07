@@ -53,5 +53,6 @@ urlpatterns = [
     path("get-area-from-polygon-wkt", GetAreaFromPolygonWkt.as_view(), name="get-area-from-polygon-wkt"),
     path('generate-circle-polygon/', GenerateCirclePolygonAPIView.as_view(), name='generate-circle-polygon'),
     path('extract-circle-parameters/', ExtractCircleParametersAPIView.as_view(), name='extract-circle-parameters'),
+    path("get-nested-group-and-sites-by-group-id", GetGroupSiteByGroupIdView.as_view(), name="get-group-sites-by-group-id"),
 
 ]

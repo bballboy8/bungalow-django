@@ -76,7 +76,8 @@ def get_satellite_records(
     request=None,
     sort_by: str = None,
     sort_order: str = None,
-    zoomed_wkt: str = None
+    zoomed_wkt: str = None,
+    vendor_name: str = None
 ):
     logger.info("Inside get satellite records service")
     start_time = datetime.now()
@@ -102,6 +103,8 @@ def get_satellite_records(
                     D(km=distance),
                 )
             )
+        if vendor_name:
+            filters &= Q(vendor_name=vendor_name)
 
         if wkt_polygon:
             try:

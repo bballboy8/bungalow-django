@@ -79,4 +79,10 @@ satellite_capture_catalog_params = [
         location=OpenApiParameter.QUERY,
         description="Zoomed WKT polygon",
     ),
+    OpenApiParameter(
+        name="vendor_name",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="Filter records by vendor name maxar, airbus, planet, blacksky, capella, skyfi-umbra",
+    ),
 ]

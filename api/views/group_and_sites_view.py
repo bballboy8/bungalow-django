@@ -309,7 +309,7 @@ class GetParentGroupsListwithDetailsView(APIView):
         description="Retrieve all parent groups with details",
         parameters=[
             OpenApiParameter(
-                name="group name",
+                name="group_name",
                 type=str,
                 description="Search parent groups by name.",
             )

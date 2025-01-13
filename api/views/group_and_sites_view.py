@@ -310,7 +310,7 @@ class GetParentGroupsListwithDetailsView(APIView):
         parameters=[
             OpenApiParameter(
                 name="group name",
-                type=int,
+                type=str,
                 description="Search parent groups by name.",
             )
         ],

@@ -243,13 +243,17 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
         }
 
 
-def get_parent_groups_with_details(user_id):
+def get_parent_groups_with_details(user_id, group_name=None):
     """
     Get all parent groups with their details.
     """
     try:
         logger.info("Fetching parent groups with details")
-        parent_groups = Group.objects.filter(parent=None, user__id=user_id, is_deleted=False)
+        filters = {"user__id": user_id, "is_deleted": False, "parent": None}
+        if group_name:
+            filters["name__icontains"] = group_name
+        
+        parent_groups = Group.objects.filter(**filters)
         groups = []
         for group in parent_groups:
             area_response = total_surface_area_of_group_and_its_subgroups(group.id)

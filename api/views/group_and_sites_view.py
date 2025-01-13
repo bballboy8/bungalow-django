@@ -307,6 +307,13 @@ class GetParentGroupsListwithDetailsView(APIView):
 
     @extend_schema(
         description="Retrieve all parent groups with details",
+        parameters=[
+            OpenApiParameter(
+                name="group name",
+                type=int,
+                description="Search parent groups by name.",
+            )
+        ],
         responses={
             200: OpenApiResponse(
                 description="Parent groups with details successfully retrieved.",
@@ -326,7 +333,9 @@ class GetParentGroupsListwithDetailsView(APIView):
                 )
             user_id = auth["user_id"] 
 
-            parent_groups = get_parent_groups_with_details(user_id=user_id)
+            group_name = request.query_params.get("group_name")
+
+            parent_groups = get_parent_groups_with_details(user_id=user_id, group_name=group_name)
             if parent_groups["status_code"] != 200:
                 return Response(parent_groups, status=parent_groups["status_code"])
             serializer = ParentGroupSerializer(parent_groups["data"], many=True)

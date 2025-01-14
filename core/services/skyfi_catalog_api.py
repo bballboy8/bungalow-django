@@ -410,8 +410,8 @@ def run_skyfi_catalog_api():
     return response
 
 def run_skfyfi_catalog_api_bulk():
-    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2024, 1, 2, tzinfo=pytz.utc)
+    START_DATE = datetime(2025, 1, 13, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2025, 1, 14, tzinfo=pytz.utc)
     import time
     while START_DATE < END_LIMIT:
         END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)

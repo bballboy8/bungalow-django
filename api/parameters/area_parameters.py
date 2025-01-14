@@ -118,4 +118,18 @@ satellite_capture_catalog_params = [
         default=360,
         description="Filter records by maximum off nadir angle",
     ),
+    OpenApiParameter(
+        name="min_gsd",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=0,
+        description="Filter records by minimum ground sample distance",
+    ),
+    OpenApiParameter(
+        name="max_gsd",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=100,
+        description="Filter records by maximum ground sample distance",
+    ),
 ]

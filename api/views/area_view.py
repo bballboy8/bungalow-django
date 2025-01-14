@@ -92,6 +92,8 @@ class SatelliteCaptureCatalogView(APIView):
             max_cloud_cover = float(request.query_params.get("max_cloud_cover_percent", 100))
             min_off_nadir_angle = float(request.query_params.get("min_off_nadir_angle", 0))
             max_off_nadir_angle = float(request.query_params.get("max_off_nadir_angle", 360))
+            min_gsd = float(request.query_params.get("min_gsd", 0))
+            max_gsd = float(request.query_params.get("max_gsd", 100))
 
             # filters list: gsd
 
@@ -102,6 +104,10 @@ class SatelliteCaptureCatalogView(APIView):
                 f"Page Number: {page_number}, Page Size: {page_size}, Start Date: {start_date}, End Date: {end_date} Latitude: {latitude}, Longitude: {longitude}, Distance: {distance} Source: {source}, Vendor ID: {vendor_id} "
             )
             logger.info(f"Sort By: {sort_by}, Sort Order: {sort_order}, Zoomed WKT: {zoomed_wkt} WKT Polygon: {wkt_polygon} Vendor Name: {vendor_name}")
+
+            logger.info(f"Min Cloud Cover: {min_cloud_cover}, Max Cloud Cover: {max_cloud_cover}")
+            logger.info(f"Min Off Nadir Angle: {min_off_nadir_angle}, Max Off Nadir Angle: {max_off_nadir_angle}")
+            logger.info(f"Min GSD: {min_gsd}, Max GSD: {max_gsd}")
 
             service_response = get_satellite_records(
                 page_number=page_number,
@@ -122,7 +128,9 @@ class SatelliteCaptureCatalogView(APIView):
                 min_cloud_cover=min_cloud_cover,
                 max_cloud_cover=max_cloud_cover,
                 min_off_nadir_angle=min_off_nadir_angle,
-                max_off_nadir_angle=max_off_nadir_angle
+                max_off_nadir_angle=max_off_nadir_angle,
+                min_gsd=min_gsd,
+                max_gsd=max_gsd
             )
 
             if service_response["status_code"] != 200:

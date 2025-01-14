@@ -82,7 +82,8 @@ def process_features(all_features):
                 "location_polygon": geometry,
                 "coordinates_record": geometry,
                 "assets": assets,
-                "metadata": feature
+                "metadata": feature,
+                "gsd": float(properties.get("pan_resolution_avg")),
             }
             converted_features.append(model_params)
         except Exception as e:

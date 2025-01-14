@@ -150,22 +150,22 @@ def process_database_catalog(features, start_time, end_time):
     except Exception as e:
         last_acquisition_datetime = end_time
 
-    # history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-    #     data={
-    #         "start_datetime": convert_iso_to_datetime(start_time),
-    #         "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-    #         "vendor_name": "skyfi-umbra",
-    #         "message": {
-    #             "total_records": len(features),
-    #             "valid_records": len(valid_features),
-    #             "invalid_records": len(invalid_features),
-    #         },
-    #     }
-    # )
-    # if history_serializer.is_valid():
-    #     history_serializer.save()
-    # else:
-    #     print(f"Error in history serializer: {history_serializer.errors}")
+    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+        data={
+            "start_datetime": convert_iso_to_datetime(start_time),
+            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+            "vendor_name": "skyfi-umbra",
+            "message": {
+                "total_records": len(features),
+                "valid_records": len(valid_features),
+                "invalid_records": len(invalid_features),
+            },
+        }
+    )
+    if history_serializer.is_valid():
+        history_serializer.save()
+    else:
+        print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def get_polygon_bounding_box(polygon):
@@ -286,6 +286,7 @@ def convert_to_model_params(features):
                 "location_polygon": location_polygon,
                 "coordinates_record": location_polygon,
                 "metadata": feature,
+                "gsd": float(feature["gsd"]) / 100,
             }
             response.append(model_params)
         except Exception as e:

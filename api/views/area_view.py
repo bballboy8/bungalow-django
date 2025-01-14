@@ -93,7 +93,7 @@ class SatelliteCaptureCatalogView(APIView):
             min_off_nadir_angle = float(request.query_params.get("min_off_nadir_angle", 0))
             max_off_nadir_angle = float(request.query_params.get("max_off_nadir_angle", 360))
 
-            # filters list: gsd off nadir angle 
+            # filters list: gsd
 
             # Request body
             wkt_polygon = request.data.get("wkt_polygon", None)

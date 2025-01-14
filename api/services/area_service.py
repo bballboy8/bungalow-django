@@ -82,6 +82,8 @@ def get_satellite_records(
     max_cloud_cover: float = None,
     min_off_nadir_angle: float = None,
     max_off_nadir_angle: float = None,
+    min_gsd: float = None,
+    max_gsd: float = None,
     
 ):
     logger.info("Inside get satellite records service")
@@ -145,6 +147,11 @@ def get_satellite_records(
             logger.debug(f"Sun elevation filters: {min_off_nadir_angle} to {max_off_nadir_angle}")
             sun_elevation_filters = Q(sun_elevation__gte=min_off_nadir_angle, sun_elevation__lte=max_off_nadir_angle)
             filters &= sun_elevation_filters
+
+        if min_gsd is not None and max_gsd is not None:
+            logger.debug(f"GSD filters: {min_gsd} to {max_gsd}")
+            gsd_filters = Q(gsd__gte=min_gsd, gsd__lte=max_gsd)
+            filters &= gsd_filters
 
         zoomed_captures = []
         if zoomed_wkt:

@@ -88,6 +88,12 @@ class SatelliteCaptureCatalogView(APIView):
             sort_order = request.query_params.get("sort_order", "desc")
             zoomed_wkt = request.query_params.get("zoomed_wkt", None)
             vendor_name = request.query_params.get("vendor_name", None)
+            min_cloud_cover = float(request.query_params.get("min_cloud_cover_percent", 0))
+            max_cloud_cover = float(request.query_params.get("max_cloud_cover_percent", 100))
+            min_off_nadir_angle = float(request.query_params.get("min_off_nadir_angle", 0))
+            max_off_nadir_angle = float(request.query_params.get("max_off_nadir_angle", 360))
+
+            # filters list: gsd off nadir angle 
 
             # Request body
             wkt_polygon = request.data.get("wkt_polygon", None)
@@ -112,7 +118,11 @@ class SatelliteCaptureCatalogView(APIView):
                 sort_by=sort_by,
                 sort_order=sort_order,
                 zoomed_wkt=zoomed_wkt,
-                vendor_name=vendor_name
+                vendor_name=vendor_name,
+                min_cloud_cover=min_cloud_cover,
+                max_cloud_cover=max_cloud_cover,
+                min_off_nadir_angle=min_off_nadir_angle,
+                max_off_nadir_angle=max_off_nadir_angle
             )
 
             if service_response["status_code"] != 200:

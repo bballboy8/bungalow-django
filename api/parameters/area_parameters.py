@@ -31,12 +31,14 @@ satellite_capture_catalog_params = [
     OpenApiParameter(
         name="start_date",
         type=str,
+        default="2024-11-12T06:16:18.126580Z",
         location=OpenApiParameter.QUERY,
         description="Filter records with acquisition date greater than or equal to this date. Format: 2024-11-12T06:16:18.126580Z",
     ),
     OpenApiParameter(
         name="end_date",
         type=str,
+        default="2024-11-12T06:16:18.126580Z",
         location=OpenApiParameter.QUERY,
         description="Filter records with acquisition date less than or equal to this date. Format: 2024-11-12T06:16:18.126580Z",
     ),
@@ -77,12 +79,43 @@ satellite_capture_catalog_params = [
         name="zoomed_wkt",
         type=str,
         location=OpenApiParameter.QUERY,
-        description="Zoomed WKT polygon",
+        description="Zoomed WKT polygon :POLYGON ((90 10, 135 10, 135 50, 90 50, 90 10))",
     ),
     OpenApiParameter(
         name="vendor_name",
         type=str,
         location=OpenApiParameter.QUERY,
         description="Filter records by vendor name maxar, airbus, planet, blacksky, capella, skyfi-umbra",
+    ),
+    OpenApiParameter(
+        name="min_cloud_cover",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=0,
+        description="Filter records by minimum cloud cover",
+    ),
+    OpenApiParameter(
+        name="max_cloud_cover",
+        type=float,
+        location
+        =OpenApiParameter.QUERY,
+        default=100,
+        description="Filter records by maximum cloud cover",
+    ),
+    OpenApiParameter(
+        name="min_off_nadir_angle",
+        type=float,
+        location
+        =OpenApiParameter.QUERY,
+        default=0,
+        description="Filter records by minimum off nadir angle",
+    ),
+    OpenApiParameter(
+        name="max_off_nadir_angle",
+        type=float,
+        location
+        =OpenApiParameter.QUERY,
+        default=360,
+        description="Filter records by maximum off nadir angle",
     ),
 ]

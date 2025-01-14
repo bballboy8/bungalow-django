@@ -77,7 +77,12 @@ def get_satellite_records(
     sort_by: str = None,
     sort_order: str = None,
     zoomed_wkt: str = None,
-    vendor_name: str = None
+    vendor_name: str = None,
+    min_cloud_cover: float = None,
+    max_cloud_cover: float = None,
+    min_off_nadir_angle: float = None,
+    max_off_nadir_angle: float = None,
+    
 ):
     logger.info("Inside get satellite records service")
     start_time = datetime.now()
@@ -122,13 +127,29 @@ def get_satellite_records(
             wkt_polygon_geom = GEOSGeometry(wkt_polygon)
             filters &= Q(location_polygon__intersects=wkt_polygon_geom)
 
+                    
+        if min_cloud_cover is not None and max_cloud_cover is not None:
+            logger.debug(f"Cloud cover filters: {min_cloud_cover} to {max_cloud_cover}")
+            cloud_cover_filters = (
+                Q(vendor_name="planet", cloud_cover__gte=min_cloud_cover / 100, cloud_cover__lte=max_cloud_cover / 100) |
+                Q(~Q(vendor_name="planet"), cloud_cover__gte=min_cloud_cover, cloud_cover__lte=max_cloud_cover)
+            )
+            # Include null values only if either min or max is 0
+            if min_cloud_cover == 0 or max_cloud_cover == 0:
+                logger.debug("Including null cloud cover values")
+                cloud_cover_filters |= Q(cloud_cover__isnull=True)
+
+            filters &= cloud_cover_filters
+
+        if min_off_nadir_angle is not None and max_off_nadir_angle is not None:
+            logger.debug(f"Sun elevation filters: {min_off_nadir_angle} to {max_off_nadir_angle}")
+            sun_elevation_filters = Q(sun_elevation__gte=min_off_nadir_angle, sun_elevation__lte=max_off_nadir_angle)
+            filters &= sun_elevation_filters
+
         zoomed_captures = []
         if zoomed_wkt:
             try:
                 zoomed_geom = GEOSGeometry(zoomed_wkt)
-                # if not zoomed_geom.within(wkt_polygon_geom):
-                #     logger.warning("Zoomed WKT is not within the WKT polygon")
-                #     return {"data": "Zoomed WKT must be inside WKT polygon", "status_code": 400}
                 zoomed_filters = filters & Q(location_polygon__intersects=zoomed_geom) & Q(location_polygon__within=wkt_polygon_geom)
                 zoomed_captures = captures.filter(zoomed_filters)
 

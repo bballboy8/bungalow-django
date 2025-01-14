@@ -36,7 +36,7 @@ class SatelliteCaptureCatalog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     image_uploaded = models.BooleanField(default=False, null=True, blank=True) 
-    gsd = models.FloatField(default=0, blank=True)
+    gsd = models.FloatField(null=True, blank=True)
     
     class Meta:
         indexes = [

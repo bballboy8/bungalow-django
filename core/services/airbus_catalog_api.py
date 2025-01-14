@@ -90,7 +90,8 @@ def process_features(all_features):
                 "resolution": f"{properties.get("resolution")}m",
                 "location_polygon": geometry,
                 "coordinates_record": geometry,
-                "metadata": feature
+                "metadata": feature,
+                "gsd": float(properties.get("resolution")),
             }
             converted_features.append(model_params)
             download_thumbnails_dict = {

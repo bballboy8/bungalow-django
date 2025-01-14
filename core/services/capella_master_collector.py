@@ -241,7 +241,8 @@ def process_features(features):
                 "coordinates_record": feature["geometry"],
                 "thumbnail_url": thumbnail_url,
                 "geometry": feature["geometry"],
-                "metadata": feature
+                "metadata": feature,
+                "gsd": float(feature['properties']['capella:resolution_ground_range']),
             }
             response.append(model_params)
 

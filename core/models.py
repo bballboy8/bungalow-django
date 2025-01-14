@@ -30,12 +30,13 @@ class SatelliteCaptureCatalog(models.Model):
     type = models.CharField(max_length=8, choices=TYPE_CHOICES, null=True, blank=True)
     sun_elevation = models.FloatField(null=True, blank=True)
     resolution = models.CharField(max_length=50, null=True, blank=True)
-    georeferenced = models.BooleanField(null=True, blank=True)
+    georeferenced = models.BooleanField(null=True, blank=True, default=False)
     location_polygon = models.PolygonField(null=True, blank=True)
     coordinates_record = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     image_uploaded = models.BooleanField(default=False, null=True, blank=True) 
+    gsd = models.FloatField(default=0, blank=True)
     
     class Meta:
         indexes = [

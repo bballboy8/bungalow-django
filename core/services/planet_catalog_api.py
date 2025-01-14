@@ -293,7 +293,8 @@ def process_features(features):
                 "resolution": f"{properties['gsd']}m",
                 "location_polygon": geometry,
                 "coordinates_record": geometry,
-                "metadata": feature
+                "metadata": feature,
+                "gsd": float(properties["gsd"]),
             }
             response.append(model_params)
         except Exception as e:

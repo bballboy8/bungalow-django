@@ -246,7 +246,8 @@ def convert_to_model_params(features):
                 "georeferenced": feature["properties"]["georeferenced"],
                 "location_polygon": feature["geometry"],
                 "coordinates_record": feature["geometry"],
-                "metadata": feature
+                "metadata": feature,
+                "gsd": float(feature["properties"]["gsd"]),
             }
             response.append(model_params)
         except Exception as e:
@@ -351,8 +352,8 @@ def run_blacksky_catalog_api():
 
 def run_blacksky_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2024, 12, 6, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2024, 12, 14, tzinfo=pytz.utc)
+    START_DATE = datetime(2024, 12, 19, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 12, 21, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

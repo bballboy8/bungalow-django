@@ -527,6 +527,12 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         logger.info("Inside get pin selection analytics and location service with WKT input")
         func_start_time = now()
 
+        try:
+            area_response = get_area_from_polygon_wkt(polygon_wkt)
+            area = area_response["data"] if area_response["status_code"] == 200 else 0
+        except Exception as e:
+            logger.error(f"Error calculating area from WKT: {str(e)}")
+            area = 0
         # Convert the WKT string to a Polygon object
         polygon = fromstr(polygon_wkt)
 
@@ -569,23 +575,16 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
             cloud_cover__lte=0
         ).order_by("-acquisition_datetime").first()
 
-        # vendor count
-        # vendor_counts = SatelliteCaptureCatalog.objects.filter(
-        #     location_polygon__intersects=polygon
-        # ).values('vendor_name').annotate(count=Count('id'))
 
-        # vendor_count = {vendor['vendor_name']: vendor['count'] for vendor in vendor_counts}
-
-        # Prepare analytics data
         analytics = {
-            # "vendor_count": vendor_count,
             "total_count": sum(result["current_count"] for result in results.values()),
             "average_per_day": sum(result["current_count"] for result in results.values()) / (now() - longest_period_start).days,
             "oldest_date": longest_period_start,
             "newest_info": NewestInfoSerializer(newest_record_instance).data if newest_record_instance else None,
             "newest_clear_cloud_cover_info": NewestInfoSerializer(newest_clear_cloud_cover_instance).data if newest_clear_cloud_cover_instance else None,
             "address": address_response["data"],
-            "percentages": results
+            "percentages": results,
+            "area": area
         }
 
         func_end_time = now()

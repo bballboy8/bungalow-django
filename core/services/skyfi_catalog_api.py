@@ -96,6 +96,7 @@ def estimate_sun_angles(capture_time, footprint_wkt):
 
 
 def process_database_catalog(features, start_time, end_time):
+    print(f"Processing Skyfi Umbra {len(features)} records from {start_time} to {end_time}")
     unique_features = []
     seen_vendor_ids = set()
     for feature in features:
@@ -379,7 +380,7 @@ def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
     print(converted_features[:2])
     # download_and_upload_images(converted_features, "skyfi/thumbnails")
     process_database_catalog(
-        converted_features, current_date.isoformat(), end_date.isoformat()
+        converted_features, START_DATE.isoformat(), end_date.isoformat()
     )
 
 

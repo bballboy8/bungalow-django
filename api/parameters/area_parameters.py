@@ -85,7 +85,7 @@ satellite_capture_catalog_params = [
         name="vendor_name",
         type=str,
         location=OpenApiParameter.QUERY,
-        description="Filter records by vendor name maxar, airbus, planet, blacksky, capella, skyfi-umbra",
+        description="Filter records by vendor name maxar, airbus, planet, blacksky, capella, skyfi-umbra or maxar,airbus,planet,blacksky,capella,skyfi-umbra",
     ),
     OpenApiParameter(
         name="min_cloud_cover",

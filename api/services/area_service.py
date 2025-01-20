@@ -110,7 +110,11 @@ def get_satellite_records(
                     D(km=distance),
                 )
             )
-        if vendor_name:
+
+        if vendor_name and "," in vendor_name:
+            vendor_names = vendor_name.split(",")
+            filters &= Q(vendor_name__in=vendor_names)
+        elif vendor_name:
             filters &= Q(vendor_name=vendor_name)
 
         if wkt_polygon:

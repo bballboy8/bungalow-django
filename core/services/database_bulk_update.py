@@ -2,9 +2,10 @@ import psycopg2
 from django.db import connection
 from django.conf import settings
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 
 BATCH_SIZE = 10000  # Number of records per batch
-THREAD_COUNT = 50  # Number of threads to use (adjust based on your system's resources)
+THREAD_COUNT = os.cpu_count()  # Number of threads to use (adjust based on your system's resources)
 
 # Function to convert resolution to gsd
 def convert_resolution_to_gsd(resolution, vendor_name):
@@ -29,7 +30,7 @@ def process_batch(offset, batch_number, total_batches):
         with connection.cursor() as cursor:
             # Fetching a batch of records
             cursor.execute(
-                "SELECT id, resolution, vendor_name FROM core_satellitecapturecatalog WHERE resolution IS NOT NULL LIMIT %s OFFSET %s;",
+                "SELECT id, resolution, vendor_name FROM core_satellitecapturecatalog WHERE resolution IS NOT NULL AND gsd=0 LIMIT %s OFFSET %s;",
                 [BATCH_SIZE, offset]
             )
             records = cursor.fetchall()
@@ -66,8 +67,8 @@ def update_gsd_column_parallel():
         with connection.cursor() as cursor:
             # Get the total number of records
             cursor.execute(
-                "SELECT COUNT(*) FROM core_satellitecapturecatalog WHERE resolution IS NOT NULL AND id >= %s;",
-                [912184]
+                "SELECT COUNT(*) FROM core_satellitecapturecatalog WHERE resolution IS NOT NULL AND gsd=0 AND id >= %s;",
+                [0]
             )
             total_records = cursor.fetchone()[0]
 

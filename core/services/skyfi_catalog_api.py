@@ -311,7 +311,6 @@ def search_skyfi_archive(aoi, from_date, to_date):
             "pageSize": 100,
             "productType": "SAR",
             "providers": ["UMBRA"],
-            "resolution": "HIGH",
 
         }
         response = requests.post(url, json=payload, headers=headers)

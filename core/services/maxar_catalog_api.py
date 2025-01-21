@@ -35,7 +35,7 @@ def get_maxar_collections(
     """
     Fetches collections from the Maxar API.
     """
-    collections = ["wv01", "wv02"]
+    collections = [ "ge01", "wv01", "wv02", "wv03-vnir", "wv04", "lg01", "lg02"]
     collections_str = ",".join(collections)
     url = f"https://api.maxar.com/discovery/v1/search?collections={collections_str}&bbox={bbox}&datetime={datetime_range}&limit={limit}&page={page}&sortby=+properties.datetime"
 

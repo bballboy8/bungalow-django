@@ -95,7 +95,7 @@ def get_airbus_record_images_by_ids(ids: List[str]):
 
 def get_maxar_record_images_by_ids(ids: List[str]):
     try:
-        collections = ["wv01", "wv02"]
+        collections = [ "ge01", "wv01", "wv02", "wv03-vnir", "wv04", "lg01", "lg02"]
         collections_str = ",".join(collections)
         ids = [original_id.split("-")[0] for original_id in ids]
         url = f"https://api.maxar.com/discovery/v1/search?ids={','.join(ids)}&collections={collections_str}"

@@ -113,17 +113,17 @@ def process_database_catalog(features, start_time, end_time):
         serializer = SatelliteCaptureCatalogSerializer(data=feature)
         if serializer.is_valid():
             valid_features.append(serializer.validated_data)
-            features_metadata.append(
-                {
-                    "vendor_name": feature["vendor_name"],
-                    "vendor_id": feature["vendor_id"],
-                    "acquisition_datetime": feature["acquisition_datetime"],
-                    "metadata": feature["metadata"],
-                }
-            )
         else:
             print(f"Error in serializer: {serializer.errors}")
             invalid_features.append(feature)
+        features_metadata.append(
+            {
+                "vendor_name": feature["vendor_name"],
+                "vendor_id": feature["vendor_id"],
+                "acquisition_datetime": feature["acquisition_datetime"],
+                "metadata": feature["metadata"],
+            }
+        )
 
     print(
         f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}"

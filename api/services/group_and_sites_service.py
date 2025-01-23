@@ -314,6 +314,9 @@ def get_full_hierarchy(group):
                 "id": site.site.id,
                 "name": site.site.name,
                 "area": site.site_area,
+                "site_type": site.site.site_type,
+                "date": site.site.created_at,
+                "count": area_response["data"]["site_objects_count"].get(site.site.id, 0),
             }
         )
 
@@ -435,6 +438,7 @@ def get_full_hierarchy_by_group(group):
                 "area": site.site_area,
                 "site_type": site.site.site_type,
                 "date": site.site.created_at,
+                "count": area_response["data"]["site_objects_count"].get(site.site.id, 0),
             }
         )
 

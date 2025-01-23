@@ -88,7 +88,7 @@ class SatelliteCaptureCatalogView(APIView):
             sort_order = request.query_params.get("sort_order", "desc")
             zoomed_wkt = request.query_params.get("zoomed_wkt", None)
             vendor_name = request.query_params.get("vendor_name", None)
-            min_cloud_cover = float(request.query_params.get("min_cloud_cover_percent", 0))
+            min_cloud_cover = float(request.query_params.get("min_cloud_cover_percent", -1))
             max_cloud_cover = float(request.query_params.get("max_cloud_cover_percent", 100))
             min_off_nadir_angle = float(request.query_params.get("min_off_nadir_angle", 0))
             max_off_nadir_angle = float(request.query_params.get("max_off_nadir_angle", 360))

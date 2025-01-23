@@ -91,7 +91,7 @@ satellite_capture_catalog_params = [
         name="min_cloud_cover",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=0,
+        default=-1,
         description="Filter records by minimum cloud cover",
     ),
     OpenApiParameter(

@@ -218,6 +218,7 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
         # Now go through each group and calculate the total surface area
         total_surface_area = 0
         total_objects = 0
+        site_objects_count = {}
         for group in all_groups:
             sites = GroupSite.objects.filter(group=group, is_deleted=False)
             if not sites:
@@ -228,9 +229,10 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
                 polygon = Polygon(coordinates)
                 count = SatelliteCaptureCatalog.objects.filter(location_polygon__intersects=polygon).count()
                 total_objects += count
+                site_objects_count[site.site.id] = count
         
         return {
-            "data": {"total_surface_area": total_surface_area, "total_objects": total_objects},
+            "data": {"total_surface_area": total_surface_area, "total_objects": total_objects, "site_objects_count": site_objects_count},
             "message": "Total surface area calculated successfully",
             "status_code": 200,
         }
@@ -432,6 +434,7 @@ def get_full_hierarchy_by_group(group):
                 "name": site.site.name,
                 "area": site.site_area,
                 "site_type": site.site.site_type,
+                "date": site.site.created_at,
             }
         )
 
@@ -441,6 +444,7 @@ def get_full_hierarchy_by_group(group):
         "parent": group.parent.id if group.parent else None,
         "created_at": group.created_at,
         "sites": site_details,
+        "site_objects_count": area_response["data"]["site_objects_count"],
         "surface_area": area_response["data"]["total_surface_area"],
         "total_objects": area_response["data"]["total_objects"],
         "subgroups": [get_full_hierarchy(child) for child in children],

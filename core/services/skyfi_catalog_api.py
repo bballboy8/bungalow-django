@@ -273,7 +273,7 @@ def convert_to_model_params(features):
             utc_time = convert_to_utc(feature["captureTimestamp"])
             model_params = {
                 "acquisition_datetime": utc_time,
-                "cloud_cover": feature["cloudCoveragePercent"],
+                "cloud_cover": -1,
                 "vendor_id": feature["archiveId"],
                 "vendor_name": f"skyfi-{feature['provider'].lower()}",
                 "sensor": feature["constellation"],

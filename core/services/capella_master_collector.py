@@ -243,6 +243,7 @@ def process_features(features):
                 "geometry": feature["geometry"],
                 "metadata": feature,
                 "gsd": float(feature['properties']['capella:resolution_ground_range']),
+                "cloud_cover": -1,
             }
             response.append(model_params)
 

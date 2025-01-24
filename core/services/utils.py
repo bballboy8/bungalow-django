@@ -288,6 +288,40 @@ def calculate_bbox_npolygons(geometry):
     
     return min_long, min_lat, max_long, max_lat
 
+from shapely.geometry import Polygon
+def generate_earth_grid_wkt(step=6):
+    """
+    Generate a grid of 6x6 degree polygons covering the Earth and return WKT strings.
+    
+    Parameters:
+    - step: Step size for latitude and longitude in degrees (default: 6°).
+    
+    Returns:
+    - A list of WKT strings representing the polygons.
+    """
+    lat_min, lat_max = -90, 90
+    lon_min, lon_max = -180, 180
+    polygons_wkt = []
+
+    # Loop through latitude and longitude ranges with the given step
+    for lat in range(int(lat_min), int(lat_max), step):
+        for lon in range(int(lon_min), int(lon_max), step):
+            # Create the coordinates for the bounding box
+            lat1 = lat
+            lat2 = min(lat + step, lat_max)
+            lon1 = lon
+            lon2 = min(lon + step, lon_max)
+            
+            # Generate the polygon for the bounding box
+            grid = Polygon([(lon1, lat1), (lon2, lat1), (lon2, lat2), (lon1, lat2), (lon1, lat1)])
+            
+            # Convert to WKT format and store
+            polygons_wkt.append(grid.wkt)
+    print(len(polygons_wkt))
+    # write the output to earth_polygon.json
+    with open('earth_polygon.json', 'w') as f:
+        json.dump(polygons_wkt, f)
+    return polygons_wkt
 
 
 def generate_land_grids(shapefile_path):

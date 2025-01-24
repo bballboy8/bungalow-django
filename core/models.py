@@ -49,7 +49,6 @@ class SatelliteCaptureCatalog(models.Model):
     image_uploaded = models.BooleanField(default=False, null=True, blank=True) 
     gsd = models.FloatField(null=True, blank=True)
 
-    objects = DistinctSatelliteCaptureManager()
     
     class Meta:
         indexes = [

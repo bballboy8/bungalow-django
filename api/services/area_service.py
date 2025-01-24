@@ -29,7 +29,6 @@ distinct_columns = [
     "acquisition_datetime",
     "vendor_name",
     "sun_elevation",
-    "gsd",
     "sensor",
     "cloud_cover",
 ]
@@ -174,7 +173,6 @@ def get_satellite_records(
                         'acquisition_datetime', 
                         'vendor_name', 
                         'sun_elevation', 
-                        'gsd', 
                         'sensor', 
                         'cloud_cover'
                     )
@@ -195,7 +193,6 @@ def get_satellite_records(
             'acquisition_datetime',
             'vendor_name',
             'sun_elevation',
-            'gsd',
             'sensor',
             'cloud_cover'
         )

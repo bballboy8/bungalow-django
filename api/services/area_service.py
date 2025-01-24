@@ -137,9 +137,12 @@ def get_satellite_records(
         if min_cloud_cover is not None and max_cloud_cover is not None:
             logger.debug(f"Cloud cover filters: {min_cloud_cover} to {max_cloud_cover}")
             cloud_cover_filters = (
-                Q(vendor_name="planet", cloud_cover__gte=min_cloud_cover / 100, cloud_cover__lte=max_cloud_cover / 100) |
-                Q(~Q(vendor_name__in=['planet', 'capella', 'skyfi-umbra', 'capella', 'skyfi-umbra']), cloud_cover__gte=min_cloud_cover, cloud_cover__lte=max_cloud_cover)
+                Q(vendor_name__in="planet", cloud_cover__gte=min_cloud_cover / 100, cloud_cover__lte=max_cloud_cover / 100) |
+                Q(~Q(vendor_name__in=['planet', 'capella', 'skyfi-umbra']), cloud_cover__gte=min_cloud_cover, cloud_cover__lte=max_cloud_cover)
             )
+
+            if min_cloud_cover == -1:
+                cloud_cover_filters |= Q(vendor_name__in=["capella", "skyfi-umbra"])
 
             filters &= cloud_cover_filters
 

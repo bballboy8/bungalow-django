@@ -25,13 +25,6 @@ from django.db.models import Count
 from django.db.models.functions import TruncDate
 from itertools import chain
 
-distinct_columns = [
-    "acquisition_datetime",
-    "vendor_name",
-    "sun_elevation",
-    "sensor",
-    "cloud_cover",
-]
 
 
 def get_area_from_polygon_wkt(polygon_wkt: str):

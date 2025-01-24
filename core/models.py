@@ -12,7 +12,6 @@ class DistinctSatelliteCaptureManager(models.Manager):
             'acquisition_datetime',
             'vendor_name',
             'sun_elevation',
-            'gsd',
             'sensor',
             'cloud_cover'
         )

@@ -5,11 +5,15 @@ from django.contrib.gis.db import models
 from django.db import models as plane_models
 from django.utils import timezone
 
+from django.db.models.functions import TruncMinute
+
 class DistinctSatelliteCaptureManager(models.Manager):
     def get_queryset(self):
-        # Return the queryset with distinct fields applied
-        return super().get_queryset().distinct(
-            'acquisition_datetime',
+        # Truncate the acquisition_datetime to the minute level
+        return super().get_queryset().annotate(
+            truncated_acquisition_datetime=TruncMinute('acquisition_datetime')
+        ).distinct(
+            'truncated_acquisition_datetime',
             'vendor_name',
             'sun_elevation',
             'sensor',

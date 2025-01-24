@@ -138,15 +138,8 @@ def get_satellite_records(
             logger.debug(f"Cloud cover filters: {min_cloud_cover} to {max_cloud_cover}")
             cloud_cover_filters = (
                 Q(vendor_name="planet", cloud_cover__gte=min_cloud_cover / 100, cloud_cover__lte=max_cloud_cover / 100) |
-                Q(~Q(vendor_name__in=['planet', 'capella', 'skyfi-umbra']), cloud_cover__gte=min_cloud_cover, cloud_cover__lte=max_cloud_cover)
+                Q(~Q(vendor_name__in=['planet', 'capella', 'skyfi-umbra', 'capella', 'skyfi-umbra']), cloud_cover__gte=min_cloud_cover, cloud_cover__lte=max_cloud_cover)
             )
-            # Include null values only if min=-1
-            if min_cloud_cover == -1:
-                logger.debug("Including null cloud cover values")
-                cloud_cover_filters |= (
-                        Q(vendor_name="capella", cloud_cover__isnull=True) |
-                        Q(vendor_name="skyfi-umbra")
-                    )
 
             filters &= cloud_cover_filters
 

@@ -169,13 +169,7 @@ def get_satellite_records(
             try:
                 zoomed_geom = GEOSGeometry(zoomed_wkt)
                 zoomed_filters = filters & Q(location_polygon__intersects=zoomed_geom) & Q(location_polygon__within=wkt_polygon_geom)
-                zoomed_captures = captures.filter(zoomed_filters).distinct(
-                        'acquisition_datetime', 
-                        'vendor_name', 
-                        'sun_elevation', 
-                        'sensor', 
-                        'cloud_cover'
-                    )
+                zoomed_captures = captures.filter(zoomed_filters)
 
                 if sort_by and sort_order:
                     zoomed_captures = (
@@ -189,13 +183,7 @@ def get_satellite_records(
                 logger.error(f"Error processing zoomed WKT: {str(e)}")
                 return {"data": str(e), "status_code": 400}
 
-        captures = captures.filter(filters).exclude(id__in=[record.id for record in zoomed_captures]).distinct(
-            'acquisition_datetime',
-            'vendor_name',
-            'sun_elevation',
-            'sensor',
-            'cloud_cover'
-        )
+        captures = captures.filter(filters).exclude(id__in=[record.id for record in zoomed_captures])
         if sort_by and sort_order:
             captures = (
                         captures.order_by(sort_by)

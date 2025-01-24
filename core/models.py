@@ -5,6 +5,18 @@ from django.contrib.gis.db import models
 from django.db import models as plane_models
 from django.utils import timezone
 
+class DistinctSatelliteCaptureManager(models.Manager):
+    def get_queryset(self):
+        # Return the queryset with distinct fields applied
+        return super().get_queryset().distinct(
+            'acquisition_datetime',
+            'vendor_name',
+            'sun_elevation',
+            'gsd',
+            'sensor',
+            'cloud_cover'
+        )
+
 # Constants for choices
 VENDOR_CHOICES = [
     ('airbus', 'airbus'),
@@ -37,6 +49,8 @@ class SatelliteCaptureCatalog(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     image_uploaded = models.BooleanField(default=False, null=True, blank=True) 
     gsd = models.FloatField(null=True, blank=True)
+
+    objects = DistinctSatelliteCaptureManager()
     
     class Meta:
         indexes = [

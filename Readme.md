@@ -1,4 +1,4 @@
-- Bungalow
+- Bungalow Server
 
 ## Clone Project
 

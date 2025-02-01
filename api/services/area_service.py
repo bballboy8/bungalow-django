@@ -161,7 +161,7 @@ def get_satellite_records(
         if zoomed_wkt:
             try:
                 zoomed_geom = GEOSGeometry(zoomed_wkt)
-                zoomed_filters = filters & Q(location_polygon__intersects=zoomed_geom) & Q(location_polygon__within=wkt_polygon_geom)
+                zoomed_filters = filters & Q(location_polygon__intersects=zoomed_geom)
                 zoomed_captures = captures.filter(zoomed_filters)
 
                 if sort_by and sort_order:

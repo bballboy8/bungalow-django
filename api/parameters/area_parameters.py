@@ -132,4 +132,10 @@ satellite_capture_catalog_params = [
         default=100,
         description="Filter records by maximum ground sample distance",
     ),
+    OpenApiParameter(
+        name="focused_records_ids",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="Ids of the overlapped records"
+    )
 ]

@@ -85,6 +85,7 @@ def get_satellite_records(
     max_off_nadir_angle: float = None,
     min_gsd: float = None,
     max_gsd: float = None,
+    focused_records_ids: str = None
     
 ):
     logger.info("Inside get satellite records service")
@@ -157,12 +158,30 @@ def get_satellite_records(
             gsd_filters = Q(gsd__gte=min_gsd, gsd__lte=max_gsd)
             filters &= gsd_filters
 
+        # Prioritized records first
+        focused_captures = []
+        if focused_records_ids:
+            try:
+                focused_ids = [int(id.strip()) for id in focused_records_ids.split(",")]
+                focused_captures = captures.filter(id__in=focused_ids)
+
+                focused_captures = (
+                        focused_captures.order_by(sort_by)
+                        if sort_order == "asc"
+                        else focused_captures.order_by(f"-{sort_by}")
+                    )
+
+                logger.debug(f"Focused Records IDs: {focused_ids}, Found {len(focused_captures)} records")
+            except Exception as e:
+                logger.error(f"Error processing focused record IDs: {str(e)}")
+                return {"data": str(e), "status_code": 400}
+
         zoomed_captures = []
         if zoomed_wkt:
             try:
                 zoomed_geom = GEOSGeometry(zoomed_wkt)
                 zoomed_filters = filters & Q(location_polygon__intersects=zoomed_geom)
-                zoomed_captures = captures.filter(zoomed_filters)
+                zoomed_captures = captures.filter(zoomed_filters).exclude(id__in=[record.id for record in focused_captures])
 
                 if sort_by and sort_order:
                     zoomed_captures = (
@@ -176,7 +195,8 @@ def get_satellite_records(
                 logger.error(f"Error processing zoomed WKT: {str(e)}")
                 return {"data": str(e), "status_code": 400}
 
-        captures = captures.filter(filters).exclude(id__in=[record.id for record in zoomed_captures])
+        excluded_ids = [record.id for record in zoomed_captures] + [record.id for record in focused_captures]
+        captures = captures.filter(filters).exclude(id__in=excluded_ids)
         if sort_by and sort_order:
             captures = (
                         captures.order_by(sort_by)
@@ -184,7 +204,11 @@ def get_satellite_records(
                         else captures.order_by(f"-{sort_by}")
                     )
 
-        if zoomed_captures:
+        regular_captures_count = captures.count()                
+        
+        if focused_captures:
+            combined_captures = list(chain(focused_captures, zoomed_captures, captures))
+        elif zoomed_captures:
             combined_captures = list(chain(zoomed_captures, captures))
         else:
             combined_captures = list(captures)
@@ -279,6 +303,8 @@ def get_satellite_records(
         logger.info("Satellite records fetched successfully")
         return {
             "zoomed_captures_count": len(zoomed_captures),
+            "focused_captures_count": len(focused_captures),
+            "regular_captures_count": regular_captures_count,
             "data": final_response,
             "polygon_area_km2": polygon_area,
             "time_taken": str(datetime.now() - start_time),

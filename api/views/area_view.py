@@ -94,6 +94,7 @@ class SatelliteCaptureCatalogView(APIView):
             max_off_nadir_angle = float(request.query_params.get("max_off_nadir_angle", 360))
             min_gsd = float(request.query_params.get("min_gsd", 0))
             max_gsd = float(request.query_params.get("max_gsd", 100))
+            focused_records_ids = request.query_params.get("focused_records_ids", "")
 
             # filters list: gsd
 
@@ -108,6 +109,8 @@ class SatelliteCaptureCatalogView(APIView):
             logger.info(f"Min Cloud Cover: {min_cloud_cover}, Max Cloud Cover: {max_cloud_cover}")
             logger.info(f"Min Off Nadir Angle: {min_off_nadir_angle}, Max Off Nadir Angle: {max_off_nadir_angle}")
             logger.info(f"Min GSD: {min_gsd}, Max GSD: {max_gsd}")
+
+            logger.info(f"Focused Records IDs: {focused_records_ids}")
 
             service_response = get_satellite_records(
                 page_number=page_number,
@@ -130,7 +133,8 @@ class SatelliteCaptureCatalogView(APIView):
                 min_off_nadir_angle=min_off_nadir_angle,
                 max_off_nadir_angle=max_off_nadir_angle,
                 min_gsd=min_gsd,
-                max_gsd=max_gsd
+                max_gsd=max_gsd,
+                focused_records_ids=focused_records_ids
             )
 
             if service_response["status_code"] != 200:
@@ -156,6 +160,8 @@ class SatelliteCaptureCatalogView(APIView):
                     "page_number": service_response["page_number"],
                     "page_size": service_response["page_size"],
                     "total_records": service_response["total_records"],
+                    "regular_captures_count": service_response["regular_captures_count"],
+                    "focused_captures_count": service_response["focused_captures_count"],
                     "time_taken": service_response["time_taken"],
                     "status_code": 200,
                 }

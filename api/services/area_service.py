@@ -646,7 +646,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start
     """
     try:
         logger.info("Starting frequency calculation for polygon selection.")
-
+        print(start_date, end_date)
         # Start time tracking
         func_start_time = now()
 
@@ -669,6 +669,13 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start
 
         # Convert QuerySet to dictionary
         frequency_dict = {entry['date'].strftime("%Y-%m-%d"): entry['count'] for entry in frequency_data}
+        full_date_range = {}
+        current_date = datetime.strptime(start_date, "%Y-%m-%d")
+        end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+        while current_date < end_date:
+            full_date_range[current_date.strftime("%Y-%m-%d")] = frequency_dict.get(current_date.strftime("%Y-%m-%d"), 0)
+            current_date += timedelta(days=1)
 
         # Calculate time taken
         func_end_time = now()
@@ -676,12 +683,14 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start
         logger.info(f"Frequency calculation completed in {net_time} seconds.")
 
         return {
-            "data": frequency_dict,
+            "data": full_date_range,
             "time_taken": str(net_time),
             "status_code": 200,
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"Error in frequency calculation: {str(e)}", exc_info=True)
         return {"data": None, "status_code": 500, "error": f"Error: {str(e)}"}
 
@@ -728,13 +737,22 @@ def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, d
         # Convert QuerySet to dictionary
         frequency_dict = {entry['date'].strftime("%Y-%m-%d"): entry['count'] for entry in frequency_data}
 
+        frequency_dict = {entry['date'].strftime("%Y-%m-%d"): entry['count'] for entry in frequency_data}
+        full_date_range = {}
+        current_date = datetime.strptime(start_date, "%Y-%m-%d")
+        end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+        while current_date < end_date:
+            full_date_range[current_date.strftime("%Y-%m-%d")] = frequency_dict.get(current_date.strftime("%Y-%m-%d"), 0)
+            current_date += timedelta(days=1)
+
         # Calculate time taken
         func_end_time = now()
         net_time = func_end_time - func_start_time
         logger.info(f"Frequency calculation completed in {net_time} seconds.")
 
         return {
-            "data": frequency_dict,
+            "data": full_date_range,
             "time_taken": str(net_time),
             "status_code": 200,
         }

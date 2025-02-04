@@ -654,10 +654,6 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start
         polygon = fromstr(polygon_wkt)
         logger.debug(f"Polygon WKT: {polygon_wkt}")
 
-        if "T" in start_date:
-            start_date = start_date.split("T")[0]
-        if "T" in end_date:
-            end_date = end_date.split("T")[0]
 
         # Fetch frequency data directly from the database
         frequency_data = (
@@ -671,14 +667,17 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start
             .annotate(count=Count('id'))  # Count captures for each date
             .order_by('date')  # Sort by date
         )
-
+        if "T" in start_date:
+            start_date = start_date.split("T")[0]
+        if "T" in end_date:
+            end_date = end_date.split("T")[0]
         # Convert QuerySet to dictionary
         frequency_dict = {entry['date'].strftime("%Y-%m-%d"): entry['count'] for entry in frequency_data}
         full_date_range = {}
         current_date = datetime.strptime(start_date, "%Y-%m-%d")
         end_date = datetime.strptime(end_date, "%Y-%m-%d")
 
-        while current_date < end_date:
+        while current_date <= end_date:
             full_date_range[current_date.strftime("%Y-%m-%d")] = frequency_dict.get(current_date.strftime("%Y-%m-%d"), 0)
             current_date += timedelta(days=1)
 
@@ -738,16 +737,19 @@ def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, d
             .annotate(count=Count('id'))  # Count captures for each date
             .order_by('date')  # Sort by date
         )
+        if "T" in start_date:
+            start_date = start_date.split("T")[0]
+        if "T" in end_date:
+            end_date = end_date.split("T")[0]
 
         # Convert QuerySet to dictionary
-        frequency_dict = {entry['date'].strftime("%Y-%m-%d"): entry['count'] for entry in frequency_data}
 
         frequency_dict = {entry['date'].strftime("%Y-%m-%d"): entry['count'] for entry in frequency_data}
         full_date_range = {}
         current_date = datetime.strptime(start_date, "%Y-%m-%d")
         end_date = datetime.strptime(end_date, "%Y-%m-%d")
 
-        while current_date < end_date:
+        while current_date <= end_date:
             full_date_range[current_date.strftime("%Y-%m-%d")] = frequency_dict.get(current_date.strftime("%Y-%m-%d"), 0)
             current_date += timedelta(days=1)
 

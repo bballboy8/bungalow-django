@@ -654,6 +654,11 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start
         polygon = fromstr(polygon_wkt)
         logger.debug(f"Polygon WKT: {polygon_wkt}")
 
+        if "T" in start_date:
+            start_date = start_date.split("T")[0]
+        if "T" in end_date:
+            end_date = end_date.split("T")[0]
+
         # Fetch frequency data directly from the database
         frequency_data = (
             SatelliteCaptureCatalog.objects.filter(

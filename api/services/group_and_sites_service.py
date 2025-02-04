@@ -61,19 +61,26 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, 
                 else:
                     time_between_acquisitions = 0
 
+            start_date = (datetime.now() - timedelta(days=30)).date()
+            end_date = datetime.now().date()
             # Generate heatmap
             heatmap = (
-                captures.filter(acquisition_datetime__gte=datetime.now() - timedelta(days=30))
+                captures.filter(acquisition_datetime__gte=start_date)
                 .annotate(date=TruncDate("acquisition_datetime"))  # Truncate datetime to date
                 .values("date")  # Group by date
                 .annotate(count=Count("acquisition_datetime"))  # Count records for each date
                 .order_by("date")  # Sort by date
             )
 
-            heatmap_data = [
-                {"date": data["date"], "count": data["count"]}
-                for data in heatmap
-            ]
+            heatmap_dict = {entry["date"]: entry["count"] for entry in heatmap}
+
+            # Fill in missing dates with zero counts
+            heatmap_data = []
+            current_date = start_date
+
+            while current_date <= end_date:
+                heatmap_data.append({"date": current_date.strftime("%Y-%m-%d"), "count": heatmap_dict.get(current_date, 0)})
+                current_date += timedelta(days=1)
 
             final_sites.append(
                 {

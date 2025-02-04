@@ -41,4 +41,18 @@ site_search_parameters = [
         location=OpenApiParameter.QUERY,
         description="Number of sites per page.",
     ),
+    OpenApiParameter(
+        name="group_id",
+        type=int,
+        default=None,
+        location=OpenApiParameter.QUERY,
+        description="ID of the group to retrieve the sites or empty to retrieve all sites.",
+    ),
+    OpenApiParameter(
+        name="site_id",
+        type=int,
+        default=None,
+        location=OpenApiParameter.QUERY,
+        description="ID of the site to retrieve or empty to retrieve all sites.",
+    ),
 ]

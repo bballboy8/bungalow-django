@@ -123,10 +123,12 @@ class GetSiteView(APIView):
 
             name = request.query_params.get("name")
             page_number = int(request.query_params.get("page_number",1))
-            per_page = int(request.query_params.get("per_page", 10))           
+            per_page = int(request.query_params.get("per_page", 10))
+            site_id = request.query_params.get("site_id")
+            group_id = request.query_params.get("group_id")           
 
             sites = get_all_sites(
-                user_id=user_id, name=name, page_number=page_number, per_page=per_page
+                user_id=user_id, name=name, page_number=page_number, per_page=per_page, site_id=site_id, group_id=group_id
             )
             if sites["status_code"] != 200:
                 return Response(sites, status=sites["status_code"])

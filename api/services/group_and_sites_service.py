@@ -8,20 +8,23 @@ from django.contrib.gis.geos import Polygon
 from django.db.models import Count
 from datetime import datetime, timedelta
 from django.db.models.functions import TruncDate
+from django.db.models import Q
 
 
-def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10):
+def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, site_id=None, group_id=None):
     logger.info("Fetching all sites")
     try:
+        query = Q(user__id=user_id, is_deleted=False)
+
         if name:
-            sites = Site.objects.filter(user__id=user_id, name__icontains=name, is_deleted=False)
-        else:
-            sites = Site.objects.filter(user__id=user_id, is_deleted=False)
+            query &= Q(name__icontains=name)
+        if site_id:
+            query &= Q(id=site_id)
+        if group_id:
+            site_ids = GroupSite.objects.filter(group_id=group_id).values_list('site_id', flat=True)
+            query &= Q(id__in=site_ids)
 
-        if not sites:
-            logger.warning("No sites found")
-            return {"data": [], "message": "No sites found", "status_code": 404}
-
+        sites = Site.objects.filter(query)
         sites = sites.order_by("id")[(page_number - 1) * per_page : page_number * per_page]
 
         final_sites = []

@@ -9,7 +9,7 @@ from django.db.models import Q
 from core.utils import s3, bucket_name
 from typing import List
 from datetime import datetime, timedelta
-from api.serializers.area_serializer import NewestInfoSerializer
+from api.serializers.area_serializer import NewestInfoSerializer, OldestInfoSerializer
 from decouple import config
 import requests
 from django.utils.timezone import now
@@ -610,6 +610,7 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
             "total_count": sum(result["current_count"] for result in results.values()),
             "average_per_day": sum(result["current_count"] for result in results.values()) / (now() - longest_period_start).days,
             "oldest_date": longest_period_start,
+            "oldest_info": OldestInfoSerializer(oldest_record_instance).data if oldest_record_instance else None,
             "newest_info": NewestInfoSerializer(newest_record_instance).data if newest_record_instance else None,
             "newest_clear_cloud_cover_info": NewestInfoSerializer(newest_clear_cloud_cover_instance).data if newest_clear_cloud_cover_instance else None,
             "address": address_response["data"],

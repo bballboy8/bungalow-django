@@ -69,6 +69,14 @@ class NewestInfoSerializer(serializers.Serializer):
     acquisition_datetime = serializers.DateTimeField()
     cloud_cover = serializers.FloatField()
 
+class OldestInfoSerializer(serializers.Serializer):
+    # id, vendor, vendor_id, acquisition_datetime, cloud_coverage
+    id = serializers.CharField()
+    vendor_name = serializers.CharField()
+    vendor_id = serializers.CharField()
+    acquisition_datetime = serializers.DateTimeField()
+    cloud_cover = serializers.FloatField()
+
 class PolygonSelectionAnalyticsAndLocationSerializer(serializers.Serializer):
     polygon_wkt = serializers.CharField()
     start_date = serializers.DateField()

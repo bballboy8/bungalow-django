@@ -1,5 +1,5 @@
 from django.contrib.gis.geos import GEOSGeometry
-from core.models import SatelliteCaptureCatalog
+from core.models import SatelliteCaptureCatalog, time_ranges
 from shapely.geometry import shape
 from logging_module import logger
 from django.contrib.gis.geos import Point
@@ -8,7 +8,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from core.utils import s3, bucket_name
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from api.serializers.area_serializer import NewestInfoSerializer, OldestInfoSerializer
 from decouple import config
 import requests
@@ -24,6 +24,7 @@ from django.contrib.gis.db.models.functions import Distance
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from itertools import chain
+import pytz
 
 
 def get_area_from_polygon_wkt(polygon_wkt: str):
@@ -60,6 +61,29 @@ def convert_geojson_to_wkt(geometry):
     except Exception as e:
         logger.error(f"Error converting GeoJSON to WKT: {str(e)}")
         return {"data": [], "status_code": 400, "error": f"Error: {str(e)}"}
+    
+def get_utc_time_range(time_period, user_timezone):
+    # Get user's timezone object
+    user_tz = pytz.timezone(user_timezone)
+
+    # Get current date in the user's timezone
+    local_now = datetime.now(user_tz).date()
+
+    # Define start time in local timezone
+    start_hour, end_hour = time_ranges[time_period]
+    start_time = user_tz.localize(datetime.combine(local_now, time(start_hour, 0)))
+
+    # Handle overnight case (crosses midnight)
+    if time_period == "overnight":
+        end_time = user_tz.localize(datetime.combine(local_now + timedelta(days=1), time(end_hour, 0)))
+    else:
+        end_time = user_tz.localize(datetime.combine(local_now, time(end_hour, 0)))
+
+    # Convert to UTC
+    start_time_utc = start_time.astimezone(pytz.utc).hour
+    end_time_utc = end_time.astimezone(pytz.utc).hour
+
+    return start_time_utc, end_time_utc
 
 
 def get_satellite_records(
@@ -84,7 +108,9 @@ def get_satellite_records(
     max_off_nadir_angle: float = None,
     min_gsd: float = None,
     max_gsd: float = None,
-    focused_records_ids: str = None
+    focused_records_ids: str = None,
+    user_timezone: str = None,
+    user_duration_type: str = None,
     
 ):
     logger.info("Inside get satellite records service")
@@ -111,6 +137,15 @@ def get_satellite_records(
                     D(km=distance),
                 )
             )
+
+        if user_timezone and user_duration_type:
+            start_hour_utc, end_hour_utc = get_utc_time_range(user_duration_type, user_timezone)
+            logger.debug(f"User Timezone: {user_timezone}, User Duration Type: {user_duration_type}, Start Hour: {start_hour_utc}, End Hour: {end_hour_utc}")
+            if start_hour_utc < end_hour_utc:
+                filters &= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) & Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
+            else:
+                # Overnight case (crosses midnight)
+                filters &= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) | Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
 
         if vendor_name and "," in vendor_name:
             vendor_names = vendor_name.split(",")
@@ -644,6 +679,8 @@ def get_polygon_selection_acquisition_calender_days_frequency(
     max_off_nadir_angle,
     min_gsd,
     max_gsd,
+    user_timezone,
+    user_duration_type
 ):
     """
     Retrieve the frequency of image captures for each calendar day in the selected area.
@@ -681,6 +718,15 @@ def get_polygon_selection_acquisition_calender_days_frequency(
             filters &= Q(vendor_name__in=vendor_names)
         elif vendor_name:
             filters &= Q(vendor_name=vendor_name)
+
+        if user_timezone and user_duration_type:
+            start_hour_utc, end_hour_utc = get_utc_time_range(user_duration_type, user_timezone)
+            logger.debug(f"User Timezone: {user_timezone}, User Duration Type: {user_duration_type}, Start Hour: {start_hour_utc}, End Hour: {end_hour_utc}")
+            if start_hour_utc < end_hour_utc:
+                filters &= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) & Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
+            else:
+                # Overnight case (crosses midnight)
+                filters &= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) | Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
 
         if min_cloud_cover is not None and max_cloud_cover is not None:
             logger.debug(f"Cloud cover filters: {min_cloud_cover} to {max_cloud_cover}")

@@ -7,8 +7,7 @@ from api.parameters.area_parameters import *
 from rest_framework.permissions import IsAuthenticated
 from logging_module import logger
 from api.tasks import run_image_seeder
-import time
-
+from core.models import time_ranges
 
 class GeoJSONToWKTView(APIView):
     permission_classes = [IsAuthenticated]
@@ -95,6 +94,12 @@ class SatelliteCaptureCatalogView(APIView):
             min_gsd = float(request.query_params.get("min_gsd", 0))
             max_gsd = float(request.query_params.get("max_gsd", 100))
             focused_records_ids = request.query_params.get("focused_records_ids", "")
+            user_timezone = request.query_params.get("user_timezone")
+            user_duration_type = request.query_params.get("user_duration_type")
+
+
+            if user_duration_type and user_duration_type not in time_ranges:
+                return Response({"data": f"Duration not valid", "status_code": 400, "error": f"Duration not valid"}, status=400)
 
             # filters list: gsd
 
@@ -134,7 +139,9 @@ class SatelliteCaptureCatalogView(APIView):
                 max_off_nadir_angle=max_off_nadir_angle,
                 min_gsd=min_gsd,
                 max_gsd=max_gsd,
-                focused_records_ids=focused_records_ids
+                focused_records_ids=focused_records_ids,
+                user_timezone=user_timezone,
+                user_duration_type=user_duration_type
             )
 
             if service_response["status_code"] != 200:
@@ -353,6 +360,11 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             max_off_nadir_angle = float(request.query_params.get("max_off_nadir_angle", 360))
             min_gsd = float(request.query_params.get("min_gsd", 0))
             max_gsd = float(request.query_params.get("max_gsd", 100))
+            user_timezone = request.query_params.get("user_timezone")
+            user_duration_type = request.query_params.get("user_duration_type")
+
+            if user_duration_type and user_duration_type not in time_ranges:
+                return Response({"data": f"Duration not valid", "status_code": 400, "error": f"Duration not valid"}, status=400)
 
             if not polygon_wkt:
                 return Response(
@@ -375,7 +387,9 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
                 min_off_nadir_angle=min_off_nadir_angle,
                 max_off_nadir_angle=max_off_nadir_angle,
                 min_gsd=min_gsd,
-                max_gsd=max_gsd
+                max_gsd=max_gsd,
+                user_timezone=user_timezone,
+                user_duration_type=user_duration_type
             )
 
             if service_response["status_code"] != 200:

@@ -1,4 +1,3 @@
-
 # Create your models here.
 
 from django.contrib.gis.db import models
@@ -26,6 +25,14 @@ VENDOR_CHOICES = [
     ('skyfi-umbra', 'skyfi-umbra'),
 ]
 
+# Time ranges for different times of the day
+time_ranges = {
+    "morning": (5, 11),
+    "midday": (11, 16),
+    "evening": (16, 21),
+    "overnight": (21, 5),
+}
+
 class SatelliteCaptureCatalog(models.Model):
     TYPE_CHOICES = [
         ('Day', 'Day'),
@@ -49,14 +56,13 @@ class SatelliteCaptureCatalog(models.Model):
     image_uploaded = models.BooleanField(default=False, null=True, blank=True) 
     gsd = models.FloatField(null=True, blank=True)
 
-    
     class Meta:
         indexes = [
             models.Index(fields=['acquisition_datetime']),
             models.Index(fields=['vendor_name']),
             models.Index(fields=["vendor_id"]),
         ]
-    
+
     def __str__(self):
         return f"Acquisition {self.vendor_name} - {self.acquisition_datetime}"
 
@@ -91,7 +97,7 @@ class SatelliteDateRetrievalPipelineHistory(plane_models.Model):
         if self.start_datetime and self.end_datetime:
             return self.end_datetime - self.start_datetime
         return None
-    
+
 class SatelliteCaptureCatalogMetadata(plane_models.Model):
     vendor_name = plane_models.CharField(max_length=50, choices=VENDOR_CHOICES)
     vendor_id = plane_models.CharField(max_length=255, null=True, blank=True)

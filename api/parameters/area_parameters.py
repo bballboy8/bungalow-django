@@ -138,7 +138,19 @@ satellite_capture_catalog_params = [
         type=str,
         location=OpenApiParameter.QUERY,
         description="Ids of the overlapped records"
-    )
+    ),
+    OpenApiParameter(
+        name="user_timezone",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="User timezone Example: Asia/Kolkata, America/New_York"
+    ),
+    OpenApiParameter(
+        name="user_duration_type",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="User duration type Example: morning, midday, evening, overnight"
+    ),
 ]
 
 
@@ -200,7 +212,19 @@ calendar_params = [
         location=OpenApiParameter.QUERY,
         default=100,
         description="Filter records by maximum ground sample distance",
-    )
+    ),
+    OpenApiParameter(
+        name="user_timezone",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="User timezone Example: Asia/Kolkata, America/New_York"
+    ),
+    OpenApiParameter(
+        name="user_duration_type",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="User duration type Example: morning, midday, evening, overnight"
+    ),
 ]
 
 collection_history_params = [

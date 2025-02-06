@@ -4,7 +4,7 @@ import requests
 from core.services.airbus_catalog_api import get_acces_token
 from core.utils import save_image_in_s3_and_get_url
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.models import SatelliteCaptureCatalog
+from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
 from core.services.maxar_catalog_api import (
     upload_to_s3 as maxar_upload_to_s3,
     AUTH_TOKEN,
@@ -26,6 +26,9 @@ from core.services.capella_master_collector import (
 )
 from core.services.skyfi_catalog_api import API_KEY as SKYFI_API_KEY
 from django.urls import reverse
+from django.db.models import Q
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+
 
 
 def get_airbus_record_images_by_ids(ids: List[str]):
@@ -440,3 +443,56 @@ def get_skyfi_record_images_by_ids(ids: List[str]):
     except Exception as e:
         logger.error(f"Error in Blacksky Vendor View: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi-umbra", "error": f"{str(e)}"}
+
+
+
+def get_collection_history(
+        start_date: str,
+        end_date: str,
+        vendor_name: str,
+        page_number: int,
+        page_size: int,
+):
+    try:
+        query_filter = Q()
+
+        if vendor_name and "," in vendor_name:
+            vendor_names = vendor_name.split(",")
+            query_filter &= Q(vendor_name__in=vendor_names)
+
+        if vendor_name:
+            query_filter &= Q(vendor_name=vendor_name)
+
+        if start_date:
+            query_filter &= Q(start_datetime__gte=start_date)
+
+        if end_date:
+            query_filter &= Q(start_datetime__lte=end_date)
+
+        print(query_filter)
+        all_records = SatelliteDateRetrievalPipelineHistory.objects.filter(
+            query_filter
+        ).values()
+
+        paginator = Paginator(all_records, page_size)
+        try:
+            records = paginator.page(page_number)
+        except PageNotAnInteger:
+            records = paginator.page(1)
+        except EmptyPage:
+            records = []
+
+        return {
+            "data": {
+                "records": list(records),
+                "total_records": all_records.count(),
+                "total_pages": paginator.num_pages,
+                "page_number": page_number,
+                "page_size": page_size,
+            },
+            "status_code": 200,
+
+        }
+    except Exception as e:
+        logger.error(f"Error in Collection History View: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}

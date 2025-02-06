@@ -13,6 +13,11 @@ urlpatterns = [
         GetSatelliteCapturedImageByIdAndVendorView.as_view(),
         name="get-satellite-captured-images",
     ),
+    path(
+        "get-collection-history",
+        GetCollectionHistoryView.as_view(),
+        name="get-collection-history",
+    ),
     path("airbus/add-images", AirbusVendorView.as_view(), name="airbus-vendor"),
     path("maxar/add-images", MaxarVendorView.as_view(), name="maxar-vendor"),
     path("planet/add-images", PlanetVendorView.as_view(), name="planet-vendor"),

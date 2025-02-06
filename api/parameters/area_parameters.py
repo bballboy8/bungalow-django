@@ -1,4 +1,5 @@
 from drf_spectacular.utils import OpenApiParameter
+from datetime import datetime
 
 satellite_capture_catalog_params = [
     OpenApiParameter(
@@ -200,4 +201,42 @@ calendar_params = [
         default=100,
         description="Filter records by maximum ground sample distance",
     )
+]
+
+collection_history_params = [
+    OpenApiParameter(
+        name="vendor_name",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="Filter records by vendor name maxar, airbus, planet, blacksky, capella, skyfi-umbra or maxar,airbus,planet,blacksky,capella,skyfi-umbra",
+    ),
+    OpenApiParameter(
+        name="start_date",
+        type=str,
+        default=(datetime.now().isoformat()),
+        location=OpenApiParameter.QUERY,
+        description="Filter records with acquisition date greater than or equal to this date. Format: 2024-11-12T06:16:18.126580Z",
+    ),
+    OpenApiParameter(
+        name="end_date",
+        type=str,
+        default=(datetime.now().isoformat()),
+        location
+        =OpenApiParameter.QUERY,
+        description="Filter records with acquisition date less than or equal to this date. Format: 2024-11-12T06:16:18.126580Z",
+    ),
+    OpenApiParameter(
+        name="page_number",
+        type=int,
+        default=1,
+        location=OpenApiParameter.QUERY,
+        description="Page number for paginated response",
+    ),
+    OpenApiParameter(
+        name="page_size",
+        type=int,
+        default=10,
+        location=OpenApiParameter.QUERY,
+        description="Number of records per page",
+    ),
 ]

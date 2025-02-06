@@ -576,3 +576,52 @@ class ExtractCircleParametersAPIView(APIView):
         except Exception as e:
             logger.error(f"Error extracting parameters from GeoJSON: {str(e)}")
             return Response({"data": str(e), "status_code": 500, "error": f"{str(e)}"}, status=500)
+        
+
+class GetCollectionHistoryView(APIView):
+    """
+    API to get the daily collection status of satellite images.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Get daily collection status of satellite images.",
+        parameters=collection_history_params,
+        responses={
+            200: OpenApiResponse(
+                description="Daily collection status successfully retrieved.",
+            ),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Satellite Capture"],
+    )
+    def get(self, request, *args, **kwargs):
+        try:
+            logger.info("Inside Get method of Daily Collection Status View")
+
+            start_date = request.query_params.get("start_date", None)
+            end_date = request.query_params.get("end_date", None)
+            vendor_name = request.query_params.get("vendor_name", None)
+            page_number = int(request.query_params.get("page_number", 1))
+            page_size = int(request.query_params.get("page_size", 10))
+
+            logger.info(f"Start Date: {start_date}, End Date: {end_date}, Vendors Names: {vendor_name}")
+
+            service_response = get_collection_history(
+                start_date=start_date,
+                end_date=end_date,
+                vendor_name=vendor_name,
+                page_number=page_number,
+                page_size=page_size
+            )
+            if service_response["status_code"] != 200:
+                return Response(
+                    service_response, status=service_response["status_code"]
+                )
+            data = service_response["data"]
+            print(data)
+            return Response({"data": data, "status_code": 200}, status=200)
+
+        except Exception as e:
+            logger.error(f"Error getting daily collection status: {str(e)}")
+            return Response({"data": str(e), "status_code": 500, "error": f"{str(e)}"}, status=500)

@@ -327,6 +327,7 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
 
     @extend_schema(
         description="Get polygon selection calender days frequency.",
+        parameters= calendar_params,
         request=PolygonSelectionAnalyticsAndLocationSerializer,
         responses={
             200: OpenApiResponse(
@@ -344,6 +345,14 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             polygon_wkt = request.data.get("polygon_wkt", None)
             start_date = request.data.get("start_date", None)
             end_date = request.data.get("end_date", None)
+            vendor_id = request.query_params.get("vendor_id", None)
+            vendor_name = request.query_params.get("vendor_name", None)
+            min_cloud_cover = float(request.query_params.get("min_cloud_cover", -1))
+            max_cloud_cover = float(request.query_params.get("max_cloud_cover", 100))
+            min_off_nadir_angle = float(request.query_params.get("min_off_nadir_angle", 0))
+            max_off_nadir_angle = float(request.query_params.get("max_off_nadir_angle", 360))
+            min_gsd = float(request.query_params.get("min_gsd", 0))
+            max_gsd = float(request.query_params.get("max_gsd", 100))
 
             if not polygon_wkt:
                 return Response(
@@ -358,7 +367,15 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             service_response = get_polygon_selection_acquisition_calender_days_frequency(
                 polygon_wkt=polygon_wkt,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
+                vendor_id=vendor_id,
+                vendor_name=vendor_name,
+                min_cloud_cover=min_cloud_cover,
+                max_cloud_cover=max_cloud_cover,
+                min_off_nadir_angle=min_off_nadir_angle,
+                max_off_nadir_angle=max_off_nadir_angle,
+                min_gsd=min_gsd,
+                max_gsd=max_gsd
             )
 
             if service_response["status_code"] != 200:

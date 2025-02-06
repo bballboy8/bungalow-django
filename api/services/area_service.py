@@ -26,7 +26,6 @@ from django.db.models.functions import TruncDate
 from itertools import chain
 
 
-
 def get_area_from_polygon_wkt(polygon_wkt: str):
     logger.info("Inside get area from WKT service")
     try:
@@ -605,7 +604,6 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
             cloud_cover__lte=0
         ).order_by("-acquisition_datetime").first()
 
-
         analytics = {
             "total_count": sum(result["current_count"] for result in results.values()),
             "average_per_day": sum(result["current_count"] for result in results.values()) / (now() - longest_period_start).days,
@@ -633,7 +631,20 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         logger.error(f"Error fetching pin selection analytics and location: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}
 
-def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start_date, end_date):
+
+def get_polygon_selection_acquisition_calender_days_frequency(
+    polygon_wkt,
+    start_date,
+    end_date,
+    vendor_id,
+    vendor_name,
+    min_cloud_cover,
+    max_cloud_cover,
+    min_off_nadir_angle,
+    max_off_nadir_angle,
+    min_gsd,
+    max_gsd,
+):
     """
     Retrieve the frequency of image captures for each calendar day in the selected area.
 
@@ -655,13 +666,50 @@ def get_polygon_selection_acquisition_calender_days_frequency(polygon_wkt, start
         polygon = fromstr(polygon_wkt)
         logger.debug(f"Polygon WKT: {polygon_wkt}")
 
+        filters = Q()
+
+        if start_date:
+            filters &= Q(acquisition_datetime__gte=start_date)
+        if end_date:
+            filters &= Q(acquisition_datetime__lte=end_date)
+
+        if vendor_id:
+            filters &= Q(vendor_id=vendor_id)
+
+        if vendor_name and "," in vendor_name:
+            vendor_names = vendor_name.split(",")
+            filters &= Q(vendor_name__in=vendor_names)
+        elif vendor_name:
+            filters &= Q(vendor_name=vendor_name)
+
+        if min_cloud_cover is not None and max_cloud_cover is not None:
+            logger.debug(f"Cloud cover filters: {min_cloud_cover} to {max_cloud_cover}")
+            cloud_cover_filters = (
+                Q(vendor_name__in="planet", cloud_cover__gte=min_cloud_cover / 100, cloud_cover__lte=max_cloud_cover / 100) |
+                Q(~Q(vendor_name__in=['planet', 'capella', 'skyfi-umbra']), cloud_cover__gte=min_cloud_cover, cloud_cover__lte=max_cloud_cover)
+            )
+
+            if min_cloud_cover == -1:
+                cloud_cover_filters |= Q(vendor_name__in=["capella", "skyfi-umbra"])
+
+            filters &= cloud_cover_filters
+
+        if min_off_nadir_angle is not None and max_off_nadir_angle is not None:
+            logger.debug(f"Sun elevation filters: {min_off_nadir_angle} to {max_off_nadir_angle}")
+            sun_elevation_filters = Q(sun_elevation__gte=min_off_nadir_angle, sun_elevation__lte=max_off_nadir_angle)
+            filters &= sun_elevation_filters
+
+        if min_gsd is not None and max_gsd is not None:
+            logger.debug(f"GSD filters: {min_gsd} to {max_gsd}")
+            gsd_filters = Q(gsd__gte=min_gsd, gsd__lte=max_gsd)
+            filters &= gsd_filters
+
+        filters &= Q(location_polygon__intersects=polygon)
 
         # Fetch frequency data directly from the database
         frequency_data = (
             SatelliteCaptureCatalog.objects.filter(
-                location_polygon__intersects=polygon,
-                acquisition_datetime__gte=start_date,
-                acquisition_datetime__lte=end_date
+                filters
             )
             .annotate(date=TruncDate('acquisition_datetime'))  # Extract the date part
             .values('date')  # Group by the date

@@ -139,3 +139,65 @@ satellite_capture_catalog_params = [
         description="Ids of the overlapped records"
     )
 ]
+
+
+
+calendar_params = [
+    OpenApiParameter(
+        name="vendor_id",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="Filter records by vendor id",
+    ),
+    OpenApiParameter(
+        name="vendor_name",
+        type=str,
+        location=OpenApiParameter.QUERY,
+        description="Filter records by vendor name maxar, airbus, planet, blacksky, capella, skyfi-umbra or maxar,airbus,planet,blacksky,capella,skyfi-umbra",
+    ),
+    OpenApiParameter(
+        name="min_cloud_cover",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=-1,
+        description="Filter records by minimum cloud cover",
+    ),
+    OpenApiParameter(
+        name="max_cloud_cover",
+        type=float,
+        location
+        =OpenApiParameter.QUERY,
+        default=100,
+        description="Filter records by maximum cloud cover",
+    ),
+    OpenApiParameter(
+        name="min_off_nadir_angle",
+        type=float,
+        location
+        =OpenApiParameter.QUERY,
+        default=0,
+        description="Filter records by minimum off nadir angle",
+    ),
+    OpenApiParameter(
+        name="max_off_nadir_angle",
+        type=float,
+        location
+        =OpenApiParameter.QUERY,
+        default=360,
+        description="Filter records by maximum off nadir angle",
+    ),
+    OpenApiParameter(
+        name="min_gsd",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=0,
+        description="Filter records by minimum ground sample distance",
+    ),
+    OpenApiParameter(
+        name="max_gsd",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=100,
+        description="Filter records by maximum ground sample distance",
+    )
+]

@@ -184,15 +184,15 @@ class AddSiteView(APIView):
             
             coordinates_record = request.data.get("coordinates_record")
 
-            area = get_area_from_geojson(coordinates_record)
-            if area["status_code"] != 200:
-                return Response(area, status=area["status_code"])
-            area = area["area"]
-            if area > 100000:
-                return Response(
-                    {"error": "Area of the site exceeds 100000 sq. km"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            # area = get_area_from_geojson(coordinates_record)
+            # if area["status_code"] != 200:
+            #     return Response(area, status=area["status_code"])
+            # area = area["area"]
+            # if area > 100000:
+            #     return Response(
+            #         {"error": "Area of the site exceeds 100000 sq. km"},
+            #         status=status.HTTP_400_BAD_REQUEST,
+            #     )
                 
 
             serializer = SiteSerializer(data=request.data, context={"user_id": user_id})

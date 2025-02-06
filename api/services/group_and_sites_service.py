@@ -24,6 +24,7 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, 
             site_ids = GroupSite.objects.filter(group_id=group_id).values_list('site_id', flat=True)
             query &= Q(id__in=site_ids)
 
+        print(query)
         sites = Site.objects.filter(query)
         sites = sites.order_by("id")[(page_number - 1) * per_page : page_number * per_page]
 
@@ -99,7 +100,7 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, 
                 }
             )
 
-        total_count = Site.objects.filter(user__id=user_id).count()
+        total_count = Site.objects.filter(user__id=user_id, is_deleted=False).count()
 
         logger.info("Sites fetched successfully")
         return {

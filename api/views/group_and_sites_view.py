@@ -419,6 +419,14 @@ class UpdateSiteView(APIView):
             serializer = UpdateSiteSerializer(site, data=request.data, context={"user_id": user_id})
             if serializer.is_valid():
                 site = serializer.save()
+
+                # set is_deleted to true in GroupSite if site is deleted
+                if site.is_deleted:
+                    group_sites = GroupSite.objects.filter(site=site)
+                    for group_site in group_sites:
+                        group_site.is_deleted = True
+                        group_site.save()
+
                 return Response(
                     SiteSerializer(site).data, status=status.HTTP_200_OK
                 )

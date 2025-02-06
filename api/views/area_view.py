@@ -619,7 +619,6 @@ class GetCollectionHistoryView(APIView):
                     service_response, status=service_response["status_code"]
                 )
             data = service_response["data"]
-            print(data)
             return Response({"data": data, "status_code": 200}, status=200)
 
         except Exception as e:

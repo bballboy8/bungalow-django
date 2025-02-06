@@ -472,7 +472,7 @@ def get_collection_history(
         print(query_filter)
         all_records = SatelliteDateRetrievalPipelineHistory.objects.filter(
             query_filter
-        ).order_by('start_datetime').values()
+        ).order_by('-start_datetime').values()
 
         paginator = Paginator(all_records, page_size)
         try:

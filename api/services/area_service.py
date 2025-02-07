@@ -939,3 +939,45 @@ def get_circle_parameters_from_geojson(geojson_polygon):
     radius_km = haversine_distance(center_lat, center_lon, first_point[1], first_point[0])
 
     return center_lat, center_lon, radius_km
+
+
+def get_weather_details_from_tommorrow_third_party():
+    """
+    Retrieve weather details for a specific date.
+
+    Args:
+        date (str): Date in the format "YYYY-MM-DD".
+
+    Returns:
+        dict: A dictionary containing weather details.
+    """
+    try:
+        logger.info("Inside get weather details service")
+        weather_api_key = config("TOMMORROW_WEATHER_API_KEY")        
+        url = f"https://api.tomorrow.io/v4/historical?apikey={weather_api_key}"
+        payload = {
+            "location": "42.3478, -71.0466",
+            "fields": ["temperature"],
+            "timesteps": ["1d"],
+            "startTime": "2025-02-01",
+            "endTime": "2025-02-02",
+            "units": "metric"
+        }
+        headers = {
+            "accept": "application/json",
+            "Accept-Encoding": "gzip, deflate",
+            "content-type": "application/json"
+        }
+        response = requests.post(url, json=payload, headers=headers)
+        response_data = response.json()
+        if response.status_code == 403:
+            return {"data": response_data["message"], "status_code": 403, "error": response_data["message"]}
+        if response.status_code != 200:
+            return {"data": response_data, "status_code": response.status_code, "error": response_data}
+
+
+        logger.info("Weather details fetched successfully")
+        return {"data": response_data, "status_code": 200}
+    except Exception as e:
+        logger.error(f"Error fetching weather details: {str(e)}")
+        return {"data": f"{str(e)}", "status_code": 500, "error": f"Error: {str(e)}"}

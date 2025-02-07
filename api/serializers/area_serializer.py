@@ -95,3 +95,8 @@ class GenerateCirclePolygonSerializer(serializers.Serializer):
 
 class ExtractCircleParametersSerializer(serializers.Serializer):
     geojson_polygon = serializers.JSONField(help_text="GeoJSON Polygon representing a circle.")
+
+
+class WeatherDetailsFromTommorrowThirdPartySerializer(serializers.Serializer):
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()

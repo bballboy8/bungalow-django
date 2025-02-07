@@ -638,3 +638,55 @@ class GetCollectionHistoryView(APIView):
         except Exception as e:
             logger.error(f"Error getting daily collection status: {str(e)}")
             return Response({"data": str(e), "status_code": 500, "error": f"{str(e)}"}, status=500)
+        
+
+class GetWeatherDetailsFromTommorrowThirdParty(APIView):
+    """
+    API to get weather details from Tomorrow.io third party service.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Get weather details from Tomorrow.io third party service.",
+        request=WeatherDetailsFromTommorrowThirdPartySerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Weather details successfully retrieved.",
+            ),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Weather Capture"],
+    )
+
+
+    def post(self, request, *args, **kwargs):
+        try:
+            logger.info("Inside Post method of Get Weather Details From Tommorrow Third Party View")
+            latitude = request.data.get("latitude", None)
+            longitude = request.data.get("longitude", None)
+            if not latitude or not longitude:
+                return Response(
+                    {
+                        "data": "Latitude and Longitude are required",
+                        "status_code": 400,
+                    },
+                    status=400,
+                )
+
+            logger.info(f"Latitude: {latitude}, Longitude: {longitude}")
+            service_response = get_weather_details_from_tommorrow_third_party(
+            )
+
+            if service_response["status_code"] != 200:
+                return Response(
+                    service_response, status=service_response["status_code"]
+                )
+
+            logger.info("Get Weather Details From Tommorrow Third Party View response")
+            return Response(
+                {"data": service_response["data"], "status_code": 200}
+            )
+        except Exception as e:
+            logger.error(f"Error in Get Weather Details From Tommorrow Third Party View: {str(e)}")
+            return Response({"data": f"{str(e)}", "status_code": 500, "error": f"{str(e)}"}, status=500)

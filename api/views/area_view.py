@@ -152,7 +152,7 @@ class SatelliteCaptureCatalogView(APIView):
                 )
 
             serializer = SatelliteCaptureCatalogListSerializer(
-                service_response["data"], many=True
+                service_response["data"], many=True,  context={'timezone': user_timezone}
             )
             data = serializer.data
             # Non-blocking function call using Celery

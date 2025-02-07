@@ -139,13 +139,18 @@ def get_satellite_records(
             )
 
         if user_timezone and user_duration_type:
-            start_hour_utc, end_hour_utc = get_utc_time_range(user_duration_type, user_timezone)
-            logger.debug(f"User Timezone: {user_timezone}, User Duration Type: {user_duration_type}, Start Hour: {start_hour_utc}, End Hour: {end_hour_utc}")
-            if start_hour_utc < end_hour_utc:
-                filters &= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) & Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
-            else:
-                # Overnight case (crosses midnight)
-                filters &= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) | Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
+            selected_durations = [d.strip() for d in user_duration_type.split(",") if d.strip()]
+            time_filters = Q()
+            for duration in selected_durations:
+                start_hour_utc, end_hour_utc = get_utc_time_range(duration, user_timezone)
+                logger.debug(f"User Timezone: {user_timezone}, User Duration Type: {user_duration_type}, Start Hour: {start_hour_utc}, End Hour: {end_hour_utc}")
+                if start_hour_utc < end_hour_utc:
+                    time_filters |= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) & Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
+                else:
+                    # Overnight case (crosses midnight)
+                    time_filters |= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) | Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
+
+            filters &= time_filters
 
         if vendor_name and "," in vendor_name:
             vendor_names = vendor_name.split(",")
@@ -720,13 +725,18 @@ def get_polygon_selection_acquisition_calender_days_frequency(
             filters &= Q(vendor_name=vendor_name)
 
         if user_timezone and user_duration_type:
-            start_hour_utc, end_hour_utc = get_utc_time_range(user_duration_type, user_timezone)
-            logger.debug(f"User Timezone: {user_timezone}, User Duration Type: {user_duration_type}, Start Hour: {start_hour_utc}, End Hour: {end_hour_utc}")
-            if start_hour_utc < end_hour_utc:
-                filters &= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) & Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
-            else:
-                # Overnight case (crosses midnight)
-                filters &= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) | Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
+            selected_durations = [d.strip() for d in user_duration_type.split(",") if d.strip()]
+            time_filters = Q()
+            for duration in selected_durations:
+                start_hour_utc, end_hour_utc = get_utc_time_range(duration, user_timezone)
+                logger.debug(f"User Timezone: {user_timezone}, User Duration Type: {user_duration_type}, Start Hour: {start_hour_utc}, End Hour: {end_hour_utc}")
+                if start_hour_utc < end_hour_utc:
+                    time_filters |= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) & Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
+                else:
+                    # Overnight case (crosses midnight)
+                    time_filters |= Q(acquisition_datetime__time__gte=time(start_hour_utc, 0)) | Q(acquisition_datetime__time__lt=time(end_hour_utc, 0))
+
+            filters &= time_filters
 
         if min_cloud_cover is not None and max_cloud_cover is not None:
             logger.debug(f"Cloud cover filters: {min_cloud_cover} to {max_cloud_cover}")

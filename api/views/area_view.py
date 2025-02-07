@@ -98,8 +98,10 @@ class SatelliteCaptureCatalogView(APIView):
             user_duration_type = request.query_params.get("user_duration_type")
 
 
-            if user_duration_type and user_duration_type not in time_ranges:
-                return Response({"data": f"Duration not valid", "status_code": 400, "error": f"Duration not valid"}, status=400)
+            if user_duration_type:
+                for duration in str(user_duration_type).split(","):
+                    if duration not in time_ranges:
+                        return Response({"data": f"Duration not valid", "status_code": 400, "error": f"Duration not valid"}, status=400)
 
             # filters list: gsd
 
@@ -363,8 +365,10 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             user_timezone = request.query_params.get("user_timezone")
             user_duration_type = request.query_params.get("user_duration_type")
 
-            if user_duration_type and user_duration_type not in time_ranges:
-                return Response({"data": f"Duration not valid", "status_code": 400, "error": f"Duration not valid"}, status=400)
+            if user_duration_type:
+                for duration in str(user_duration_type).split(","):
+                    if duration not in time_ranges:
+                        return Response({"data": f"Duration not valid", "status_code": 400, "error": f"Duration not valid"}, status=400)
 
             if not polygon_wkt:
                 return Response(

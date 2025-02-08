@@ -120,6 +120,9 @@ def get_satellite_records(
         captures = CollectionCatalog.objects.all()
         filters = Q()
 
+        if sort_by and sort_by == "cloud_cover":
+            sort_by = "cloud_cover_percent"
+
         polygon_area = None
 
         if start_date:

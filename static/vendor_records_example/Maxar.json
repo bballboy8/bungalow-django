@@ -1,0 +1,416 @@
+{
+    "id": "B1200011011C4400",
+    "bbox": [
+      114.995971,
+      -3.522198,
+      115.092127,
+      -2.984959
+    ],
+    "type": "Feature",
+    "links": [
+      {
+        "rel": "collection",
+        "href": "https://api.maxar.com/discovery/v1/collections/lg02"
+      },
+      {
+        "rel": "self",
+        "href": "https://api.maxar.com/discovery/v1/collections/lg02/items/B1200011011C4400"
+      },
+      {
+        "rel": "root",
+        "href": "https://api.maxar.com/discovery/v1/"
+      },
+      {
+        "rel": "order-map-ready",
+        "href": "https://api.maxar.com/ordering/v1/pipelines/imagery/map-ready/order",
+        "type": "application/json"
+      },
+      {
+        "rel": "order-system-ready",
+        "href": "https://api.maxar.com/ordering/v1/pipelines/imagery/system-ready/order",
+        "type": "application/json"
+      },
+      {
+        "rel": "order-view-ready",
+        "href": "https://api.maxar.com/ordering/v1/pipelines/imagery/view-ready/order",
+        "type": "application/json"
+      },
+      {
+        "rel": "order-view-ready-ortho",
+        "href": "https://api.maxar.com/ordering/v1/pipelines/imagery/view-ready-ortho/order",
+        "type": "application/json"
+      }
+    ],
+    "assets": {
+      "browse": {
+        "href": "https://api.maxar.com/discovery/v1/collections/lg02/items/B1200011011C4400/assets/collections/dg-archive/assets/browse/B1200011011C4400.browse.tif",
+        "type": "image/tiff; application=geotiff",
+        "title": "Browse Image"
+      },
+      "cloud-cover": {
+        "href": "https://api.maxar.com/discovery/v1/collections/lg02/items/B1200011011C4400/assets/collections/lg02/assets/cloud-cover/B1200011011C4400.cloud.json",
+        "type": "application/geo+json",
+        "title": "Cloud Cover"
+      },
+      "sample-point-set": {
+        "href": "https://api.maxar.com/discovery/v1/collections/lg02/items/B1200011011C4400/assets/collections/lg02/assets/sample-point-sets/B1200011011C4400.sample-points.json",
+        "type": "application/geo+json",
+        "title": "Sample Point Set"
+      }
+    },
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            114.995971,
+            -3.484737
+          ],
+          [
+            114.996007,
+            -3.497252
+          ],
+          [
+            114.996094,
+            -3.509553
+          ],
+          [
+            114.996089,
+            -3.51034
+          ],
+          [
+            114.996093,
+            -3.510832
+          ],
+          [
+            114.996035,
+            -3.521345
+          ],
+          [
+            115.092116,
+            -3.522198
+          ],
+          [
+            115.092127,
+            -3.516926
+          ],
+          [
+            115.092118,
+            -3.486253
+          ],
+          [
+            115.092117,
+            -3.485267
+          ],
+          [
+            115.092097,
+            -3.476968
+          ],
+          [
+            115.091969,
+            -3.449015
+          ],
+          [
+            115.091951,
+            -3.446512
+          ],
+          [
+            115.091695,
+            -3.422942
+          ],
+          [
+            115.091895,
+            -3.402462
+          ],
+          [
+            115.092005,
+            -3.386442
+          ],
+          [
+            115.092032,
+            -3.360432
+          ],
+          [
+            115.092009,
+            -3.329161
+          ],
+          [
+            115.091987,
+            -3.306272
+          ],
+          [
+            115.091966,
+            -3.295052
+          ],
+          [
+            115.091837,
+            -3.266622
+          ],
+          [
+            115.091829,
+            -3.262347
+          ],
+          [
+            115.091824,
+            -3.261362
+          ],
+          [
+            115.091763,
+            -3.230112
+          ],
+          [
+            115.091757,
+            -3.198879
+          ],
+          [
+            115.091849,
+            -3.17235
+          ],
+          [
+            115.091839,
+            -3.147129
+          ],
+          [
+            115.091826,
+            -3.136455
+          ],
+          [
+            115.091821,
+            -3.130297
+          ],
+          [
+            115.091792,
+            -3.110494
+          ],
+          [
+            115.091806,
+            -3.080904
+          ],
+          [
+            115.091806,
+            -3.079015
+          ],
+          [
+            115.091778,
+            -3.048105
+          ],
+          [
+            115.091748,
+            -3.016918
+          ],
+          [
+            115.091716,
+            -2.98574
+          ],
+          [
+            114.996626,
+            -2.984959
+          ],
+          [
+            114.996602,
+            -3.016135
+          ],
+          [
+            114.996576,
+            -3.047317
+          ],
+          [
+            114.996551,
+            -3.078509
+          ],
+          [
+            114.996529,
+            -3.109708
+          ],
+          [
+            114.996505,
+            -3.140916
+          ],
+          [
+            114.996482,
+            -3.172133
+          ],
+          [
+            114.996456,
+            -3.203358
+          ],
+          [
+            114.99636,
+            -3.234578
+          ],
+          [
+            114.996333,
+            -3.265821
+          ],
+          [
+            114.996337,
+            -3.280434
+          ],
+          [
+            114.996343,
+            -3.291842
+          ],
+          [
+            114.996336,
+            -3.323104
+          ],
+          [
+            114.996334,
+            -3.324819
+          ],
+          [
+            114.996333,
+            -3.328344
+          ],
+          [
+            114.996325,
+            -3.331863
+          ],
+          [
+            114.996298,
+            -3.35437
+          ],
+          [
+            114.996231,
+            -3.382638
+          ],
+          [
+            114.996218,
+            -3.390879
+          ],
+          [
+            114.99619,
+            -3.422167
+          ],
+          [
+            114.996188,
+            -3.447458
+          ],
+          [
+            114.996189,
+            -3.448223
+          ],
+          [
+            114.996188,
+            -3.448287
+          ],
+          [
+            114.996188,
+            -3.453468
+          ],
+          [
+            114.995971,
+            -3.484737
+          ]
+        ]
+      ]
+    },
+    "collection": "lg02",
+    "properties": {
+      "gsd": 0.3529825616666667,
+      "title": "Maxar LG02 Image B1200011011C4400",
+      "datetime": "2025-02-08T02:51:00.874607Z",
+      "eo:bands": [
+        {
+          "name": "pan",
+          "center_wavelength": 625
+        },
+        {
+          "name": "nir1",
+          "center_wavelength": 832.5
+        },
+        {
+          "name": "red_edge1",
+          "center_wavelength": 705
+        },
+        {
+          "name": "red_edge2",
+          "center_wavelength": 740
+        },
+        {
+          "name": "red",
+          "center_wavelength": 660
+        },
+        {
+          "name": "yellow",
+          "center_wavelength": 605
+        },
+        {
+          "name": "green",
+          "center_wavelength": 545
+        },
+        {
+          "name": "blue",
+          "center_wavelength": 480
+        },
+        {
+          "name": "coastal",
+          "center_wavelength": 425
+        }
+      ],
+      "platform": "worldview-legion-02",
+      "utc_hour": 2,
+      "local_hour": 10,
+      "instruments": [
+        "VNIR"
+      ],
+      "associations": [],
+      "view:azimuth": 100.51109166666667,
+      "constellation": "maxar",
+      "off_nadir_avg": 11.536019583333333,
+      "off_nadir_end": 12.156376,
+      "off_nadir_max": 12.156376,
+      "off_nadir_min": 10.900037,
+      "rda_available": false,
+      "utc_month_day": "02-08",
+      "eo:cloud_cover": 99.24250790461497,
+      "scan_direction": "reverse",
+      "view:off_nadir": 11.536019583333333,
+      "local_month_day": "02-08",
+      "off_nadir_start": 10.900037,
+      "timezone_offset": 8,
+      "utc_time_of_day": "02:51:00",
+      "collect_time_end": "2025-02-08T02:51:09.729654Z",
+      "view:sun_azimuth": 116.4128585,
+      "local_time_of_day": "10:51:00",
+      "raw_archive_state": "online",
+      "collect_time_start": "2025-02-08T02:51:00.874607Z",
+      "pan_resolution_avg": 0.3529825616666667,
+      "pan_resolution_end": 0.35434365,
+      "pan_resolution_max": 0.35434365,
+      "pan_resolution_min": 0.35163498,
+      "view:sun_elevation": 62.08520383333333,
+      "multi_resolution_avg": 1.4106105666666666,
+      "multi_resolution_end": 1.4119391,
+      "multi_resolution_max": 1.4119391,
+      "multi_resolution_min": 1.4092599,
+      "pan_resolution_start": 0.35163498,
+      "acquisition_rev_number": 4266,
+      "multi_resolution_start": 1.4092599,
+      "view:sun_elevation_max": 62.221664,
+      "view:sun_elevation_min": 61.944412,
+      "geolocation_uncertainty": 0.4638308431286324,
+      "stereo_pair_identifiers": [],
+      "local_time_of_day_with_timezone": "10:51:00+0800",
+      "spacecraft_to_target_azimuth_avg": 100.51109166666667,
+      "spacecraft_to_target_azimuth_end": 99.81471,
+      "spacecraft_to_target_azimuth_max": 101.29828,
+      "spacecraft_to_target_azimuth_min": 99.81471,
+      "target_to_spacecraft_azimuth_avg": 280.5485608832008,
+      "target_to_spacecraft_azimuth_end": 279.8477758095863,
+      "target_to_spacecraft_azimuth_max": 281.3397089856533,
+      "target_to_spacecraft_azimuth_min": 279.8477758095863,
+      "spacecraft_to_target_azimuth_start": 101.29828,
+      "target_to_spacecraft_azimuth_start": 281.3397089856533,
+      "target_to_spacecraft_elevation_avg": 77.50667670073875,
+      "target_to_spacecraft_elevation_end": 76.83329782810799,
+      "target_to_spacecraft_elevation_max": 78.19687134514655,
+      "target_to_spacecraft_elevation_min": 76.83329782810799,
+      "target_to_spacecraft_elevation_start": 78.19687134514655
+    },
+    "stac_version": "1.0.0",
+    "stac_extensions": [
+      "https://stac-extensions.github.io/eo/v1.0.0/schema.json",
+      "https://stac-extensions.github.io/view/v1.0.0/schema.json"
+    ]
+  }

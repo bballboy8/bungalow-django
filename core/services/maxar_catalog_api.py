@@ -7,11 +7,11 @@ import shutil
 from decouple import config
 from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
-from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
-from core.serializers import SatelliteDateRetrievalPipelineHistorySerializer, SatelliteCaptureCatalogSerializer, SatelliteCaptureCatalogMetadata
+from core.models import SatelliteDateRetrievalPipelineHistory
+from core.serializers import SatelliteDateRetrievalPipelineHistorySerializer, SatelliteCaptureCatalogSerializer, CollectionCatalog
 import pytz
 from core.services.utils import calculate_area_from_geojson
-from core.utils import save_image_in_s3_and_get_url
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog
 from botocore.exceptions import NoCredentialsError
 from PIL import Image
 import io
@@ -52,6 +52,16 @@ def get_maxar_collections(
     return None
 
 
+def calculate_withhold(acquisition_datetime, publication_datetime):
+    """Calculate the holdback period based on acquisition and publication dates."""
+    try:
+        holdback = (publication_datetime - acquisition_datetime).total_seconds()
+        return holdback
+    except Exception as e:
+        print(f"Failed to calculate holdback hours: {e}")
+        return -1
+
+
 def process_features(all_features):
     converted_features = []
     for feature in all_features:
@@ -59,31 +69,35 @@ def process_features(all_features):
             properties = feature.get("properties", {})
             geometry = feature.get("geometry", {})
             assets = feature.get("assets", {})
-            model_params = {
-                "acquisition_datetime": datetime.fromisoformat(
+            acquisition_datetime = datetime.fromisoformat(
                     properties.get("datetime").replace("Z", "+00:00")
-                ).replace(microsecond=0),
-                "cloud_cover": properties.get("eo:cloud_cover", ""),
+                ).replace(microsecond=0)
+            publication_datetime = datetime.fromisoformat(
+                    properties.get("collect_time_end").replace("Z", "+00:00")
+                ).replace(microsecond=0)
+
+            model_params = {
+                "acquisition_datetime": acquisition_datetime,
+                "cloud_cover_percent": properties.get("eo:cloud_cover", ""),
                 "vendor_id": f"{feature.get('id')}-{feature.get('collection')}",
                 "vendor_name": "maxar",
                 "sensor": properties.get("instruments")[0] if properties.get("instruments") and len(properties.get("instruments")) > 0 else None,
                 "area": calculate_area_from_geojson(geometry, properties.get("id")),
-                "type": (
-                    "Day"
-                    if 6
-                    <= datetime.fromisoformat(
-                        properties.get("datetime").replace("Z", "+00:00")
-                    ).hour
-                    <= 18
-                    else "Night"
-                ),
                 "sun_elevation": properties.get("view:sun_azimuth"),
-                "resolution": f"{properties.get("pan_resolution_avg")}m",
+                "resolution": f"{properties.get("gsd")}m",
                 "location_polygon": geometry,
                 "coordinates_record": geometry,
                 "assets": assets,
                 "metadata": feature,
-                "gsd": float(properties.get("pan_resolution_avg")),
+                "gsd": float(properties.get("gsd")),
+                "offnadir": properties.get("off_nadir_avg"),
+                "constellation": properties.get("constellation"),
+                "platform": properties.get("platform"),
+                "publication_datetime": publication_datetime,
+                "azimuth_angle": properties.get("view:azimuth"),
+                "illumination_azimuth_angle": properties.get("view:sun_azimuth"),
+                "illumination_elevation_angle" : properties.get("view:sun_elevation"),
+                "holdback_seconds": calculate_withhold(acquisition_datetime, publication_datetime),
             }
             converted_features.append(model_params)
         except Exception as e:
@@ -92,7 +106,7 @@ def process_features(all_features):
     converted_features = sorted(
         converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
     )
-    return converted_features
+    return converted_features[::-1]
 
 
 def upload_to_s3(feature, folder="thumbnails"):
@@ -172,69 +186,7 @@ def fetch_and_process_records(bbox, start_time, end_time):
 
     return all_features
 
-def process_database_catalog(features, start_time, end_time):
-    valid_features = []
-    invalid_features = []
-    metadata = []
-
-    for feature in features:
-        serializer = SatelliteCaptureCatalogSerializer(data=feature)
-        if serializer.is_valid():
-            valid_features.append(serializer.validated_data)
-        else:
-            print(f"Error in serializer: {serializer.errors}")
-            invalid_features.append(feature)
-        metadata.append(
-            {
-                "vendor_name": feature["vendor_name"],
-                "vendor_id": feature["vendor_id"],
-                "acquisition_datetime": feature["acquisition_datetime"],
-                "metadata": feature["metadata"],
-            }
-        )
-    
-    print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
-    if valid_features:
-        try:
-            SatelliteCaptureCatalog.objects.bulk_create(
-                [SatelliteCaptureCatalog(**feature) for feature in valid_features]
-            )
-            SatelliteCaptureCatalogMetadata.objects.bulk_create(
-                [SatelliteCaptureCatalogMetadata(**meta) for meta in metadata]
-            )
-        except IntegrityError as e:
-            print(f"Error during bulk insert: {e}")
-
-    if not valid_features:
-        print(f"No records Found for {start_time} to {end_time}")
-        return
-
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
-
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "maxar",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
-
-def main(START_DATE, END_DATE, BBOX):
+def main(START_DATE, END_DATE, BBOX, is_bulk):
     bboxes = [BBOX]
     current_date = START_DATE
     end_date = END_DATE
@@ -273,7 +225,7 @@ def main(START_DATE, END_DATE, BBOX):
     converted_features = process_features(all_features)
     print(f"Total records: {len(all_features)}, Converted records: {len(converted_features)}")
     # download_thumbnails(converted_features, "maxar/thumbnails")
-    process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
+    process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat(), "maxar", is_bulk)
     print("Completed", len(converted_features))
 
 
@@ -298,13 +250,13 @@ def run_maxar_catalog_api():
     END_DATE = get_utc_time()
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
 
-    response = main(START_DATE, END_DATE, BBOX)
+    response = main(START_DATE, END_DATE, BBOX, False)
     return response
 
 def run_maxar_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2024, 12, 6, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2024, 12, 14, tzinfo=pytz.utc)
+    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:
@@ -312,10 +264,10 @@ def run_maxar_catalog_bulk_api():
         print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
         month_start_time = time.time()
         
-        response =  main(START_DATE, END_DATE, BBOX)
+        response =  main(START_DATE, END_DATE, BBOX, True)
         month_end_time = time.time()
         print(f"Time taken to process the interval: {month_end_time - month_start_time}")
-
+        time.sleep(5)
         START_DATE = END_DATE
     return response
 

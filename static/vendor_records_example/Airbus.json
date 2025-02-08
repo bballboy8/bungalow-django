@@ -1,0 +1,176 @@
+{
+    "type": "Feature",
+    "_links": {
+      "wms": {
+        "href": "https://access.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2/wms",
+        "name": "WMS",
+        "type": "WMS"
+      },
+      "self": {
+        "href": "https://search.foundation.api.oneatlas.airbus.com/api/v2/opensearch?id=ec40518f-3f49-4b5c-b56c-288408dd6fc2",
+        "name": "self",
+        "method": "GET",
+        "resourceId": "ec40518f-3f49-4b5c-b56c-288408dd6fc2"
+      },
+      "wmts": {
+        "href": "https://access.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2/wmts",
+        "name": "WMTS",
+        "type": "WMTS"
+      },
+      "delete": {
+        "href": "https://search.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2",
+        "name": "Delete",
+        "type": "HTTP"
+      },
+      "monitor": {
+        "href": "https://monitor.foundation.api.oneatlas.airbus.com/api/v1/activities/ac7de0f8-fd9d-470d-bb4b-6137ec43c0c6",
+        "name": "Monitor",
+        "type": "HTTP"
+      },
+      "imagesWcs": {
+        "href": "https://access.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2/images/4819b269-415d-417c-af35-38b238cd1025/wcs",
+        "type": "WCS",
+        "resourceId": "4819b269-415d-417c-af35-38b238cd1025"
+      },
+      "imagesWms": {
+        "href": "https://access.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2/images/4819b269-415d-417c-af35-38b238cd1025/wms",
+        "type": "WMS",
+        "resourceId": "4819b269-415d-417c-af35-38b238cd1025"
+      },
+      "quicklook": {
+        "href": "https://access.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2/quicklook",
+        "name": "QuickLook",
+        "type": "HTTP"
+      },
+      "thumbnail": {
+        "href": "https://access.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2/thumbnail",
+        "name": "Thumbnail",
+        "type": "HTTP"
+      },
+      "imagesWmts": {
+        "href": "https://access.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2/images/4819b269-415d-417c-af35-38b238cd1025/wmts",
+        "type": "WMTS",
+        "resourceId": "4819b269-415d-417c-af35-38b238cd1025"
+      },
+      "imagesMetadata": {
+        "href": "https://access.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2/images/4819b269-415d-417c-af35-38b238cd1025/metadata",
+        "type": "application/geo+json",
+        "resourceId": "4819b269-415d-417c-af35-38b238cd1025"
+      },
+      "imagesGetBuffer": {
+        "href": "https://access.foundation.api.oneatlas.airbus.com/api/v1/items/ec40518f-3f49-4b5c-b56c-288408dd6fc2/images/4819b269-415d-417c-af35-38b238cd1025/buffer",
+        "type": "getBuffer",
+        "resourceId": "4819b269-415d-417c-af35-38b238cd1025"
+      }
+    },
+    "rights": {
+      "wms": {},
+      "wmts": {},
+      "browse": {}
+    },
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            114.6792465103,
+            3.3323886566
+          ],
+          [
+            114.6800337248,
+            3.3145293115
+          ],
+          [
+            114.6816096228,
+            3.2849733134
+          ],
+          [
+            114.682037347,
+            3.2654094481
+          ],
+          [
+            114.6972540437,
+            3.2652081642
+          ],
+          [
+            114.7260162865,
+            3.2650946711
+          ],
+          [
+            114.7895390225,
+            3.2635157292
+          ],
+          [
+            114.8958232536,
+            3.2593438718
+          ],
+          [
+            114.895743115,
+            3.2768556363
+          ],
+          [
+            114.8945110656,
+            3.3252590611
+          ],
+          [
+            114.8791466584,
+            3.3259898878
+          ],
+          [
+            114.7415240523,
+            3.3310516915
+          ],
+          [
+            114.6792465103,
+            3.3323886566
+          ]
+        ]
+      ]
+    },
+    "properties": {
+      "id": "ec40518f-3f49-4b5c-b56c-288408dd6fc2",
+      "title": "",
+      "format": "image/tiff",
+      "platform": "PHR1B",
+      "qualified": false,
+      "snowCover": 0,
+      "activityId": "ac7de0f8-fd9d-470d-bb4b-6137ec43c0c6",
+      "cloudCover": 97.20496094597925,
+      "resolution": 0.5,
+      "sensorType": "OPTICAL",
+      "productType": "mono",
+      "workspaceId": "0e33eb50-3404-48ad-b835-b0b4b72a5625",
+      "azimuthAngle": 179.9875914173043,
+      "constellation": "PHR",
+      "correlationId": "be3861c1-af8e-4cd7-8ef0-b619638571f8",
+      "processorName": "MMCAT",
+      "spectralRange": "VISIBLE",
+      "workspaceName": "public",
+      "expirationDate": "2224-12-22T03:07:08.815042502Z",
+      "incidenceAngle": 25.28599493302055,
+      "lastUpdateDate": "2025-02-08T03:08:02.563608636Z",
+      "processingDate": "2025-02-08T03:03:35.721Z",
+      "workspaceTitle": "Public",
+      "acquisitionDate": "2025-02-08T02:42:33.806Z",
+      "archivingCenter": "TH1",
+      "processingLevel": "ALBUM",
+      "productCategory": "image",
+      "publicationDate": "2025-02-08T03:08:02.563608636Z",
+      "geometryCentroid": {
+        "lat": 3.295871690849273,
+        "lon": 114.78753488195008
+      },
+      "organisationName": "AIRBUS DS GEO",
+      "parentIdentifier": "DS_PHR1B_202502080242338_TH1_PX_E114N03_1008_00621",
+      "processingCenter": "MOC",
+      "productionStatus": "ARCHIVED",
+      "sourceIdentifier": "DS_PHR1B_202502080242338_TH1_PX_E114N03_1008_00621",
+      "archiveIdentifier": "DS_PHR1B_202502080242338_TH1_PX_E114N03_1008_00621",
+      "acquisitionStation": "TH1",
+      "acquisitionIdentifier": "DS_PHR1B_202502080242338_TH1_PX_E114N03_1008_00621",
+      "illuminationAzimuthAngle": 123.7906810738108,
+      "incidenceAngleAlongTrack": 4.843335501086793,
+      "incidenceAngleAcrossTrack": 24.92605180576445,
+      "illuminationElevationAngle": 56.61008937764177
+    }
+  }

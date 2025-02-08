@@ -39,3 +39,68 @@ def save_image_in_s3_and_get_url(image_bytes, id, folder="thumbnails", extension
         return "AWS credentials not available."
     except Exception as e:
         return str(e)
+
+from core.serializers import (
+    SatelliteDateRetrievalPipelineHistorySerializer,
+    CollectionCatalogSerializer,
+)
+from datetime import datetime
+from bungalowbe.utils import convert_iso_to_datetime
+
+def process_database_catalog(features, start_time, end_time, vendor_name, is_bulk= False):
+    """
+        Process the database catalog for the given features
+    """
+    print(f"Database Processing {vendor_name} catalog for {start_time} to {end_time} with {len(features)} records")
+    try:
+        valid_features = 0
+        invalid_features = 0
+
+        for feature in features:
+            try:
+                serializer = CollectionCatalogSerializer(data=feature)
+                if serializer.is_valid():
+                    serializer.save()
+                    valid_features += 1
+                else:
+                    print(f"Error in serializer: {serializer.errors}")
+                    invalid_features += 1
+            except Exception as e:
+                print(f"Error in checking serialzer: {e}")
+                invalid_features += 1
+        
+        print(f"Total records: {len(features)}, Valid records: {(valid_features)}, Invalid records: {(invalid_features)}")
+
+        if not valid_features:
+            print(f"No records Found for {start_time} to {end_time}")
+            return
+
+        if is_bulk:
+            return "Bulk Inserted"
+
+        try:
+            last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+            last_acquisition_datetime = datetime.strftime(
+                last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
+            )
+        except Exception as e:
+            last_acquisition_datetime = end_time
+
+        history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+            data={
+                "start_datetime": convert_iso_to_datetime(start_time),
+                "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
+                "vendor_name": vendor_name,
+                "message": {
+                    "total_records": len(features),
+                    "valid_records": (valid_features),
+                    "invalid_records": (invalid_features),
+                },
+            }
+        )
+        if history_serializer.is_valid():
+            history_serializer.save()
+        else:
+            print(f"Error in history serializer: {history_serializer.errors}")
+    except Exception as e:
+        print(f"Error in process_database_catalog: {e}")

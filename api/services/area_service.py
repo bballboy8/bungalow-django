@@ -1,5 +1,5 @@
 from django.contrib.gis.geos import GEOSGeometry
-from core.models import SatelliteCaptureCatalog, time_ranges
+from core.models import CollectionCatalog, time_ranges
 from shapely.geometry import shape
 from logging_module import logger
 from django.contrib.gis.geos import Point
@@ -117,7 +117,7 @@ def get_satellite_records(
     start_time = datetime.now()
 
     try:
-        captures = SatelliteCaptureCatalog.objects.all()
+        captures = CollectionCatalog.objects.all()
         filters = Q()
 
         polygon_area = None
@@ -434,13 +434,13 @@ def calculate_percentage_change(current_count, previous_count):
 def calculate_counts_and_percentages(days, buffered_polygon):
     """Function to calculate counts and percentages for a specific duration."""
     start_time = now() - timedelta(days=days)
-    current_count = SatelliteCaptureCatalog.objects.filter(
+    current_count = CollectionCatalog.objects.filter(
         location_polygon__intersects=buffered_polygon,
         acquisition_datetime__gte=start_time
     ).count()
 
     previous_duration_start = start_time - timedelta(days=days)
-    previous_count = SatelliteCaptureCatalog.objects.filter(
+    previous_count = CollectionCatalog.objects.filter(
         location_polygon__intersects=buffered_polygon,
         acquisition_datetime__gte=previous_duration_start,
         acquisition_datetime__lt=start_time
@@ -507,7 +507,7 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
             return address_response
 
         # Determine the oldest record start time
-        oldest_record_instance = SatelliteCaptureCatalog.objects.filter(
+        oldest_record_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=buffered_polygon
         ).order_by("acquisition_datetime").first()
 
@@ -527,13 +527,13 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
                 days, current_count, previous_count, percentage_change = future.result()
                 results[days] = {"current_count": current_count, "previous_count": previous_count, "percentage_change": percentage_change }
 
-        newest_record_instance = SatelliteCaptureCatalog.objects.filter(
+        newest_record_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=buffered_polygon
         ).order_by("acquisition_datetime").last()
 
         # newest clear cloud cover info means cloud cover is 0 also there are null values in cloud cover
 
-        newest_clear_cloud_cover_instance = SatelliteCaptureCatalog.objects.filter(
+        newest_clear_cloud_cover_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=buffered_polygon,
             cloud_cover__lte=0
         ).order_by("-acquisition_datetime").first()
@@ -541,7 +541,7 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
 
         # Count for each vendor in the selected area airbus, maxar, planet, blacksky, capella, skyfi-umbra
 
-        vendor_counts = SatelliteCaptureCatalog.objects.filter(
+        vendor_counts = CollectionCatalog.objects.filter(
             location_polygon__intersects=buffered_polygon
         ).values('vendor_name').annotate(count=Count('id'))
 
@@ -613,7 +613,7 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
             return address_response
 
         # Determine the oldest record start time
-        oldest_record_instance = SatelliteCaptureCatalog.objects.filter(
+        oldest_record_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=polygon
         ).order_by("acquisition_datetime").first()
 
@@ -634,12 +634,12 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
                 results[days] = {"current_count": current_count, "previous_count": previous_count, "percentage_change": percentage_change}
 
         # Get the newest image record (preferably clear cloud cover if available)
-        newest_record_instance = SatelliteCaptureCatalog.objects.filter(
+        newest_record_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=polygon
         ).order_by("acquisition_datetime").last()
 
         # Clear cloud cover info if available
-        newest_clear_cloud_cover_instance = SatelliteCaptureCatalog.objects.filter(
+        newest_clear_cloud_cover_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=polygon,
             cloud_cover__lte=0
         ).order_by("-acquisition_datetime").first()
@@ -764,7 +764,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(
 
         # Fetch frequency data directly from the database
         frequency_data = (
-            SatelliteCaptureCatalog.objects.filter(
+            CollectionCatalog.objects.filter(
                 filters
             )
             .annotate(date=TruncDate('acquisition_datetime'))  # Extract the date part
@@ -832,7 +832,7 @@ def get_pin_selection_acquisition_calender_days_frequency(latitude, longitude, d
 
         # Fetch frequency data directly from the database
         frequency_data = (
-            SatelliteCaptureCatalog.objects.filter(
+            CollectionCatalog.objects.filter(
                 location_polygon__intersects=buffered_polygon,
                 acquisition_datetime__gte=start_date,
                 acquisition_datetime__lte=end_date

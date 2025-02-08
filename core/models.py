@@ -3,6 +3,8 @@
 from django.contrib.gis.db import models
 from django.db import models as plane_models
 from django.utils import timezone
+import json
+import hashlib
 
 class DistinctSatelliteCaptureManager(models.Manager):
     def get_queryset(self):
@@ -115,3 +117,52 @@ class SatelliteCaptureCatalogMetadata(plane_models.Model):
 
     def __str__(self):
         return f"Metadata for {self.vendor_name} - {self.acquisition_datetime}"
+
+class CollectionCatalog(models.Model):
+    acquisition_datetime = models.DateTimeField(null=True, blank=True)
+    cloud_cover_percent = models.FloatField(null=True, blank=True)
+    vendor_id = models.CharField(max_length=255, null=True, blank=True)
+    vendor_name = models.CharField(max_length=50, choices=VENDOR_CHOICES)
+    sensor = models.TextField(null=True, blank=True)
+    area = models.FloatField(null=True, blank=True)
+    sun_elevation = models.FloatField(null=True, blank=True)
+    georeferenced = models.BooleanField(null=True, blank=True, default=False)
+    location_polygon = models.PolygonField(null=True, blank=True)
+    coordinates_record = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    image_uploaded = models.BooleanField(default=False, null=True, blank=True) 
+    gsd = models.FloatField(null=True, blank=True)
+    offnadir = models.FloatField(null=True, blank=True)
+    constellation = models.CharField(max_length=50, null=True, blank=True)
+    platform = models.CharField(max_length=50, null=True, blank=True)
+    azimuth_angle = models.FloatField(null=True, blank=True)
+    illumination_azimuth_angle = models.FloatField(null=True, blank=True)
+    illumination_elevation_angle = models.FloatField(null=True, blank=True)
+    holdback_seconds = models.FloatField(null=True, blank=True)
+    publication_datetime = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(null=True, blank=True)
+    geometryCentroid_lat = models.FloatField(null=True, blank=True)
+    geometryCentroid_lon = models.FloatField(null=True, blank=True)
+    coordinates_record_md5 = models.CharField(max_length=32, unique=False, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+
+    class Meta:
+        indexes = [
+            plane_models.Index(fields=["acquisition_datetime"]),
+            plane_models.Index(fields=["publication_datetime"]),
+            plane_models.Index(fields=["vendor_name", "acquisition_datetime"]),
+            plane_models.Index(fields=["vendor_id", "acquisition_datetime"]),
+            plane_models.Index(fields=["coordinates_record_md5"]),
+            models.Index(fields=["location_polygon"]),  # Spatial index
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.coordinates_record:
+            json_str = json.dumps(self.coordinates_record, sort_keys=True)
+            self.coordinates_record_md5 = hashlib.md5(json_str.encode()).hexdigest()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.vendor_name} {self.vendor_id} - {self.acquisition_datetime}"

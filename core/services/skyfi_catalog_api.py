@@ -33,14 +33,11 @@ import math
 import shutil
 import csv
 from decouple import config
-from core.serializers import (
-    SatelliteCaptureCatalogSerializer,
-    SatelliteDateRetrievalPipelineHistorySerializer,
-)
+
 from datetime import datetime, timezone
 from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -48,8 +45,7 @@ from rasterio.io import MemoryFile
 from io import BytesIO
 from PIL import Image
 from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
-from django.db.utils import IntegrityError
-from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory, SatelliteCaptureCatalogMetadata
+from core.models import SatelliteDateRetrievalPipelineHistory
 import pytz
 from shapely import wkt
 from shapely.geometry import mapping
@@ -93,81 +89,6 @@ def estimate_sun_angles(capture_time, footprint_wkt):
     except Exception as e:
         print(f"Error in sun angle calculation: {e}")
         return 0
-
-
-def process_database_catalog(features, start_time, end_time):
-    print(f"Processing Skyfi Umbra {len(features)} records from {start_time} to {end_time}")
-    unique_features = []
-    seen_vendor_ids = set()
-    for feature in features:
-        vendor_id = feature.get('vendor_id')
-        if vendor_id not in seen_vendor_ids:
-            unique_features.append(feature)
-            seen_vendor_ids.add(vendor_id)
-    features = unique_features
-    valid_features = []
-    features_metadata = []
-    invalid_features = []
-
-    for feature in features:
-        serializer = SatelliteCaptureCatalogSerializer(data=feature)
-        if serializer.is_valid():
-            valid_features.append(serializer.validated_data)
-        else:
-            print(f"Error in serializer: {serializer.errors}")
-            invalid_features.append(feature)
-        features_metadata.append(
-            {
-                "vendor_name": feature["vendor_name"],
-                "vendor_id": feature["vendor_id"],
-                "acquisition_datetime": feature["acquisition_datetime"],
-                "metadata": feature["metadata"],
-            }
-        )
-
-    print(
-        f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}"
-    )
-    if valid_features:
-        try:
-            SatelliteCaptureCatalog.objects.bulk_create(
-                [SatelliteCaptureCatalog(**feature) for feature in valid_features]
-            )
-            SatelliteCaptureCatalogMetadata.objects.bulk_create(
-                [SatelliteCaptureCatalogMetadata(**feature) for feature in features_metadata]
-            )
-        except IntegrityError as e:
-            print(f"Error during bulk insert: {e}")
-
-    if not valid_features:
-        print(f"No records Found for {start_time} to {end_time}")
-        return
-
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
-
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "skyfi-umbra",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
-
 
 def get_polygon_bounding_box(polygon):
     """Extracts the bounding box from a polygon's coordinates."""
@@ -273,12 +194,11 @@ def convert_to_model_params(features):
             utc_time = convert_to_utc(feature["captureTimestamp"])
             model_params = {
                 "acquisition_datetime": utc_time,
-                "cloud_cover": -1,
+                "cloud_cover_percent": -1,
                 "vendor_id": feature["archiveId"],
                 "vendor_name": f"skyfi-{feature['provider'].lower()}",
                 "sensor": feature["constellation"],
                 "area": feature["totalAreaSquareKm"],
-                "type": ("Day" if 6 <= utc_time.hour <= 18 else "Night"),
                 "sun_elevation": estimate_sun_angles(
                     feature["captureTimestamp"], feature["footprint"]
                 ),
@@ -288,12 +208,20 @@ def convert_to_model_params(features):
                 "coordinates_record": location_polygon,
                 "metadata": feature,
                 "gsd": float(feature["gsd"]) / 100,
+                "offnadir": feature.get("offNadirAngle"),
+                "constellation": feature["constellation"],
+                "platform": feature["provider"],
+                "azimuth_angle": None,
+                "illumination_azimuth_angle": None,
+                "illumination_elevation_angle": None,
+                "holdback_seconds": feature.get("deliveryTimeHours", 0 ) * 3600,
+                "publication_datetime": None,
             }
             response.append(model_params)
         except Exception as e:
             print(e)
     response = sorted(response, key=lambda x: x["acquisition_datetime"], reverse=True)
-    return response
+    return response[::-1]
 
 
 # Function to search the SkyFi archive with pagination
@@ -342,7 +270,7 @@ def worker(start_date, end_date, aoi, results):
         time.sleep(1)
 
 
-def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
+def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT,IS_BULK):
     results = []
     current_date = START_DATE
     end_date = END_DATE
@@ -379,7 +307,7 @@ def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT):
     print(converted_features[:2])
     # download_and_upload_images(converted_features, "skyfi/thumbnails")
     process_database_catalog(
-        converted_features, START_DATE.isoformat(), end_date.isoformat()
+        converted_features, START_DATE.isoformat(), end_date.isoformat(), "skyfi-umbra", IS_BULK
     )
 
 
@@ -406,12 +334,12 @@ def run_skyfi_catalog_api():
     with open("core/services/land_polygons.json", "r") as file:
         land_polygons_wkt = json.load(file)
     land_polygons_wkt = land_polygons_wkt[61:]
-    response = skyfi_executor(START_DATE, END_DATE, land_polygons_wkt)
+    response = skyfi_executor(START_DATE, END_DATE, land_polygons_wkt, False)
     return response
 
 def run_skfyfi_catalog_api_bulk():
-    START_DATE = datetime(2025, 1, 13, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2025, 1, 14, tzinfo=pytz.utc)
+    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
     import time
     while START_DATE < END_LIMIT:
         END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
@@ -422,7 +350,7 @@ def run_skfyfi_catalog_api_bulk():
         with open("core/services/land_polygons.json", "r") as file:
             land_polygons_wkt = json.load(file)
         
-        response = skyfi_executor(START_DATE, END_DATE, land_polygons_wkt)
+        response = skyfi_executor(START_DATE, END_DATE, land_polygons_wkt, True)
         month_end_time = time.time()
         print(f"Time taken to process the interval: {month_end_time - month_start_time}")
 

@@ -24,14 +24,9 @@ import numpy as np
 import rasterio
 from rasterio.transform import from_bounds
 from decouple import config
-from core.serializers import (
-    SatelliteCaptureCatalogSerializer,
-    SatelliteDateRetrievalPipelineHistorySerializer,
-)
 from datetime import datetime
-from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -39,8 +34,7 @@ from rasterio.io import MemoryFile
 from io import BytesIO
 from PIL import Image
 from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
-from django.db.utils import IntegrityError
-from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory, SatelliteCaptureCatalogMetadata
+from core.models import SatelliteDateRetrievalPipelineHistory
 import pytz
 from core.services.utils import calculate_bbox_npolygons, calculate_area_from_geojson
 
@@ -204,105 +198,61 @@ def download_and_upload_images(features, path, max_workers=5):
             except Exception as e:
                 print(f"Exception occurred for feature {feature.get('id')}: {e}")
 
-
-def process_database_catalog(features, start_time, end_time):
-    valid_features = []
-    invalid_features = []
-    metadata = []
-
-    for feature in features:
-        serializer = SatelliteCaptureCatalogSerializer(data=feature)
-        if serializer.is_valid():
-            valid_features.append(serializer.validated_data)
-        else:
-            invalid_features.append(feature)
-        metadata.append({
-                "vendor_name": feature["vendor_name"],
-                "vendor_id": feature["vendor_id"],
-                "acquisition_datetime": feature["acquisition_datetime"],
-                "metadata": feature["metadata"],
-            })
-    
-    print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
-    if valid_features:
-        try:
-            SatelliteCaptureCatalog.objects.bulk_create(
-                [SatelliteCaptureCatalog(**feature) for feature in valid_features]
-            )
-            SatelliteCaptureCatalogMetadata.objects.bulk_create(
-                [SatelliteCaptureCatalogMetadata(**meta) for meta in metadata]
-            )
-        except IntegrityError as e:
-            print(f"Error during bulk insert: {e}")
-
-    if not valid_features:
-        print(f"No records Found for {start_time} to {end_time}")
-        return
-
+def calculate_withhold(acquisition_datetime, publication_datetime):
+    """Calculate the holdback period based on acquisition and publication dates."""
     try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
+        holdback = (publication_datetime - acquisition_datetime).total_seconds()
+        return holdback
     except Exception as e:
-        last_acquisition_datetime = end_time
-
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "planet",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
+        print(f"Failed to calculate holdback hours: {e}")
+        return -1
 
 def process_features(features):
     response = []
 
     for feature in features:
         try:
+            if not str(feature["id"]).endswith("u0001"):
+                continue
             properties = feature.get('properties', {})
             geometry = feature.get('geometry', {})
-            model_params = {
-                "acquisition_datetime": datetime.fromisoformat(
+            acquisition_datetime = datetime.fromisoformat(
                 properties["acquired"].replace("Z", "+00:00")
-                ),
-                "cloud_cover": properties["cloud_cover"],
+            )
+            publication_datetime = datetime.fromisoformat(
+                properties["published"].replace("Z", "+00:00")
+            )
+            model_params = {
+                "acquisition_datetime": acquisition_datetime,
+                "cloud_cover_percent": properties["cloud_percent"],
                 "vendor_id": feature["id"],
                 "vendor_name": "planet",
                 "sensor": properties["item_type"],
                 "area": calculate_area_from_geojson(geometry, feature["id"]),
-                "type": (
-                    "Day"
-                    if 6
-                    <= datetime.fromisoformat(
-                        properties["acquired"].replace("Z", "+00:00")
-                    ).hour
-                    <= 18
-                    else "Night"
-                ),
                 "sun_elevation": properties["sun_azimuth"],
                 "resolution": f"{properties['gsd']}m",
                 "location_polygon": geometry,
                 "coordinates_record": geometry,
                 "metadata": feature,
                 "gsd": float(properties["gsd"]),
+                "constellation": properties["provider"],
+                "offnadir": None,
+                "platform": properties["satellite_id"],
+                "azimuth_angle": properties.get("satellite_azimuth"),
+                "illumination_azimuth_angle": properties.get("sun_azimuth"),
+                "illumination_elevation_angle": properties.get("sun_elevation"),
+                "holdback_seconds": calculate_withhold(acquisition_datetime, publication_datetime),
             }
             response.append(model_params)
         except Exception as e:
             print(f"Error: {e}")
             continue
-    return response
+    response = sorted(
+        response, key=lambda x: x["acquisition_datetime"], reverse=True
+    )
+    return response[::-1]
 
-def main(START_DATE, END_DATE, BBOX):
+def main(START_DATE, END_DATE, BBOX, is_bulk):
     bboxes = [BBOX]
     current_date = START_DATE
     end_date = END_DATE
@@ -341,7 +291,7 @@ def main(START_DATE, END_DATE, BBOX):
     print(f"Total features: {len(all_features)}")
     converted_features = process_features(all_features)
     # download_and_upload_images(all_features, "planet/thumbnails")
-    process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat())
+    process_database_catalog(converted_features, START_DATE.isoformat(), END_DATE.isoformat(), "planet", is_bulk)
 
 
 def bbox_to_geojson(bbox_str):
@@ -384,15 +334,15 @@ def run_planet_catalog_api():
 
     END_DATE = get_utc_time()
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-    response = main(START_DATE, END_DATE, BBOX)
+    response = main(START_DATE, END_DATE, BBOX, False)
     return response
 
 
 def run_planet_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
     BBOX = bbox_to_geojson(BBOX)
-    START_DATE = datetime(2024, 12, 6, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2024, 12, 14, tzinfo=pytz.utc)
+    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:
@@ -400,7 +350,7 @@ def run_planet_catalog_bulk_api():
         print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
         month_start_time = time.time()
         
-        response = main(START_DATE, END_DATE, BBOX)
+        response = main(START_DATE, END_DATE, BBOX, True)
         month_end_time = time.time()
         print(f"Time taken to process the interval: {month_end_time - month_start_time}")
 

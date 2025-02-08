@@ -78,13 +78,15 @@ class SatelliteCaptureCatalogListSerializer(serializers.ModelSerializer):
                             break
                 if time_type:
                     data['type'] = time_type
+
         except Exception as e:
             import traceback
             traceback.print_exc()
             print(e)    
 
-        if 'cloud_cover' in data and data["cloud_cover"] and data['cloud_cover'] <= 1:
-            data['cloud_cover'] *= 100   
+        if "cloud_cover_percent" in data:
+            data["cloud_cover"] = data["cloud_cover_percent"]
+         
         if "coordinates_record" in data:
             response = get_area(data["coordinates_record"])
             if response["status_code"] == 200:

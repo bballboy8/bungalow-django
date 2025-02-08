@@ -37,7 +37,7 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, 
 
             total_records = captures.count()
             most_recent_capture = captures.order_by("-acquisition_datetime").first()
-            most_recent_clear_capture = captures.filter(cloud_cover=0).order_by("-acquisition_datetime").first()
+            most_recent_clear_capture = captures.filter(cloud_cover_percent=0).order_by("-acquisition_datetime").first()
 
             if not most_recent_capture:
                 logger.warning(f"No captures found for site {site.id}")

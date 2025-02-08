@@ -534,7 +534,7 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
 
         newest_clear_cloud_cover_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=buffered_polygon,
-            cloud_cover__lte=0
+            cloud_cover_percent__lte=0
         ).order_by("-acquisition_datetime").first()
 
 
@@ -640,7 +640,7 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         # Clear cloud cover info if available
         newest_clear_cloud_cover_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=polygon,
-            cloud_cover__lte=0
+            cloud_cover_percent__lte=0
         ).order_by("-acquisition_datetime").first()
 
         analytics = {
@@ -740,8 +740,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(
         if min_cloud_cover is not None and max_cloud_cover is not None:
             logger.debug(f"Cloud cover filters: {min_cloud_cover} to {max_cloud_cover}")
             cloud_cover_filters = (
-                Q(vendor_name__in="planet", cloud_cover__gte=min_cloud_cover / 100, cloud_cover__lte=max_cloud_cover / 100) |
-                Q(~Q(vendor_name__in=['planet', 'capella', 'skyfi-umbra']), cloud_cover__gte=min_cloud_cover, cloud_cover__lte=max_cloud_cover)
+                Q(~Q(vendor_name__in=['capella', 'skyfi-umbra']), cloud_cover_percent__gte=min_cloud_cover, cloud_cover_percent__lte=max_cloud_cover)
             )
 
             if min_cloud_cover == -1:

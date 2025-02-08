@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from core.utils import save_image_in_s3_and_get_url
 from rest_framework import viewsets
-from .models import SatelliteCaptureCatalog
+from .models import CollectionCatalog
 from .serializers import SatelliteCaptureCatalogSerializer
 from django.contrib.gis.geos import Point
 from django.contrib.gis.measure import D
@@ -34,7 +34,7 @@ class UploadImageView(APIView):
     
 @extend_schema(exclude=True)    
 class SatelliteCaptureCatalogViewSet(viewsets.ModelViewSet):
-    queryset = SatelliteCaptureCatalog.objects.all()
+    queryset = CollectionCatalog.objects.all()
     serializer_class = SatelliteCaptureCatalogSerializer
 
     def get_queryset(self):

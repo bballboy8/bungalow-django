@@ -1,0 +1,171 @@
+{
+    "id": "CAPELLA_C13_SP_SIDD_HH_20250208012605_20250208012618",
+    "bbox": [
+      51.60161966,
+      32.59515524,
+      51.65626089,
+      32.64040719
+    ],
+    "type": "Feature",
+    "links": [
+      {
+        "rel": "self",
+        "href": "https://0r1mdcwa5c.execute-api.us-west-2.amazonaws.com/prod/collections/capella-sidd/items/CAPELLA_C13_SP_SIDD_HH_20250208012605_20250208012618"
+      },
+      {
+        "rel": "canonical",
+        "href": "s3://cirrus-prod-data-27qi4kja7o84/capella-qa/2025/2/8/CAPELLA_C13_SP_SIDD_HH_20250208012605_20250208012618/CAPELLA_C13_SP_SIDD_HH_20250208012605_20250208012618.json",
+        "type": "application/json"
+      },
+      {
+        "rel": "parent",
+        "href": "https://0r1mdcwa5c.execute-api.us-west-2.amazonaws.com/prod/collections/capella-sidd"
+      },
+      {
+        "rel": "collection",
+        "href": "https://0r1mdcwa5c.execute-api.us-west-2.amazonaws.com/prod/collections/capella-sidd"
+      },
+      {
+        "rel": "root",
+        "href": "https://0r1mdcwa5c.execute-api.us-west-2.amazonaws.com/prod/"
+      }
+    ],
+    "assets": {
+      "HH": {
+        "type": "application/vnd.nitf",
+        "roles": [
+          "data"
+        ],
+        "title": "Data file",
+        "sar:polarizations": [
+          "HH"
+        ]
+      },
+      "log": {
+        "type": "text/plain",
+        "title": "Log"
+      },
+      "stats": {
+        "type": "application/json",
+        "title": "Stats"
+      },
+      "digest": {
+        "type": "application/json",
+        "title": "Digest File"
+      },
+      "timing": {
+        "type": "application/json",
+        "title": "Timing"
+      },
+      "preview": {
+        "href": "https://cirrus-prod-data-27qi4kja7o84.s3.us-west-2.amazonaws.com/capella-qa/2025/2/8/CAPELLA_C13_SP_GEO_HH_20250208012605_20250208012618/CAPELLA_C13_SP_GEO_HH_20250208012605_20250208012618_preview.tif",
+        "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+        "roles": [
+          "overview"
+        ],
+        "tiler": "https://tiler.capellaspace.com/cog/cirrus-prod-data-27qi4kja7o84/capella-qa/2025/2/8/CAPELLA_C13_SP_GEO_HH_20250208012605_20250208012618/CAPELLA_C13_SP_GEO_HH_20250208012605_20250208012618_preview.tif/max14/tiles/*?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90aWxlci5jYXBlbGxhc3BhY2UuY29tL2NvZy9jaXJydXMtcHJvZC1kYXRhLTI3cWk0a2phN284NC9jYXBlbGxhLXFhLzIwMjUvMi84L0NBUEVMTEFfQzEzX1NQX0dFT19ISF8yMDI1MDIwODAxMjYwNV8yMDI1MDIwODAxMjYxOC9DQVBFTExBX0MxM19TUF9HRU9fSEhfMjAyNTAyMDgwMTI2MDVfMjAyNTAyMDgwMTI2MThfcHJldmlldy50aWYvbWF4MTQvdGlsZXMvKiIsIkNvbmRpdGlvbiI6eyJEYXRlTGVzc1RoYW4iOnsiQVdTOkVwb2NoVGltZSI6MTczODk5NTE2OH19fV19&Key-Pair-Id=K1S663TLVXD1P0&Signature=ebPpFZHa568CSjT2Iu11Dmhx02hy28VeOsOBc4wOXcUBP~MDrvwWnfRS8gUfu5sdNm94L3lcIvtj0kpUzq1I6pSoBrtg4QScOxIbWssNL41nrUkeacwytyMWscaqG71o1MAVotcYNo5QT~1sEMBbqyHiQHYZ44KAC8AltQ2wVSJCm1KOItcEm8BFNk-nrro5Pn6s9LUo3U4TZyXOmwhBoNwNWqw9nxUWwAjJRkz3D5NVoGGety~aTAMsYQriQq3NBX-2qznQUD2PLkZSxcq1bLvOMnj36D7adBRR3kN~THphHehjh96CKKGl2lfwjs9gQUMfucqPTlP-sOS1kYfRxw__",
+        "title": "Preview image"
+      },
+      "profile": {
+        "type": "text/plain",
+        "title": "Profile Stats"
+      },
+      "thumbnail": {
+        "href": "https://cirrus-prod-data-27qi4kja7o84.s3.us-west-2.amazonaws.com/capella-qa/2025/2/8/CAPELLA_C13_SP_GEO_HH_20250208012605_20250208012618/CAPELLA_C13_SP_GEO_HH_20250208012605_20250208012618_thumb.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIA4NV3EREWRYXWLTPA%2F20250208%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20250208T051248Z&X-Amz-Expires=3600&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEG0aCXVzLXdlc3QtMiJHMEUCIQClUUUcpApbM0cbpTwRpdM8Cim%2B8YiwM1P6S6ys9OfTxQIgDirggTR%2BhH%2BLzT8U7r06n%2FVd0EdD2DyjMyT%2FD4eitCQqlAMIhv%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARACGgw4NTQwMTcyMTQ3NjUiDKGR3THwSrfQwphyqSroAr1USUC1EHiMLDHLrqBFX48v%2FuwKsqExcAtevOWPCeMdqPcx8cYJwsWDFDQkF3ehJS3fv0UDBj5bj0Vm0nxBUEZFRSVefMH1Dmu7qx6Tawu2REsWMpyFQlKlyV3fvGyeP7Lt2Tj9pSTFCTU1W7AAlMRpFAbCvYBF68XOXV%2BxNgZTUoDqtzAuB4pKzqj1L1Cv7NYoEhlTqK4kB6LtBIQbFCA8JtTE3DneAsLPYLRZF1x6ZZKQn6Sp8XZQMom0uIVcrnhiL4cqWaVs9hAdkXPwzEC%2B0xzyqIlrbxzCHqh8VYBZlB5w5oxaOYr7TVGJOlXJghvub0EeQkyoYsuZEB07tIr9KIxj%2F7iqbDgpxBbipOGvTW%2Fg9LVuomqw%2BodQk%2FU77BlYKTRc5Cqw%2FYIxVP3A9QrBVj%2FtQmNEv%2BOqKe8wWDSxHTmwEvNc5%2FQ2dqCZG4Pi%2FmFlOtr7MtyOQK5i7CSs8DU27XqCfXo0UjCVx5u9BjqdAaGLlFyVM%2BMcazg6FCgQRHXOuwuzMoVwjR51WhQI9gZVjo8jyP5XEtXcHDZTw65SC31jMQdc%2BI66ATcuR9KtQ1aXVQmg5IZHgj%2FREW8pU2biF4hp6ZOVXPFsiOzhOFWktOdfBB4FvpbmcPLNLo8%2FY70q%2BGVJj1LZRo%2Fof%2FIk4BXw3MNhtJPIjxezDyk95%2FaHuaw%2BAhUWb9PivPE81qs%3D&X-Amz-Signature=2e542fef79a68de20ee7c5297b3a0bfeef984aea518eecfd8f883b41017529cc&X-Amz-SignedHeaders=host&x-id=GetObject",
+        "type": "image/png",
+        "roles": [
+          "thumbnail"
+        ],
+        "title": "Thumbnail image"
+      },
+      "stats_plots": {
+        "type": "application/zip",
+        "title": "Stats Plots"
+      }
+    },
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            51.60178117,
+            32.59600091
+          ],
+          [
+            51.60161966,
+            32.64040719
+          ],
+          [
+            51.65544293,
+            32.63911943
+          ],
+          [
+            51.65626089,
+            32.59515524
+          ],
+          [
+            51.60178117,
+            32.59600091
+          ]
+        ]
+      ]
+    },
+    "collection": "capella-sidd",
+    "properties": {
+      "created": "2025-02-08T04:09:05.453Z",
+      "updated": "2025-02-08T04:09:05.453Z",
+      "datetime": "2025-02-08T01:26:12.096643Z",
+      "platform": "capella-13",
+      "proj:shape": [
+        18633,
+        18170
+      ],
+      "instruments": [
+        "capella-radar-13"
+      ],
+      "locale:time": "04:56:12.096642",
+      "end_datetime": "2025-02-08T01:26:18.408224Z",
+      "constellation": "capella",
+      "start_datetime": "2025-02-08T01:26:05.785062Z",
+      "locale:datetime": "2025-02-08T04:56:12.096642+0330",
+      "locale:timezone": "Asia/Tehran",
+      "sar:looks_range": 1,
+      "sat:orbit_state": "descending",
+      "view:look_angle": 42,
+      "sar:product_type": "SIDD",
+      "sar:looks_azimuth": 3,
+      "sar:polarizations": [
+        "HH"
+      ],
+      "capella:collect_id": "7b05c3bb-b75f-4fc7-848f-c811f1517887",
+      "sar:frequency_band": "X",
+      "capella:image_width": 4904.472393334215,
+      "processing:software": {
+        "Capella SAR Processor": "2.66.3"
+      },
+      "sar:instrument_mode": "spotlight",
+      "capella:image_length": 5085.282011943413,
+      "capella:squint_angle": -34.6,
+      "sar:center_frequency": 9.6,
+      "sar:resolution_range": 0.32,
+      "view:incidence_angle": 47.1,
+      "capella:billable_area": 24879936.37070719,
+      "capella:orbital_plane": 53,
+      "sar:resolution_azimuth": 0.56,
+      "sar:pixel_spacing_range": 0.27,
+      "sar:observation_direction": "left",
+      "sar:pixel_spacing_azimuth": 0.27,
+      "sar:looks_equivalent_number": 3,
+      "capella:resolution_ground_range": 0.43,
+      "capella:image_formation_algorithm": "backprojection"
+    },
+    "zoom_limit": "max14",
+    "stac_version": "0.9.0",
+    "stac_extensions": [
+      "sat",
+      "view",
+      "sar",
+      "processing",
+      "proj"
+    ]
+  }

@@ -4,7 +4,7 @@ import requests
 from core.services.airbus_catalog_api import get_acces_token
 from core.utils import save_image_in_s3_and_get_url
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory
+from core.models import CollectionCatalog, SatelliteDateRetrievalPipelineHistory
 from core.services.maxar_catalog_api import (
     upload_to_s3 as maxar_upload_to_s3,
     AUTH_TOKEN,
@@ -67,7 +67,7 @@ def get_airbus_record_images_by_ids(ids: List[str]):
                 record_id = image.get("id")
                 content = response.content
                 url = save_image_in_s3_and_get_url(content, record_id, "airbus")
-                SatelliteCaptureCatalog.objects.filter(vendor_id=record_id).update(
+                CollectionCatalog.objects.filter(vendor_id=record_id).update(
                     image_uploaded=True
                 )
                 return url
@@ -117,7 +117,7 @@ def get_maxar_record_images_by_ids(ids: List[str]):
                     url = maxar_upload_to_s3(feature, "maxar")  
 
                     if url:
-                        SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
+                        CollectionCatalog.objects.filter(vendor_id=feature_id).update(
                             image_uploaded=True
                         )
                     return url
@@ -162,7 +162,7 @@ def get_blacksky_record_images_by_ids(ids: List[str]):
 
                 s3_url = save_image_in_s3_and_get_url(response.content, feature_id, "blacksky")
 
-                SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
+                CollectionCatalog.objects.filter(vendor_id=feature_id).update(
                     image_uploaded=True
                 )
                 return s3_url
@@ -213,7 +213,7 @@ def get_planet_record_images_by_ids(ids: List[str]):
                 
                 # Update the database
                 if url:
-                    SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
+                    CollectionCatalog.objects.filter(vendor_id=feature_id).update(
                         image_uploaded=True
                     )
                 return url
@@ -258,7 +258,7 @@ def capella_celery_processing(all_features, final_urls):
 
                     # Update database
                     if url:
-                        SatelliteCaptureCatalog.objects.filter(vendor_id=feature_id).update(
+                        CollectionCatalog.objects.filter(vendor_id=feature_id).update(
                             image_uploaded=True
                         )
                     return url
@@ -410,7 +410,7 @@ def get_skyfi_record_images_by_ids(ids: List[str]):
                     content, filename, "skyfi-umbra"
                 )
                 if response_url:
-                    SatelliteCaptureCatalog.objects.filter(vendor_id=filename).update(
+                    CollectionCatalog.objects.filter(vendor_id=filename).update(
                         image_uploaded=True
                     )
                 archive["image_url"] = response_url

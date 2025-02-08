@@ -5,23 +5,17 @@ from dateutil import parser
 import math
 import shutil
 from decouple import config
-from core.serializers import (
-    SatelliteCaptureCatalogSerializer,
-    SatelliteDateRetrievalPipelineHistorySerializer,
-)
 from datetime import datetime
-from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
 from rasterio.io import MemoryFile
 from io import BytesIO
 from PIL import Image
-from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
-from django.db.utils import IntegrityError
-from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory, SatelliteCaptureCatalogMetadata
+from bungalowbe.utils import get_utc_time
+from core.models import SatelliteDateRetrievalPipelineHistory
 import pytz
 from core.services.utils import calculate_area_from_geojson
 
@@ -58,6 +52,14 @@ def get_acces_token():
         access_token = auth_response.json().get("access_token")
         return access_token
 
+def calculate_withhold(acquisition_datetime, publication_datetime):
+    """Calculate the holdback period based on acquisition and publication dates."""
+    try:
+        holdback = (publication_datetime - acquisition_datetime).total_seconds()
+        return holdback
+    except Exception as e:
+        logging.error(f"Failed to calculate holdback hours: {e}")
+        return -1
 
 
 
@@ -68,30 +70,33 @@ def process_features(all_features):
         try:
             properties = feature.get("properties", {})
             geometry = feature.get("geometry", {})
-            model_params = {
-                "acquisition_datetime": datetime.fromisoformat(
+            acquisition_datetime = datetime.fromisoformat(
                     properties.get("acquisitionDate").replace("Z", "+00:00")
-                ).replace(microsecond=0),
-                "cloud_cover": properties.get("cloudCover", ""),
+                ).replace(microsecond=0)
+            publication_datetime = datetime.fromisoformat(
+                    properties.get("publicationDate").replace("Z", "+00:00")
+                ).replace(microsecond=0)
+            model_params = {
+                "acquisition_datetime": acquisition_datetime,
+                "cloud_cover_percent": properties.get("cloudCover", ""),
                 "vendor_id": properties.get("id"),
                 "vendor_name": "airbus",
                 "sensor": properties.get("sensorType"),
                 "area": calculate_area_from_geojson(geometry, properties.get("id")),
-                "type": (
-                    "Day"
-                    if 6
-                    <= datetime.fromisoformat(
-                        properties.get("acquisitionDate").replace("Z", "+00:00")
-                    ).hour
-                    <= 18
-                    else "Night"
-                ),
                 "sun_elevation": properties.get("azimuthAngle"),
                 "resolution": f"{properties.get("resolution")}m",
                 "location_polygon": geometry,
                 "coordinates_record": geometry,
                 "metadata": feature,
                 "gsd": float(properties.get("resolution")),
+                'offnadir': float(properties.get("incidenceAngle")),
+                "constellation": properties.get("constellation"),
+                "platform": properties.get("platform"),
+                "azimuth_angle": properties.get("azimuthAngle"),
+                "illumination_azimuth_angle": properties.get("illuminationAzimuthAngle"),
+                "illumination_elevation_angle": properties.get("illuminationElevationAngle"),
+                "publication_datetime": publication_datetime,
+                "holdback_seconds": calculate_withhold(acquisition_datetime, publication_datetime),
             }
             converted_features.append(model_params)
             download_thumbnails_dict = {
@@ -103,7 +108,10 @@ def process_features(all_features):
         except Exception as e:
             logging.error(f"Failed to process feature: {e}")
             pass
-    return converted_features, thumbnail_urls
+    converted_features = sorted(
+        converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
+    )
+    return converted_features[::-1], thumbnail_urls
 
 def upload_to_s3(feature, access_token, folder="thumbnails"):
     """Downloads an image from the URL in the feature and uploads it to S3."""
@@ -150,68 +158,6 @@ def download_and_upload_images(images, path, access_token, max_workers=5):
                     print(f"Failed to upload image for feature {feature.get('id')}")
             except Exception as e:
                 print(f"Exception occurred for feature {feature.get('id')}: {e}")
-
-def process_database_catalog(features, start_time, end_time, batch_size=100):
-    valid_features = []
-    invalid_features = []
-    metadata = []
-
-    for feature in features:
-        serializer = SatelliteCaptureCatalogSerializer(data=feature)
-        if serializer.is_valid():
-            valid_features.append(serializer.validated_data)
-        else:
-            print(f"Error in serializer: {serializer.errors}")
-            invalid_features.append(feature)
-        metadata.append(
-            {
-                "vendor_name": feature["vendor_name"],
-                "vendor_id": feature["vendor_id"],
-                "acquisition_datetime": feature["acquisition_datetime"],
-                "metadata": feature["metadata"],
-            }
-        )
-    print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
-
-    if valid_features:
-        try:
-            SatelliteCaptureCatalog.objects.bulk_create(
-                [SatelliteCaptureCatalog(**feature) for feature in valid_features]
-            )
-            SatelliteCaptureCatalogMetadata.objects.bulk_create(
-                [SatelliteCaptureCatalogMetadata(**meta) for meta in metadata]
-            )
-        except IntegrityError as e:
-            print(f"Error during bulk insert: {e}")
-
-    if not valid_features:
-        print(f"No records Found for {start_time} to {end_time}")
-        return
-
-    try:
-        last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
-
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "airbus",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def get_polygon_bounding_box(polygon):
@@ -285,7 +231,7 @@ def airbus_catalog_api(bbox, start_date, end_date, current_page, access_token):
         return False
 
 
-def search_images(bbox, start_date, end_date):
+def search_images(bbox, start_date, end_date, is_bulk=False):
     """Search for images in the Airbus OneAtlas catalog."""
     all_features = []
     access_token = get_acces_token()
@@ -325,7 +271,7 @@ def search_images(bbox, start_date, end_date):
         
         data, images = process_features(all_features)
         # download_and_upload_images(images, access_token, "airbus/thumbnails")
-        process_database_catalog(data, start_date.isoformat(), end_date.isoformat())
+        process_database_catalog(data, start_date.isoformat(), end_date.isoformat(), "airbus", is_bulk)
         print("Completed Processing Airbus: Total Items: {}".format(total_items))
     else:
         logging.error(f"Failed to authenticate")
@@ -352,13 +298,13 @@ def run_airbus_catalog_api():
 
     END_DATE = get_utc_time()
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-    response = search_images(BBOX, START_DATE, END_DATE)
+    response = search_images(BBOX, START_DATE, END_DATE, False)
     return response
 
 def run_airbus_catalog_api_bulk():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2024, 12, 6, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2024, 12, 14, tzinfo=pytz.utc)
+    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:
@@ -366,7 +312,7 @@ def run_airbus_catalog_api_bulk():
         print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
         month_start_time = time.time()
         
-        response = search_images(BBOX, START_DATE, END_DATE)
+        response = search_images(BBOX, START_DATE, END_DATE, True)
         month_end_time = time.time()
         print(f"Time taken to process the interval: {month_end_time - month_start_time}")
 

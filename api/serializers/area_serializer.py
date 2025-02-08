@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from core.models import SatelliteCaptureCatalog, time_ranges
+from core.models import time_ranges, CollectionCatalog
 from shapely.geometry import shape
 from pyproj import Geod
 import shapely.wkt
@@ -38,7 +38,7 @@ class SatelliteCaptureCatalogListSerializer(serializers.ModelSerializer):
     address = serializers.CharField(required=False, allow_blank=True)
     nearest_site = serializers.JSONField(required=False)
     class Meta:
-        model = SatelliteCaptureCatalog
+        model = CollectionCatalog
         exclude = ["location_polygon", "created_at", "updated_at"]
 
     def to_representation(self, instance):

@@ -1,0 +1,26 @@
+{
+    "gsd": 35,
+    "maxSqKm": 25,
+    "minSqKm": 25,
+    "openData": false,
+    "provider": "UMBRA",
+    "tilesUrl": "https://metadata-tiles.skyfi.com/rgb/52e08244-b981-4a94-8420-92e8aa9ff205/{z}/{x}/{y}.png?r=r&g=g&b=b",
+    "archiveId": "da82071a-7c6f-4c12-982f-27dff5b77df1",
+    "footprint": "POLYGON((46.19573083092475 2.920548648219262,46.23551361597506 2.899453073855218,46.25649663896475 2.939451059770488,46.21671283469454 2.960547367778891,46.19573083092475 2.920548648219262))",
+    "resolution": "SUPER HIGH",
+    "overlapSqkm": 25,
+    "productType": "SAR",
+    "overlapRatio": 0.000056466337502551715,
+    "constellation": "UMBRA-ARCH-03",
+    "offNadirAngle": 35.13005828857422,
+    "thumbnailUrls": {
+      "300x300": "https://thumbnails.skyfi.com/e8300412f72882a9ee3d6f7b385f9afda4e6fab8f77a86f9bfcd925116e233fe9e34432c98c7821f948c38e48291fc67e0f484f86e5382bf72677a753f35417d.png"
+    },
+    "priceFullScene": 2200,
+    "captureTimestamp": "2025-02-07T10:49:16+03:00",
+    "deliveryTimeHours": 24,
+    "totalAreaSquareKm": 25,
+    "platformResolution": 35,
+    "priceForOneSquareKm": 88,
+    "cloudCoveragePercent": 0
+  }

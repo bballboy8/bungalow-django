@@ -4,14 +4,10 @@ from tqdm import tqdm
 import math
 import shutil
 from decouple import config
-from core.serializers import (
-    SatelliteCaptureCatalogSerializer,
-    SatelliteDateRetrievalPipelineHistorySerializer,
-)
 from datetime import datetime
 from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -20,7 +16,7 @@ from io import BytesIO
 from PIL import Image
 from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
 from django.db.utils import IntegrityError
-from core.models import SatelliteCaptureCatalog, SatelliteDateRetrievalPipelineHistory, SatelliteCaptureCatalogMetadata
+from core.models import SatelliteDateRetrievalPipelineHistory, CollectionCatalog
 import pytz
 from core.services.utils import calculate_area_from_geojson
 
@@ -63,67 +59,6 @@ def get_blacksky_collections(
     return None
 
 
-def process_database_catalog(features, start_time, end_time):
-    valid_features = []
-    invalid_features = []
-    metadata = []
-
-    for feature in features:
-        serializer = SatelliteCaptureCatalogSerializer(data=feature)
-        if serializer.is_valid():
-            valid_features.append(serializer.validated_data)
-        else:
-            print(f"Error in serializer: {serializer.errors}")
-            invalid_features.append(feature)
-        metadata.append(
-            {
-                "vendor_name": feature["vendor_name"],
-                "vendor_id": feature["vendor_id"],
-                "acquisition_datetime": feature["acquisition_datetime"],
-                "metadata": feature["metadata"],
-            }
-        )
-    
-    print(f"Total records: {len(features)}, Valid records: {len(valid_features)}, Invalid records: {len(invalid_features)}")
-    if valid_features:
-        try:
-            SatelliteCaptureCatalog.objects.bulk_create(
-                [SatelliteCaptureCatalog(**feature) for feature in valid_features]
-            )
-            SatelliteCaptureCatalogMetadata.objects.bulk_create(
-                [SatelliteCaptureCatalogMetadata(**feature) for feature in metadata]
-            )
-        except IntegrityError as e:
-            print(f"Error during bulk insert: {e}")
-
-    if not valid_features:
-        print(f"No records Found for {start_time} to {end_time}")
-        return
-
-    try:
-        last_acquisition_datetime = valid_features[-1]["acquisition_datetime"]
-        last_acquisition_datetime = datetime.strftime(
-            last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
-        )
-    except Exception as e:
-        last_acquisition_datetime = end_time
-
-    history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
-        data={
-            "start_datetime": convert_iso_to_datetime(start_time),
-            "end_datetime": convert_iso_to_datetime(last_acquisition_datetime),
-            "vendor_name": "blacksky",
-            "message": {
-                "total_records": len(features),
-                "valid_records": len(valid_features),
-                "invalid_records": len(invalid_features),
-            },
-        }
-    )
-    if history_serializer.is_valid():
-        history_serializer.save()
-    else:
-        print(f"Error in history serializer: {history_serializer.errors}")
 
 
 def get_polygon_bounding_box(polygon):
@@ -224,24 +159,16 @@ def convert_to_model_params(features):
     response = []
     for feature in features:
         try:
+            acquisition_datetime = datetime.fromisoformat(
+                feature["properties"]["datetime"].replace("Z", "+00:00")
+            )
             model_params = {
-                "acquisition_datetime": datetime.fromisoformat(
-                    feature["properties"]["datetime"].replace("Z", "+00:00")
-                ),
-                "cloud_cover": feature["properties"]["cloudPercent"],
+                "acquisition_datetime": acquisition_datetime,
+                "cloud_cover_percent": feature["properties"]["cloudPercent"],
                 "vendor_id": feature["id"],
                 "vendor_name": "blacksky",
                 "sensor": feature["properties"]["sensorId"],
                 "area": calculate_area_from_geojson(feature["geometry"], feature["id"]),
-                "type": (
-                    "Day"
-                    if 6
-                    <= datetime.fromisoformat(
-                        feature["properties"]["datetime"].replace("Z", "+00:00")
-                    ).hour
-                    <= 18
-                    else "Night"
-                ),
                 "sun_elevation": feature["properties"]["sunAzimuth"],
                 "resolution": f"{feature['properties']['gsd']}m",
                 "georeferenced": feature["properties"]["georeferenced"],
@@ -249,14 +176,25 @@ def convert_to_model_params(features):
                 "coordinates_record": feature["geometry"],
                 "metadata": feature,
                 "gsd": float(feature["properties"]["gsd"]),
+                "constellation": str(feature["id"])[:7],
+                "platform": feature["properties"]["vendorId"],
+                "offnadir" : feature["properties"]["offNadirAngle"],
+                "azimuth_angle" : None,
+                "illumination_azimuth_angle": feature["properties"]["sunAzimuth"],
+                "illumination_elevation_angle": None,
+                "holdback_seconds": None,
+                "publication_datetime": None,
             }
             response.append(model_params)
         except Exception as e:
             print(e)
-    return response
+    converted_features = sorted(
+        response, key=lambda x: x["acquisition_datetime"], reverse=True
+    )
+    return converted_features[::-1]
 
 
-def fetch_and_process_records(auth_token, bbox, start_time, end_time, last_scene_id):
+def fetch_and_process_records(auth_token, bbox, start_time, end_time, last_scene_id, is_bulk):
     """Fetches records from the BlackSky API and processes them."""
     all_records = []
     last_record_scene_id = last_scene_id
@@ -284,11 +222,11 @@ def fetch_and_process_records(auth_token, bbox, start_time, end_time, last_scene
     print(len(all_records))
     # download_and_upload_images(all_records, "blacksky/thumbnails")
     converted_features = convert_to_model_params(all_records)
-    process_database_catalog(converted_features, start_time, end_time)
+    process_database_catalog(converted_features, start_time, end_time, "blacksky", is_bulk)
     return len(all_records)
 
 
-def main(START_DATE, END_DATE, BBOX, last_scene_id):
+def main(START_DATE, END_DATE, BBOX, last_scene_id, is_bulk):
     bboxes = [BBOX]
     current_date = START_DATE
     end_date = END_DATE
@@ -311,7 +249,7 @@ def main(START_DATE, END_DATE, BBOX, last_scene_id):
 
         for bbox in bboxes:
             response = fetch_and_process_records(
-                AUTH_TOKEN, bbox, start_time, end_time, last_scene_id
+                AUTH_TOKEN, bbox, start_time, end_time, last_scene_id, is_bulk
             )
             if response:
                 total_records += response
@@ -339,7 +277,7 @@ def run_blacksky_catalog_api():
     else:
         START_DATE = START_DATE.end_datetime
         last_scene_id = (
-            SatelliteCaptureCatalog.objects.filter(vendor_name="blacksky")
+            CollectionCatalog.objects.filter(vendor_name="blacksky")
             .order_by("-acquisition_datetime")
             .first()
             .vendor_id
@@ -348,31 +286,20 @@ def run_blacksky_catalog_api():
 
     END_DATE = get_utc_time()
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
-    response = main(START_DATE, END_DATE, BBOX, last_scene_id)
+    response = main(START_DATE, END_DATE, BBOX, last_scene_id, False)
     return response
 
 def run_blacksky_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2024, 12, 19, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2024, 12, 21, tzinfo=pytz.utc)
+    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:
         END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
         print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
         month_start_time = time.time()
-        
-        last_scene_id = (
-            SatelliteCaptureCatalog.objects.filter(vendor_name="blacksky" , id__gte=9533584)
-            .order_by("-acquisition_datetime")
-            .first()
-        )
-        if not last_scene_id:
-            last_scene_id = None
-        else:
-            last_scene_id = last_scene_id.vendor_id
-
-        response = main(START_DATE, END_DATE, BBOX, last_scene_id)
+        response = main(START_DATE, END_DATE, BBOX, None, True)
         month_end_time = time.time()
         print(f"Time taken to process the interval: {month_end_time - month_start_time}")
 

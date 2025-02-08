@@ -3,7 +3,7 @@ from logging_module import logger
 import shapely.wkt
 from pyproj import Geod
 from api.services.area_service import convert_geojson_to_wkt
-from core.models import SatelliteCaptureCatalog
+from core.models import CollectionCatalog
 from django.contrib.gis.geos import Polygon
 from django.db.models import Count
 from datetime import datetime, timedelta
@@ -33,7 +33,7 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, 
         for site in sites:
             coordinates = site.coordinates_record["coordinates"][0]
             polygon = Polygon(coordinates)
-            captures = SatelliteCaptureCatalog.objects.filter(location_polygon__intersects=polygon)
+            captures = CollectionCatalog.objects.filter(location_polygon__intersects=polygon)
 
             total_records = captures.count()
             most_recent_capture = captures.order_by("-acquisition_datetime").first()
@@ -239,7 +239,7 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
                 total_surface_area += site.site_area
                 coordinates = site.site.coordinates_record['coordinates'][0]
                 polygon = Polygon(coordinates)
-                count = SatelliteCaptureCatalog.objects.filter(location_polygon__intersects=polygon).count()
+                count = CollectionCatalog.objects.filter(location_polygon__intersects=polygon).count()
                 total_objects += count
                 site_objects_count[site.site.id] = count
         

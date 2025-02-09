@@ -549,13 +549,17 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
 
         vendor_count = {vendor['vendor_name']: vendor['count'] for vendor in vendor_counts}
 
-        total_vendor_count = sum(vendor_count.values())
+        total_count = CollectionCatalog.objects.filter(
+            location_polygon__intersects=buffered_polygon,
+            acquisition_datetime__gte=now() - timedelta(days=90)
+        ).count()
+
+        avg_count = total_count / 90
 
         analytics = {
             "vendor_count": vendor_count,
-            "total_count": total_vendor_count,
-            "average_per_day": total_vendor_count /
-                               (now() - longest_period_start).days,
+            "total_count": total_count,
+            "average_per_day": avg_count,
             "oldest_date": longest_period_start,
             "newest_info": NewestInfoSerializer(newest_record_instance).data if newest_record_instance else None,
             "newest_clear_cloud_cover_info": NewestInfoSerializer(newest_clear_cloud_cover_instance).data if newest_clear_cloud_cover_instance else None,
@@ -635,6 +639,12 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
                 days, current_count, previous_count, percentage_change = future.result()
                 results[days] = {"current_count": current_count, "previous_count": previous_count, "percentage_change": percentage_change}
 
+        total_count = CollectionCatalog.objects.filter(
+            location_polygon__intersects=polygon,
+            acquisition_datetime__gte=now() - timedelta(days=90)
+        ).count()
+        avg_count = total_count / 90
+
         # Get the newest image record (preferably clear cloud cover if available)
         newest_record_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=polygon
@@ -647,8 +657,8 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         ).order_by("-acquisition_datetime").first()
 
         analytics = {
-            "total_count": sum(result["current_count"] for result in results.values()),
-            "average_per_day": sum(result["current_count"] for result in results.values()) / (now() - longest_period_start).days,
+            "total_count": total_count,
+            "average_per_day": avg_count,
             "oldest_date": longest_period_start,
             "oldest_info": OldestInfoSerializer(oldest_record_instance).data if oldest_record_instance else None,
             "newest_info": NewestInfoSerializer(newest_record_instance).data if newest_record_instance else None,

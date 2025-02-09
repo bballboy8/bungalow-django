@@ -39,7 +39,7 @@ class SatelliteCaptureCatalogListSerializer(serializers.ModelSerializer):
     nearest_site = serializers.JSONField(required=False)
     class Meta:
         model = CollectionCatalog
-        exclude = ["location_polygon", "created_at", "updated_at"]
+        exclude = ["location_polygon", "created_at", "updated_at", "metadata"]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

@@ -151,6 +151,64 @@ satellite_capture_catalog_params = [
         location=OpenApiParameter.QUERY,
         description="User duration type Example: morning, midday, evening, overnight"
     ),
+    OpenApiParameter(
+        name="min_azimuth_angle",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=-1,
+        description="Filter records by minimum azimuth angle",
+    ),
+    OpenApiParameter(
+        name="max_azimuth_angle",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=360,
+        description="Filter records by maximum azimuth angle",
+    ),
+    OpenApiParameter(
+        name="min_illumination_azimuth_angle",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=-1,
+        description="Filter records by minimum illumination azimuth angle",
+    ),
+    OpenApiParameter(
+        name="max_illumination_azimuth_angle",
+        type=float,
+        location
+        =OpenApiParameter.QUERY,
+        default=360,
+        description="Filter records by maximum illumination azimuth angle",
+    ),
+    OpenApiParameter(
+        name="min_illumination_elevation_angle",
+        type=float,
+        location=OpenApiParameter.QUERY,
+        default=-1,
+        description="Filter records by minimum illumination elevation angle",
+    ),
+    OpenApiParameter(
+        name="max_illumination_elevation_angle",
+        type=float,
+        location
+        =OpenApiParameter.QUERY,
+        default=360,
+        description="Filter records by maximum illumination elevation angle",
+    ),
+    OpenApiParameter(
+        name="min_holdback_seconds",
+        type=int,
+        location=OpenApiParameter.QUERY,
+        default=-1,
+        description="Filter records by minimum holdback seconds",
+    ),
+    OpenApiParameter(
+        name="max_holdback_seconds",
+        type=int,
+        location=OpenApiParameter.QUERY,
+        default=5000000,
+        description="Filter records by maximum holdback seconds",
+    ),
 ]
 
 

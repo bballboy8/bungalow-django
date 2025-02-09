@@ -97,13 +97,23 @@ class SatelliteCaptureCatalogView(APIView):
             user_timezone = request.query_params.get("user_timezone")
             user_duration_type = request.query_params.get("user_duration_type")
 
+            # New Filters, azimuth_angle, illumination_azimuth_angle, illumination_elevation_angle, publication_datetime, holdback_seconds
+
+            min_azimuth_angle = float(request.query_params.get("min_azimuth_angle"))
+            max_azimuth_angle = float(request.query_params.get("max_azimuth_angle"))
+            min_illumination_azimuth_angle = float(request.query_params.get("min_illumination_azimuth_angle"))
+            max_illumination_azimuth_angle = float(request.query_params.get("max_illumination_azimuth_angle"))
+            min_illumination_elevation_angle = float(request.query_params.get("min_illumination_elevation_angle"))
+            max_illumination_elevation_angle = float(request.query_params.get("max_illumination_elevation_angle"))
+            min_holdback_seconds = int(request.query_params.get("min_holdback_seconds"))
+            max_holdback_seconds = int(request.query_params.get("max_holdback_seconds"))
+
 
             if user_duration_type:
                 for duration in str(user_duration_type).split(","):
                     if duration not in time_ranges:
                         return Response({"data": f"Duration not valid", "status_code": 400, "error": f"Duration not valid"}, status=400)
 
-            # filters list: gsd
 
             # Request body
             wkt_polygon = request.data.get("wkt_polygon", None)
@@ -118,6 +128,16 @@ class SatelliteCaptureCatalogView(APIView):
             logger.info(f"Min GSD: {min_gsd}, Max GSD: {max_gsd}")
 
             logger.info(f"Focused Records IDs: {focused_records_ids}")
+
+            logger.info(f"User Timezone: {user_timezone}, User Duration Type: {user_duration_type}")
+
+            logger.info(f"Min Azimuth Angle: {min_azimuth_angle}, Max Azimuth Angle: {max_azimuth_angle}")
+
+            logger.info(f"Min Illumination Azimuth Angle: {min_illumination_azimuth_angle}, Max Illumination Azimuth Angle: {max_illumination_azimuth_angle}")
+
+            logger.info(f"Min Illumination Elevation Angle: {min_illumination_elevation_angle}, Max Illumination Elevation Angle: {max_illumination_elevation_angle}")
+
+            logger.info(f"Min Holdback Seconds: {min_holdback_seconds}, Max Holdback Seconds: {max_holdback_seconds}")
 
             service_response = get_satellite_records(
                 page_number=page_number,
@@ -143,7 +163,15 @@ class SatelliteCaptureCatalogView(APIView):
                 max_gsd=max_gsd,
                 focused_records_ids=focused_records_ids,
                 user_timezone=user_timezone,
-                user_duration_type=user_duration_type
+                user_duration_type=user_duration_type,
+                min_azimuth_angle=min_azimuth_angle,
+                max_azimuth_angle=max_azimuth_angle,
+                min_illumination_azimuth_angle=min_illumination_azimuth_angle,
+                max_illumination_azimuth_angle=max_illumination_azimuth_angle,
+                min_illumination_elevation_angle=min_illumination_elevation_angle,
+                max_illumination_elevation_angle=max_illumination_elevation_angle,
+                min_holdback_seconds=min_holdback_seconds,
+                max_holdback_seconds=max_holdback_seconds
             )
 
             if service_response["status_code"] != 200:

@@ -111,7 +111,14 @@ def get_satellite_records(
     focused_records_ids: str = None,
     user_timezone: str = None,
     user_duration_type: str = None,
-    
+    min_azimuth_angle: float = None,
+    max_azimuth_angle: float = None,
+    min_illumination_azimuth_angle: float = None,
+    max_illumination_azimuth_angle: float = None,
+    min_illumination_elevation_angle: float = None,
+    max_illumination_elevation_angle: float = None,
+    min_holdback_seconds: int = None,
+    max_holdback_seconds: int = None,
 ):
     logger.info("Inside get satellite records service")
     start_time = datetime.now()
@@ -140,6 +147,38 @@ def get_satellite_records(
                     D(km=distance),
                 )
             )
+
+        if min_azimuth_angle is not None and max_azimuth_angle is not None:
+            logger.debug(f"Azimuth angle filters: {min_azimuth_angle} to {max_azimuth_angle}")
+            azimuth_angle_filters = Q(azimuth_angle__gte=min_azimuth_angle, azimuth_angle__lte=max_azimuth_angle)
+            filters &= azimuth_angle_filters
+
+            if min_azimuth_angle == -1:
+                filters |= Q(azimuth_angle__isnull=True)
+
+        if min_illumination_azimuth_angle is not None and max_illumination_azimuth_angle is not None:
+            logger.debug(f"Illumination azimuth angle filters: {min_illumination_azimuth_angle} to {max_illumination_azimuth_angle}")
+            illumination_azimuth_angle_filters = Q(illumination_azimuth_angle__gte=min_illumination_azimuth_angle, illumination_azimuth_angle__lte=max_illumination_azimuth_angle)
+            filters &= illumination_azimuth_angle_filters
+
+            if min_illumination_azimuth_angle == -1:
+                filters |= Q(illumination_azimuth_angle__isnull=True)
+
+        if min_illumination_elevation_angle is not None and max_illumination_elevation_angle is not None:
+            logger.debug(f"Illumination elevation angle filters: {min_illumination_elevation_angle} to {max_illumination_elevation_angle}")
+            illumination_elevation_angle_filters = Q(illumination_elevation_angle__gte=min_illumination_elevation_angle, illumination_elevation_angle__lte=max_illumination_elevation_angle)
+            filters &= illumination_elevation_angle_filters
+
+            if min_illumination_elevation_angle == -1:
+                filters |= Q(illumination_elevation_angle__isnull=True)
+
+        if min_holdback_seconds is not None and max_holdback_seconds is not None:
+            logger.debug(f"Holdback seconds filters: {min_holdback_seconds} to {max_holdback_seconds}")
+            holdback_seconds_filters = Q(holdback_seconds__gte=min_holdback_seconds, holdback_seconds__lte=max_holdback_seconds)
+            filters &= holdback_seconds_filters
+
+            if min_holdback_seconds == -1:
+                filters |= Q(holdback_seconds__isnull=True)
 
         if user_timezone and user_duration_type:
             selected_durations = [d.strip() for d in user_duration_type.split(",") if d.strip()]

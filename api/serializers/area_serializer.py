@@ -113,6 +113,13 @@ class NewestInfoSerializer(serializers.Serializer):
     acquisition_datetime = serializers.DateTimeField()
     cloud_cover_percent = serializers.FloatField()
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if "cloud_cover_percent" in data:
+            data["cloud_cover"] = data["cloud_cover_percent"]
+        return data
+
+
 class OldestInfoSerializer(serializers.Serializer):
     # id, vendor, vendor_id, acquisition_datetime, cloud_coverage
     id = serializers.CharField()
@@ -120,6 +127,12 @@ class OldestInfoSerializer(serializers.Serializer):
     vendor_id = serializers.CharField()
     acquisition_datetime = serializers.DateTimeField()
     cloud_cover_percent = serializers.FloatField()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if "cloud_cover_percent" in data:
+            data["cloud_cover"] = data["cloud_cover_percent"]
+        return data
 
 class PolygonSelectionAnalyticsAndLocationSerializer(serializers.Serializer):
     polygon_wkt = serializers.CharField()

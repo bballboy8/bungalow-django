@@ -576,3 +576,88 @@ class GetGroupSiteByGroupIdView(APIView):
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+class GetGroupstListWithoutNestingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="search",
+                type=str,
+                description="Search groups by name.",
+            )
+        ],
+        description="Retrieve all groups without nesting",
+        responses={
+            200: OpenApiResponse(
+                description="Groups successfully retrieved.",
+            ),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def get(self, request):
+        try:
+            logger.info("Fetching all groups without nesting")
+
+            search = request.query_params.get("search")
+
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
+            groups = get_groups_list_without_nesting(search)
+            return Response(groups, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error fetching groups without nesting: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class RemoveGroupsandItsNestedGroupAndSitesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Remove a group and its nested groups and sites",
+        parameters=[
+            OpenApiParameter(
+                name="group_id",
+                type=int,
+                description="ID of the group to be removed.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                description="Group and its nested groups and sites removed successfully.",
+            ),
+            400: OpenApiResponse(description="Invalid input"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def delete(self, request):
+        try:
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+            logger.info("Removing group and its nested groups and sites")
+            
+            group_id = request.query_params.get("group_id")
+            response = remove_group_and_its_sites(group_id)
+            print(response)
+            return Response(
+                {"message": "Group and its nested groups and sites removed successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.error(f"Error removing group and its nested groups and sites: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

@@ -465,3 +465,70 @@ def get_full_hierarchy_by_group(group):
         "total_objects": area_response["data"]["total_objects"],
         "subgroups": [get_full_hierarchy(child) for child in children],
     }
+
+def get_groups_list_without_nesting(search:str):
+    try:
+        query_filter = Q(is_deleted=False)
+        if search:
+            query_filter &= Q(name__icontains=search)
+        groups = Group.objects.filter(query_filter)
+        group_list = []
+        for group in groups:
+            group_list.append(
+                {
+                    "id": group.id,
+                    "name": group.name,
+                    "created_at": group.created_at
+                }
+            )
+        return {
+            "data": group_list,
+            "message": "Groups fetched successfully",
+            "status_code": 200,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching groups: {str(e)}")
+        return {
+            "data": [],
+            "message": f"Error fetching groups: {str(e)}",
+            "status_code": 500,
+            "error": f"Error fetching groups: {str(e)}",
+        }
+    
+
+def remove_group_and_its_sites(group_id: int):
+    """
+    Remove a group and all its sites.
+    """
+    try:
+        logger.info(f"Removing group and its sites: {group_id}")
+        group = Group.objects.filter(id=group_id, is_deleted=False).first()
+        if not group:
+            return {"error": "Group not found", "status_code": 404}
+
+        # Get all subgroups recursively
+        all_groups = [group] + get_subgroups_recursive(group)
+
+        # Now go through each group and delete all sites
+        for group in all_groups:
+            sites = GroupSite.objects.filter(group=group)
+            for site in sites:
+                site.is_deleted = True
+                site.save()
+
+            group.is_deleted = True
+            group.save()
+        
+        return {
+            "message": "Group and its sites removed successfully",
+            "status_code": 200,
+        }
+    except Exception as e:
+        logger.error(f"Error removing group and its sites: {str(e)}")
+        return {
+            "data": None,
+            "message": f"Error removing group and its sites {e}",
+            "status_code": 500,
+            "error": f"Error removing group and its sites: {str(e)}",
+        }
+    

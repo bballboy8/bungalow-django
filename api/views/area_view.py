@@ -99,14 +99,14 @@ class SatelliteCaptureCatalogView(APIView):
 
             # New Filters, azimuth_angle, illumination_azimuth_angle, illumination_elevation_angle, publication_datetime, holdback_seconds
 
-            min_azimuth_angle = float(request.query_params.get("min_azimuth_angle"))
-            max_azimuth_angle = float(request.query_params.get("max_azimuth_angle"))
-            min_illumination_azimuth_angle = float(request.query_params.get("min_illumination_azimuth_angle"))
-            max_illumination_azimuth_angle = float(request.query_params.get("max_illumination_azimuth_angle"))
-            min_illumination_elevation_angle = float(request.query_params.get("min_illumination_elevation_angle"))
-            max_illumination_elevation_angle = float(request.query_params.get("max_illumination_elevation_angle"))
-            min_holdback_seconds = int(request.query_params.get("min_holdback_seconds"))
-            max_holdback_seconds = int(request.query_params.get("max_holdback_seconds"))
+            min_azimuth_angle = float(request.query_params.get("min_azimuth_angle", -1))
+            max_azimuth_angle = float(request.query_params.get("max_azimuth_angle", 360))
+            min_illumination_azimuth_angle = float(request.query_params.get("min_illumination_azimuth_angle", -1))
+            max_illumination_azimuth_angle = float(request.query_params.get("max_illumination_azimuth_angle", 360))
+            min_illumination_elevation_angle = float(request.query_params.get("min_illumination_elevation_angle", -1))
+            max_illumination_elevation_angle = float(request.query_params.get("max_illumination_elevation_angle", 360))
+            min_holdback_seconds = int(request.query_params.get("min_holdback_seconds", -1))
+            max_holdback_seconds = int(request.query_params.get("max_holdback_seconds", 5000000))
 
 
             if user_duration_type:

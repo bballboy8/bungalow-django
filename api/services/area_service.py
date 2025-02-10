@@ -137,8 +137,6 @@ def get_satellite_records(
         if end_date:
             filters &= Q(acquisition_datetime__lte=end_date)
 
-        if vendor_id:
-            filters &= Q(vendor_id=vendor_id)
 
         if latitude and longitude and distance:
             filters &= Q(
@@ -238,6 +236,9 @@ def get_satellite_records(
             gsd_filters = Q(gsd__gte=min_gsd, gsd__lte=max_gsd)
             filters &= gsd_filters
 
+        if vendor_id:
+            filters &= Q(vendor_id=vendor_id)
+
         # Prioritized records first
         focused_captures = []
         if focused_records_ids:
@@ -276,6 +277,7 @@ def get_satellite_records(
                 return {"data": str(e), "status_code": 400}
 
         excluded_ids = [record.id for record in zoomed_captures] + [record.id for record in focused_captures]
+        print(filters)
         captures = captures.filter(filters).exclude(id__in=excluded_ids)
         if sort_by and sort_order:
             captures = (

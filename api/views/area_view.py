@@ -393,10 +393,20 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             user_timezone = request.query_params.get("user_timezone")
             user_duration_type = request.query_params.get("user_duration_type")
 
+
             if user_duration_type:
                 for duration in str(user_duration_type).split(","):
                     if duration not in time_ranges:
                         return Response({"data": f"Duration not valid", "status_code": 400, "error": f"Duration not valid"}, status=400)
+                    
+            min_azimuth_angle = (request.query_params.get("min_azimuth_angle"))
+            max_azimuth_angle = (request.query_params.get("max_azimuth_angle"))
+            min_illumination_azimuth_angle = (request.query_params.get("min_illumination_azimuth_angle"))
+            max_illumination_azimuth_angle = (request.query_params.get("max_illumination_azimuth_angle"))
+            min_illumination_elevation_angle = (request.query_params.get("min_illumination_elevation_angle"))
+            max_illumination_elevation_angle = (request.query_params.get("max_illumination_elevation_angle"))
+            min_holdback_seconds = (request.query_params.get("min_holdback_seconds"))
+            max_holdback_seconds = (request.query_params.get("max_holdback_seconds"))
 
             if not polygon_wkt:
                 return Response(
@@ -421,7 +431,15 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
                 min_gsd=min_gsd,
                 max_gsd=max_gsd,
                 user_timezone=user_timezone,
-                user_duration_type=user_duration_type
+                user_duration_type=user_duration_type,
+                min_azimuth_angle=min_azimuth_angle,
+                max_azimuth_angle=max_azimuth_angle,
+                min_illumination_azimuth_angle=min_illumination_azimuth_angle,
+                max_illumination_azimuth_angle=max_illumination_azimuth_angle,
+                min_illumination_elevation_angle=min_illumination_elevation_angle,
+                max_illumination_elevation_angle=max_illumination_elevation_angle,
+                min_holdback_seconds=min_holdback_seconds,
+                max_holdback_seconds=max_holdback_seconds
             )
 
             if service_response["status_code"] != 200:

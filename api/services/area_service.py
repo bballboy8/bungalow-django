@@ -139,6 +139,7 @@ def get_satellite_records(
 
 
         if latitude and longitude and distance:
+            latitude, longitude, distance = float(latitude), float(longitude), float(distance)
             filters &= Q(
                 location_polygon__distance_lte=(
                     Point(longitude, latitude, srid=4326),
@@ -147,6 +148,7 @@ def get_satellite_records(
             )
 
         if min_azimuth_angle is not None and max_azimuth_angle is not None:
+            min_azimuth_angle, max_azimuth_angle = float(min_azimuth_angle), float(max_azimuth_angle) 
             logger.debug(f"Azimuth angle filters: {min_azimuth_angle} to {max_azimuth_angle}")
             azimuth_angle_filters = Q(azimuth_angle__gte=min_azimuth_angle, azimuth_angle__lte=max_azimuth_angle)
             filters &= azimuth_angle_filters
@@ -155,6 +157,7 @@ def get_satellite_records(
                 filters |= Q(azimuth_angle__isnull=True)
 
         if min_illumination_azimuth_angle is not None and max_illumination_azimuth_angle is not None:
+            min_illumination_azimuth_angle, max_illumination_azimuth_angle = float(min_illumination_azimuth_angle), float(max_illumination_azimuth_angle)
             logger.debug(f"Illumination azimuth angle filters: {min_illumination_azimuth_angle} to {max_illumination_azimuth_angle}")
             illumination_azimuth_angle_filters = Q(illumination_azimuth_angle__gte=min_illumination_azimuth_angle, illumination_azimuth_angle__lte=max_illumination_azimuth_angle)
             filters &= illumination_azimuth_angle_filters
@@ -163,6 +166,7 @@ def get_satellite_records(
                 filters |= Q(illumination_azimuth_angle__isnull=True)
 
         if min_illumination_elevation_angle is not None and max_illumination_elevation_angle is not None:
+            min_illumination_elevation_angle, max_illumination_elevation_angle = float(min_illumination_elevation_angle), float(max_illumination_elevation_angle)
             logger.debug(f"Illumination elevation angle filters: {min_illumination_elevation_angle} to {max_illumination_elevation_angle}")
             illumination_elevation_angle_filters = Q(illumination_elevation_angle__gte=min_illumination_elevation_angle, illumination_elevation_angle__lte=max_illumination_elevation_angle)
             filters &= illumination_elevation_angle_filters
@@ -171,6 +175,7 @@ def get_satellite_records(
                 filters |= Q(illumination_elevation_angle__isnull=True)
 
         if min_holdback_seconds is not None and max_holdback_seconds is not None:
+            min_holdback_seconds, max_holdback_seconds = int(min_holdback_seconds), int(max_holdback_seconds)
             logger.debug(f"Holdback seconds filters: {min_holdback_seconds} to {max_holdback_seconds}")
             holdback_seconds_filters = Q(holdback_seconds__gte=min_holdback_seconds, holdback_seconds__lte=max_holdback_seconds)
             filters &= holdback_seconds_filters
@@ -216,7 +221,8 @@ def get_satellite_records(
 
                     
         if min_cloud_cover is not None and max_cloud_cover is not None:
-            logger.debug(f"Cloud cover filters: {min_cloud_cover} to {max_cloud_cover}")
+            min_cloud_cover, max_cloud_cover = float(min_cloud_cover), float(max_cloud_cover)
+            logger.debug(f"Cloud cover filters: {type(min_cloud_cover)} to {type(max_cloud_cover)}")
             cloud_cover_filters = (
                 Q(~Q(vendor_name__in=[ 'capella', 'skyfi-umbra']), cloud_cover_percent__gte=min_cloud_cover, cloud_cover_percent__lte=max_cloud_cover)
             )
@@ -228,11 +234,13 @@ def get_satellite_records(
 
         if min_off_nadir_angle is not None and max_off_nadir_angle is not None:
             logger.debug(f"Sun elevation filters: {min_off_nadir_angle} to {max_off_nadir_angle}")
+            min_off_nadir_angle, max_off_nadir_angle = float(min_off_nadir_angle), float(max_off_nadir_angle)
             sun_elevation_filters = Q(sun_elevation__gte=min_off_nadir_angle, sun_elevation__lte=max_off_nadir_angle)
             filters &= sun_elevation_filters
 
         if min_gsd is not None and max_gsd is not None:
             logger.debug(f"GSD filters: {min_gsd} to {max_gsd}")
+            min_gsd, max_gsd = float(min_gsd), float(max_gsd)
             gsd_filters = Q(gsd__gte=min_gsd, gsd__lte=max_gsd)
             filters &= gsd_filters
 
@@ -802,6 +810,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(
 
         if min_cloud_cover is not None and max_cloud_cover is not None:
             logger.debug(f"Cloud cover filters: {min_cloud_cover} to {max_cloud_cover}")
+            min_cloud_cover, max_cloud_cover = float(min_cloud_cover), float(max_cloud_cover)
             cloud_cover_filters = (
                 Q(~Q(vendor_name__in=['capella', 'skyfi-umbra']), cloud_cover_percent__gte=min_cloud_cover, cloud_cover_percent__lte=max_cloud_cover)
             )
@@ -813,16 +822,19 @@ def get_polygon_selection_acquisition_calender_days_frequency(
 
         if min_off_nadir_angle is not None and max_off_nadir_angle is not None:
             logger.debug(f"Sun elevation filters: {min_off_nadir_angle} to {max_off_nadir_angle}")
+            min_off_nadir_angle, max_off_nadir_angle = float(min_off_nadir_angle), float(max_off_nadir_angle)
             sun_elevation_filters = Q(sun_elevation__gte=min_off_nadir_angle, sun_elevation__lte=max_off_nadir_angle)
             filters &= sun_elevation_filters
 
         if min_gsd is not None and max_gsd is not None:
             logger.debug(f"GSD filters: {min_gsd} to {max_gsd}")
+            min_gsd, max_gsd = float(min_gsd), float(max_gsd)
             gsd_filters = Q(gsd__gte=min_gsd, gsd__lte=max_gsd)
             filters &= gsd_filters
         
         if min_azimuth_angle is not None and max_azimuth_angle is not None:
             logger.debug(f"Azimuth angle filters: {min_azimuth_angle} to {max_azimuth_angle}")
+            min_azimuth_angle, max_azimuth_angle = float(min_azimuth_angle), float(max_azimuth_angle)
             azimuth_angle_filters = Q(azimuth_angle__gte=min_azimuth_angle, azimuth_angle__lte=max_azimuth_angle)
             filters &= azimuth_angle_filters
 
@@ -831,6 +843,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(
 
         if min_illumination_azimuth_angle is not None and max_illumination_azimuth_angle is not None:
             logger.debug(f"Illumination azimuth angle filters: {min_illumination_azimuth_angle} to {max_illumination_azimuth_angle}")
+            min_illumination_azimuth_angle, max_illumination_azimuth_angle = float(min_illumination_azimuth_angle), float(max_illumination_azimuth_angle)
             illumination_azimuth_angle_filters = Q(illumination_azimuth_angle__gte=min_illumination_azimuth_angle, illumination_azimuth_angle__lte=max_illumination_azimuth_angle)
             filters &= illumination_azimuth_angle_filters
 
@@ -839,6 +852,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(
 
         if min_illumination_elevation_angle is not None and max_illumination_elevation_angle is not None:
             logger.debug(f"Illumination elevation angle filters: {min_illumination_elevation_angle} to {max_illumination_elevation_angle}")
+            min_illumination_elevation_angle, max_illumination_elevation_angle = float(min_illumination_elevation_angle), float(max_illumination_elevation_angle)
             illumination_elevation_angle_filters = Q(illumination_elevation_angle__gte=min_illumination_elevation_angle, illumination_elevation_angle__lte=max_illumination_elevation_angle)
             filters &= illumination_elevation_angle_filters
 
@@ -847,6 +861,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(
 
         if min_holdback_seconds is not None and max_holdback_seconds is not None:
             logger.debug(f"Holdback seconds filters: {min_holdback_seconds} to {max_holdback_seconds}")
+            min_holdback_seconds, max_holdback_seconds = int(min_holdback_seconds), int(max_holdback_seconds)
             holdback_seconds_filters = Q(holdback_seconds__gte=min_holdback_seconds, holdback_seconds__lte=max_holdback_seconds)
             filters &= holdback_seconds_filters
 

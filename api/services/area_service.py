@@ -610,6 +610,7 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
             "total_count": total_count,
             "average_per_day": avg_count,
             "oldest_date": longest_period_start,
+            "oldest_info": OldestInfoSerializer(oldest_record_instance).data if oldest_record_instance else None,
             "newest_info": NewestInfoSerializer(newest_record_instance).data if newest_record_instance else None,
             "newest_clear_cloud_cover_info": NewestInfoSerializer(newest_clear_cloud_cover_instance).data if newest_clear_cloud_cover_instance else None,
             "address": address_response["data"],

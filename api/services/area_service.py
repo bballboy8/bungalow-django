@@ -586,7 +586,7 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
 
         newest_clear_cloud_cover_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=buffered_polygon,
-            cloud_cover_percent__lte=0
+            cloud_cover_percent=0
         ).order_by("-acquisition_datetime").first()
 
 
@@ -703,7 +703,7 @@ def get_polygon_selection_analytics_and_location_wkt(polygon_wkt):
         # Clear cloud cover info if available
         newest_clear_cloud_cover_instance = CollectionCatalog.objects.filter(
             location_polygon__intersects=polygon,
-            cloud_cover_percent__lte=0
+            cloud_cover_percent=0
         ).order_by("-acquisition_datetime").first()
 
         analytics = {

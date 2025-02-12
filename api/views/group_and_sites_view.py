@@ -48,7 +48,7 @@ class GetGroupsForAssignmentAndSearchingView(APIView):
                 response = group_searching_and_hierarchy_creation(group_id=group_id, group_name=group_name, user_id=user_id)
                 if response["status_code"] != 200:
                     return Response(response, status=response["status_code"])
-                return Response(response, status=status.HTTP_200_OK)
+                return Response(response['data'], status=status.HTTP_200_OK)
     
             # Default behavior: Retrieve all top-level groups
             groups = Group.objects.filter(parent=None, is_deleted=False)

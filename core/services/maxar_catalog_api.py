@@ -269,5 +269,26 @@ def run_maxar_catalog_bulk_api():
         START_DATE = END_DATE
     return response
 
+def run_maxar_catalog_bulk_api_for_last_35_days_from_now():
+    BBOX = "-180,-90,180,90"
+    START_DATE = (datetime.now(pytz.utc) - timedelta(days=35)).replace(hour=0, minute=0, second=0, microsecond=0)
+    END_LIMIT = datetime.now(pytz.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    import time
+    while START_DATE < END_LIMIT:
+        END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+        
+        response =  main(START_DATE, END_DATE, BBOX, True)
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+        time.sleep(5)
+        START_DATE = END_DATE
+    return "Maxar 35 days bulk processing completed"
+
 # from core.services.maxar_catalog_api import run_maxar_catalog_bulk_api
 # run_maxar_catalog_bulk_api()
+
+# from core.services.maxar_catalog_api import run_maxar_catalog_bulk_api_for_last_35_days_from_now
+# run_maxar_catalog_bulk_api_for_last_35_days_from_now()

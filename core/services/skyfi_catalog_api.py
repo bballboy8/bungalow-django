@@ -358,5 +358,29 @@ def run_skfyfi_catalog_api_bulk():
         START_DATE = END_DATE
     return response
 
+def run_skfyfi_catalog_api_bulk_for_last_35_days_from_now():
+    START_DATE = (datetime.now(pytz.utc) - timedelta(days=35)).replace(hour=0, minute=0, second=0, microsecond=0)
+    END_LIMIT = (datetime.now(pytz.utc)).replace(hour=0, minute=0, second=0, microsecond=0)
+    import time
+    while START_DATE < END_LIMIT:
+        END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)
+        print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
+        month_start_time = time.time()
+        land_polygons_wkt = []
+
+        with open("core/services/land_polygons.json", "r") as file:
+            land_polygons_wkt = json.load(file)
+        
+        response = skyfi_executor(START_DATE, END_DATE, land_polygons_wkt, True)
+        month_end_time = time.time()
+        print(f"Time taken to process the interval: {month_end_time - month_start_time}")
+        time.sleep(10)
+        START_DATE = END_DATE
+
+    return "Skfyfi 35 days bulk processing completed"
+
 # from core.services.skyfi_catalog_api import run_skfyfi_catalog_api_bulk
 # run_skfyfi_catalog_api_bulk()
+
+# from core.services.skyfi_catalog_api import run_skfyfi_catalog_api_bulk_for_last_35_days_from_now
+# run_skfyfi_catalog_api_bulk_for_last_35_days_from_now()

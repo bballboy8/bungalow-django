@@ -459,8 +459,7 @@ def get_collection_history(
         if vendor_name and "," in vendor_name:
             vendor_names = vendor_name.split(",")
             query_filter &= Q(vendor_name__in=vendor_names)
-
-        if vendor_name:
+        elif vendor_name:
             query_filter &= Q(vendor_name=vendor_name)
 
         if start_date:

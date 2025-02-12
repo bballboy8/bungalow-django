@@ -74,14 +74,33 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
             except (TypeError, ValueError):
                 raise serializers.ValidationError("Invalid coordinates for Polygon.")
         raise serializers.ValidationError("location_polygon must be a valid GeoJSON Polygon.")
+    
+    def format_top_level_floats(self, data, decimal_places=2):
+        """
+        Formats only top-level float values in the dictionary.
+        """
+        for key, value in data.items():
+            try:
+                if isinstance(value, float):
+                    data[key] = round(value, decimal_places)
+            except Exception:
+                pass
+        return data
+
+    def to_internal_value(self, data):
+        """
+        Override to format only top-level float values before validation.
+        """
+        data = self.format_top_level_floats(data)  # Format only top-level floats
+        return super().to_internal_value(data)
 
     def create(self, validated_data):
         coordinates_record = validated_data.get("coordinates_record")
         if isinstance(coordinates_record, dict):
             validated_data["location_polygon"] = self.validate_location_polygon(coordinates_record)
             centroid = validated_data["location_polygon"].centroid
-            validated_data["geometryCentroid_lat"] = centroid.y
-            validated_data["geometryCentroid_lon"] = centroid.x
+            validated_data["geometryCentroid_lat"] = round(centroid.y, 2)
+            validated_data["geometryCentroid_lon"] = round(centroid.x, 2)
 
         # Generate MD5 hash of coordinates_record
         coordinates_record_md5 = hashlib.md5(json.dumps(coordinates_record, sort_keys=True).encode()).hexdigest()

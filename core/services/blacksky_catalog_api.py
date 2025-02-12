@@ -7,7 +7,7 @@ from decouple import config
 from datetime import datetime
 from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -162,6 +162,8 @@ def convert_to_model_params(features):
             acquisition_datetime = datetime.fromisoformat(
                 feature["properties"]["datetime"].replace("Z", "+00:00")
             )
+            # Make the current time the publication time
+            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
             model_params = {
                 "acquisition_datetime": acquisition_datetime,
                 "cloud_cover_percent": feature["properties"]["cloudPercent"],
@@ -182,8 +184,8 @@ def convert_to_model_params(features):
                 "azimuth_angle" : None,
                 "illumination_azimuth_angle": feature["properties"]["sunAzimuth"],
                 "illumination_elevation_angle": None,
-                "holdback_seconds": None,
-                "publication_datetime": None,
+                "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
+                "publication_datetime": publication_datetime,
             }
             response.append(model_params)
         except Exception as e:

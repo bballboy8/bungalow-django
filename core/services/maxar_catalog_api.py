@@ -11,7 +11,7 @@ from core.models import SatelliteDateRetrievalPipelineHistory
 from core.serializers import SatelliteDateRetrievalPipelineHistorySerializer, SatelliteCaptureCatalogSerializer, CollectionCatalog
 import pytz
 from core.services.utils import calculate_area_from_geojson
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds
 from botocore.exceptions import NoCredentialsError
 from PIL import Image
 import io
@@ -72,9 +72,7 @@ def process_features(all_features):
             acquisition_datetime = datetime.fromisoformat(
                     properties.get("datetime").replace("Z", "+00:00")
                 ).replace(microsecond=0)
-            publication_datetime = datetime.fromisoformat(
-                    properties.get("collect_time_end").replace("Z", "+00:00")
-                ).replace(microsecond=0)
+            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
 
             model_params = {
                 "acquisition_datetime": acquisition_datetime,
@@ -97,7 +95,7 @@ def process_features(all_features):
                 "azimuth_angle": properties.get("view:azimuth"),
                 "illumination_azimuth_angle": properties.get("view:sun_azimuth"),
                 "illumination_elevation_angle" : properties.get("view:sun_elevation"),
-                "holdback_seconds": calculate_withhold(acquisition_datetime, publication_datetime),
+                "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
             }
             converted_features.append(model_params)
         except Exception as e:

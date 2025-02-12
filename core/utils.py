@@ -104,3 +104,16 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
             print(f"Error in history serializer: {history_serializer.errors}")
     except Exception as e:
         print(f"Error in process_database_catalog: {e}")
+
+def get_holdback_seconds(acquisition_datetime, publication_datetime):
+    """
+        Get the holdback seconds between the acquisition and publication datetime
+        Args:
+            acquisition_datetime: datetime
+            publication_datetime: datetime
+    """
+    try:
+        return (publication_datetime - acquisition_datetime).total_seconds()
+    except Exception as e:
+        print(f"Error in get_time_difference: {e}")
+        return None

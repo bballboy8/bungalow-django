@@ -37,7 +37,7 @@ from decouple import config
 from datetime import datetime, timezone
 from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog
+from core.utils import save_image_in_s3_and_get_url, get_holdback_seconds, process_database_catalog
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -192,6 +192,7 @@ def convert_to_model_params(features):
         try:
             location_polygon = wkt_to_geojson(feature["footprint"])
             utc_time = convert_to_utc(feature["captureTimestamp"])
+            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
             model_params = {
                 "acquisition_datetime": utc_time,
                 "cloud_cover_percent": -1,
@@ -214,8 +215,8 @@ def convert_to_model_params(features):
                 "azimuth_angle": None,
                 "illumination_azimuth_angle": None,
                 "illumination_elevation_angle": None,
-                "holdback_seconds": feature.get("deliveryTimeHours", 0 ) * 3600,
-                "publication_datetime": None,
+                "holdback_seconds": get_holdback_seconds(utc_time, publication_datetime),
+                "publication_datetime": publication_datetime,
             }
             response.append(model_params)
         except Exception as e:
@@ -338,8 +339,8 @@ def run_skyfi_catalog_api():
     return response
 
 def run_skfyfi_catalog_api_bulk():
-    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
+    START_DATE = datetime(2025, 2, 11, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2025, 2, 12, tzinfo=pytz.utc)
     import time
     while START_DATE < END_LIMIT:
         END_DATE = min(START_DATE + timedelta(days=1), END_LIMIT)

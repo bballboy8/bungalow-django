@@ -26,7 +26,7 @@ from rasterio.transform import from_bounds
 from decouple import config
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -219,9 +219,8 @@ def process_features(features):
             acquisition_datetime = datetime.fromisoformat(
                 properties["acquired"].replace("Z", "+00:00")
             )
-            publication_datetime = datetime.fromisoformat(
-                properties["published"].replace("Z", "+00:00")
-            )
+            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
+
             model_params = {
                 "acquisition_datetime": acquisition_datetime,
                 "cloud_cover_percent": properties["cloud_percent"],
@@ -241,7 +240,8 @@ def process_features(features):
                 "azimuth_angle": properties.get("satellite_azimuth"),
                 "illumination_azimuth_angle": properties.get("sun_azimuth"),
                 "illumination_elevation_angle": properties.get("sun_elevation"),
-                "holdback_seconds": calculate_withhold(acquisition_datetime, publication_datetime),
+                "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
+                "publication_datetime": publication_datetime,
             }
             response.append(model_params)
         except Exception as e:

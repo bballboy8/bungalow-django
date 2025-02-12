@@ -7,7 +7,7 @@ import shutil
 from decouple import config
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -73,9 +73,7 @@ def process_features(all_features):
             acquisition_datetime = datetime.fromisoformat(
                     properties.get("acquisitionDate").replace("Z", "+00:00")
                 ).replace(microsecond=0)
-            publication_datetime = datetime.fromisoformat(
-                    properties.get("publicationDate").replace("Z", "+00:00")
-                ).replace(microsecond=0)
+            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
             model_params = {
                 "acquisition_datetime": acquisition_datetime,
                 "cloud_cover_percent": properties.get("cloudCover", ""),
@@ -96,7 +94,7 @@ def process_features(all_features):
                 "illumination_azimuth_angle": properties.get("illuminationAzimuthAngle"),
                 "illumination_elevation_angle": properties.get("illuminationElevationAngle"),
                 "publication_datetime": publication_datetime,
-                "holdback_seconds": calculate_withhold(acquisition_datetime, publication_datetime),
+                "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
             }
             converted_features.append(model_params)
             download_thumbnails_dict = {

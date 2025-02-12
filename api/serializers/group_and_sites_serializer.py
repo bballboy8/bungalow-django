@@ -1,9 +1,48 @@
 from rest_framework import serializers
 from api.models import Group, Site, GroupSite
 from django.contrib.gis.geos import Polygon
-from api.services.group_and_sites_service import get_area_from_geojson
 from django.contrib.auth.models import User
+from logging_module import logger
+from shapely.geometry import shape
+from pyproj import Geod
+import shapely.wkt
 
+def convert_geojson_to_wkt(geometry):
+    logger.info("Inside convert GeoJSON to WKT service")
+    try:
+        try:
+            polygon = shape(geometry)
+            wkt = polygon.wkt
+        except Exception as e:
+            return {"data": [], "status_code": 400, "error": f"Invalid GeoJSON: {str(e)}"}
+        
+        try:
+            geod = Geod(ellps="WGS84")
+            polygon = shapely.wkt.loads(wkt)
+            area = round(abs(geod.geometry_area_perimeter(polygon)[0]) / 1000000.0, 2)
+        except Exception as e:
+            return {"data": [], "status_code": 400, "error": f"Error calculating area from GeoJSON: {str(e)}"}
+
+        logger.info("GeoJSON converted to WKT successfully")
+        return {"data": wkt, "area": area, "status_code": 200}
+    except Exception as e:
+        logger.error(f"Error converting GeoJSON to WKT: {str(e)}")
+        return {"data": [], "status_code": 400, "error": f"Error: {str(e)}"}
+
+
+def get_area_from_geojson(geometry):
+    """
+    Calculate the area of a site from its GeoJSON coordinates record.
+    """
+    try:
+        response = convert_geojson_to_wkt(geometry)
+        geod = Geod(ellps="WGS84")
+        polygon = shapely.wkt.loads(response["data"])
+        area = round(abs(geod.geometry_area_perimeter(polygon)[0]) / 1000000.0, 2)
+        return {"area": area, "status_code": 200}
+    except Exception as e:
+        logger.error(f"Error calculating area from GeoJSON: {str(e)}")
+        return {"area": 0, "status_code": 500, "error": f"Error calculating area from GeoJSON: {str(e)}"}
 
 class SiteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -154,3 +193,11 @@ class AreaFromGeoJsonSerializer(serializers.Serializer):
     coordinates_record = serializers.JSONField(
         default={"type": "Polygon", "coordinates": []}
     )
+class UploadFileSerializer(serializers.Serializer):
+    file = serializers.FileField()
+
+class UploadCSVResponseSerializer(serializers.Serializer):
+    row_number = serializers.IntegerField()
+    row_name = serializers.CharField()
+    status = serializers.CharField()
+    reason = serializers.CharField(required=False)

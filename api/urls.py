@@ -65,6 +65,7 @@ urlpatterns = [
     path('extract-circle-parameters/', ExtractCircleParametersAPIView.as_view(), name='extract-circle-parameters'),
     path("get-nested-group-and-sites-by-group-id", GetGroupSiteByGroupIdView.as_view(), name="get-group-sites-by-group-id"),
     path("get-groups-list-without-nesting", GetGroupstListWithoutNestingView.as_view(), name="get-groups-list-without-nesting"),
-    path("remove-group-and-its-sites", RemoveGroupsandItsNestedGroupAndSitesView.as_view(), name="remove-group-and-its-sites"),  
+    path("remove-group-and-its-sites", RemoveGroupsandItsNestedGroupAndSitesView.as_view(), name="remove-group-and-its-sites"),
+    path("upload-sites-to-group-csv", SitesFileUploadView.as_view(), name="upload-sites-to-group-csv"), 
 
 ]

@@ -107,6 +107,7 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'Bungalow Docs',
     'DESCRIPTION': 'This is the API documentation for Bungalow project.',
     'VERSION': '1.0.0',
+    'COMPONENT_SPLIT_REQUEST': True
 }
 
 

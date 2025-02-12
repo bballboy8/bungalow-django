@@ -8,7 +8,9 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParamet
 from api.parameters.group_and_sites_parameters import *
 from rest_framework.permissions import IsAuthenticated
 from api.services.utils import get_user_id_from_token 
-
+from rest_framework.parsers import MultiPartParser, FormParser
+import pandas as pd
+import json
 
 class GetGroupsForAssignmentAndSearchingView(APIView):
     permission_classes = [IsAuthenticated]
@@ -661,3 +663,79 @@ class RemoveGroupsandItsNestedGroupAndSitesView(APIView):
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class SitesFileUploadView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Upload a CSV or Excel file to add sites to a group in bulk",
+        parameters=[
+            OpenApiParameter(
+                name="group_id",
+                type=int,
+                description="ID of the group to which the sites will be added.",
+            ),
+        ],
+        request=UploadFileSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="File processed successfully.",
+            ),
+            400: OpenApiResponse(description="Invalid input"),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+
+    def post(self, request, *args, **kwargs):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            group_id = request.query_params.get("group_id")
+            if not group_id:
+                return Response({"error": "Group ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+            
+            # Determine file type and read
+            if file.name.endswith(".csv"):
+                df = pd.read_csv(file)
+            elif file.name.endswith((".xls", ".xlsx")):
+                df = pd.read_excel(file)
+            else:
+                return Response({"error": "Unsupported file format"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Check required columns
+            required_columns = {"lat", "lon", "name", "description"}
+            print(df.columns)
+            if not required_columns.issubset(df.columns):
+                return Response({"error": "Missing required columns"}, status=status.HTTP_400_BAD_REQUEST)
+
+            final_dics = []
+            # Print each row one by one
+            for index, row in df.iterrows():
+                dic = {
+                    "lat": row["lat"],
+                    "lon": row["lon"],
+                    "name": row["name"],
+                    "description": row["description"],
+                }
+                final_dics.append(dic)
+
+            # Process the data
+            response = add_sites_to_group_in_bulk(sites_info=final_dics, group_id=group_id, user_id=user_id)
+            if response["status_code"] != 200:
+                return Response(response, status=response["status_code"])
+            return Response(data=UploadCSVResponseSerializer(response['data'], many=True).data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

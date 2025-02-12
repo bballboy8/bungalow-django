@@ -2,14 +2,15 @@ from api.models.group_and_sites_models import *
 from logging_module import logger
 import shapely.wkt
 from pyproj import Geod
-from api.services.area_service import convert_geojson_to_wkt
+from api.services import convert_geojson_to_wkt
 from core.models import CollectionCatalog
 from django.contrib.gis.geos import Polygon
 from django.db.models import Count
 from datetime import datetime, timedelta
 from django.db.models.functions import TruncDate
 from django.db.models import Q
-
+from api.serializers import SiteSerializer
+from api.services.utils import generate_hexagon_geojson
 
 def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, site_id=None, group_id=None):
     logger.info("Fetching all sites")
@@ -494,7 +495,7 @@ def get_groups_list_without_nesting(search:str):
             "status_code": 500,
             "error": f"Error fetching groups: {str(e)}",
         }
-    
+
 
 def remove_group_and_its_sites(group_id: int):
     """
@@ -518,7 +519,7 @@ def remove_group_and_its_sites(group_id: int):
 
             group.is_deleted = True
             group.save()
-        
+
         return {
             "message": "Group and its sites removed successfully",
             "status_code": 200,
@@ -531,4 +532,92 @@ def remove_group_and_its_sites(group_id: int):
             "status_code": 500,
             "error": f"Error removing group and its sites: {str(e)}",
         }
-    
+
+
+def add_sites_to_group_in_bulk(sites_info, group_id, user_id):
+    try:
+        group = Group.objects.filter(id=group_id, is_deleted=False).first()
+        if not group:
+            return {"error": "Group not found", "status_code": 404}
+
+        results = []
+
+        for i, site_info in enumerate(sites_info):
+            try:
+                polygon = generate_hexagon_geojson(
+                    site_info["lat"], site_info["lon"], 1
+                )
+                if polygon["status_code"] != 200:
+                    logger.debug(
+                        f"Error generating hexagon for site {site_info['name']}"
+                    )
+                    results.append(
+                        {
+                            "row_number": i,
+                            "row_name": site_info["name"],
+                            "status": "failed",
+                            "reason": "Error generating hexagon",
+                        }
+                    )
+                    continue
+
+                site_info["coordinates_record"] = polygon["polygon"]
+                site_info["site_type"] = "Point"
+                site_info["notification"] = group.notification
+                serializer = SiteSerializer(
+                    data=site_info, context={"user_id": user_id}
+                )
+                if serializer.is_valid():
+                    site = serializer.save()
+                    response = assign_site_to_group(group, site, user_id)
+                    logger.info(
+                        f"Assigned site {site.id} to group {group.id}: {response}"
+                    )
+                    results.append(
+                        {
+                            "row_number": i,
+                            "row_name": site_info["name"],
+                            "status": "success",
+                        }
+                    )
+
+                else:
+                    logger.debug(
+                        f"Error creating site {site_info['name']}: {serializer.errors}"
+                    )
+                    results.append(
+                        {
+                            "row_number": i,
+                            "row_name": site_info["name"],
+                            "status": "failed",
+                            "reason": serializer.errors,
+                        }
+                    )
+
+            except Exception as e:
+                logger.error(f"Error adding site in bulk: {str(e)}")
+                results.append(
+                    {
+                        "row_number": i,
+                        "row_name": site_info["name"],
+                        "status": "failed",
+                        "reason": str(e),
+                    }
+                )
+
+        return {
+            "data": results,
+            "message": "Sites added to group in bulk",
+            "status_code": 200,
+        }
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        logger.error(f"Error adding sites to group in bulk: {str(e)}")
+        return {
+            "data": None,
+            "message": f"Error adding sites to group in bulk {e}",
+            "status_code": 500,
+            "error": f"Error adding sites to group in bulk: {str(e)}",
+        }

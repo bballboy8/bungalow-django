@@ -28,6 +28,7 @@ from core.services.skyfi_catalog_api import API_KEY as SKYFI_API_KEY
 from django.urls import reverse
 from django.db.models import Q
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db.models import Sum
 
 
 
@@ -444,6 +445,7 @@ def get_skyfi_record_images_by_ids(ids: List[str]):
         logger.error(f"Error in Blacksky Vendor View: {str(e)}")
         return {"data": f"{str(e)}", "status_code": 500, "vendor": "skyfi-umbra", "error": f"{str(e)}"}
 
+from django.db.models.expressions import RawSQL
 
 
 def get_collection_history(
@@ -469,28 +471,54 @@ def get_collection_history(
             query_filter &= Q(start_datetime__lte=end_date)
 
         print(query_filter)
-        all_records = SatelliteDateRetrievalPipelineHistory.objects.filter(
-            query_filter
-        ).order_by('-start_datetime').values()
 
-        paginator = Paginator(all_records, page_size)
+        # Extract counts from JSONField (PostgreSQL-specific)
+        summary_data = SatelliteDateRetrievalPipelineHistory.objects.filter(query_filter) \
+            .extra(select={'date': "DATE(start_datetime)"}) \
+            .values('date') \
+            .annotate(
+                total_success=Sum(
+                    RawSQL("CAST(message->>'valid_records' AS INTEGER)", [])
+                ),
+                total_failed=Sum(
+                    RawSQL("CAST(message->>'invalid_records' AS INTEGER)", [])
+                ),
+                total=Sum(
+                    RawSQL("CAST(message->>'total_records' AS INTEGER)", [])
+                )
+            ) \
+            .order_by('-date')
+
+        # Paginate by dates
+        paginator = Paginator(summary_data, page_size)
         try:
-            records = paginator.page(page_number)
+            paginated_dates = paginator.page(page_number)
         except PageNotAnInteger:
-            records = paginator.page(1)
+            paginated_dates = paginator.page(1)
         except EmptyPage:
-            records = []
+            paginated_dates = []
+
+        date_list = list(paginated_dates)
+        for entry in date_list:
+            entry_date = entry["date"]
+            entry["records"] = list(
+                SatelliteDateRetrievalPipelineHistory.objects.filter(
+                    query_filter, start_datetime__date=entry_date
+                )
+                .order_by('-start_datetime')
+                .values("id", "vendor_name", "start_datetime", "message")
+            )
+
 
         return {
             "data": {
-                "records": list(records),
-                "total_records": all_records.count(),
+                "records": list(paginated_dates),
+                "total_dates": paginator.count,  # Total number of unique dates
                 "total_pages": paginator.num_pages,
                 "page_number": page_number,
                 "page_size": page_size,
             },
             "status_code": 200,
-
         }
     except Exception as e:
         logger.error(f"Error in Collection History View: {str(e)}")

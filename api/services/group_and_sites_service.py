@@ -77,12 +77,12 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, 
 
             heatmap_dict = {entry["date"]: entry["count"] for entry in heatmap}
             # Fill in missing dates with zero counts
-            heatmap_data = []
+            heatmap_data = {}
             current_date = start_date.date()
             end_date = end_date.date()
 
             while current_date <= end_date:
-                heatmap_data.append({current_date.strftime("%Y-%m-%d"): heatmap_dict.get(current_date, 0)})
+                heatmap_data[current_date.strftime("%Y-%m-%d"): heatmap_dict.get(current_date, 0)]
                 current_date += timedelta(days=1)
 
             final_sites.append(

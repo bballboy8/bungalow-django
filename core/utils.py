@@ -6,6 +6,7 @@ from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decouple import config
 from boto3.s3.transfer import TransferConfig
+from core.models import SatelliteDateRetrievalPipelineHistory
 
 
 bucket_name = config("AWS_STORAGE_BUCKET_NAME")
@@ -71,12 +72,34 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
         
         print(f"Total records: {len(features)}, Valid records: {(valid_features)}, Invalid records: {(invalid_features)}")
 
-        if not valid_features:
-            print(f"No records Found for {start_time} to {end_time}")
-            return
-
         if is_bulk:
             return "Bulk Inserted"
+        
+        if not valid_features:
+            try:
+                print(f"No records Found for {start_time} to {end_time}")
+                old_record = SatelliteDateRetrievalPipelineHistory.objects.filter(vendor_name=vendor_name).order_by("-id").first()
+                start_time = old_record.start_datetime if old_record else convert_iso_to_datetime(start_time)
+                end_time = old_record.end_datetime if old_record else convert_iso_to_datetime(end_time)
+                history_serializer = SatelliteDateRetrievalPipelineHistorySerializer(
+                    data={
+                        "start_datetime": start_time,
+                        "end_datetime": end_time,
+                        "vendor_name": vendor_name,
+                        "message": {
+                            "total_records": len(features),
+                            "valid_records": valid_features,
+                            "invalid_records": invalid_features,
+                        },
+                    }
+                )
+                if history_serializer.is_valid():
+                    history_serializer.save()
+                return "No records Found"
+            except Exception as e:
+                print(f"Error in history serializer: {e}")
+                return "Error in history serializer"
+
 
         try:
             last_acquisition_datetime = valid_features[0]["acquisition_datetime"]

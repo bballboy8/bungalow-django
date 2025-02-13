@@ -9,7 +9,7 @@ from django.db.models import Count
 from datetime import datetime, timedelta
 from django.db.models.functions import TruncDate
 from django.db.models import Q
-from api.serializers import SiteSerializer
+from api.serializers import SiteSerializer, NewestInfoSerializer
 from api.services.utils import generate_hexagon_geojson
 
 def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, site_id=None, group_id=None):
@@ -82,7 +82,7 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, 
             end_date = end_date.date()
 
             while current_date <= end_date:
-                heatmap_data.append({"date": current_date.strftime("%Y-%m-%d"), "count": heatmap_dict.get(current_date, 0)})
+                heatmap_data.append({current_date.strftime("%Y-%m-%d"): heatmap_dict.get(current_date, 0)})
                 current_date += timedelta(days=1)
 
             final_sites.append(
@@ -92,6 +92,8 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, 
                     "area": site.site_area,
                     "acquisition_count": total_records,
                     "most_recent": most_recent_capture.acquisition_datetime if most_recent_capture else None,
+                    "most_recent_info": NewestInfoSerializer(most_recent_capture).data if most_recent_capture else None,
+                    "most_recent_clear_info": NewestInfoSerializer(most_recent_clear_capture).data if most_recent_clear_capture else None,
                     "most_recent_clear": most_recent_clear_capture.acquisition_datetime if most_recent_clear_capture else None,
                     "heatmap": heatmap_data,
                     "frequency": records_per_acquisition,

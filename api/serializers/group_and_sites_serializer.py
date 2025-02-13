@@ -97,6 +97,8 @@ class GetSiteSerializer(serializers.Serializer):
     heatmap = serializers.JSONField()
     site_type = serializers.CharField()
     notification = serializers.BooleanField()
+    most_recent_clear_info = serializers.JSONField()
+    most_recent_info = serializers.JSONField()
 
 class GroupSerializer(serializers.ModelSerializer):
     subgroups = serializers.SerializerMethodField()

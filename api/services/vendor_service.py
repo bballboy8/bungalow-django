@@ -465,16 +465,16 @@ def get_collection_history(
             query_filter &= Q(vendor_name=vendor_name)
 
         if start_date:
-            query_filter &= Q(start_datetime__gte=start_date)
+            query_filter &= Q(created_at__gte=start_date)
 
         if end_date:
-            query_filter &= Q(start_datetime__lte=end_date)
+            query_filter &= Q(created_at__lte=end_date)
 
         print(query_filter)
 
         # Extract counts from JSONField (PostgreSQL-specific)
         summary_data = SatelliteDateRetrievalPipelineHistory.objects.filter(query_filter) \
-            .extra(select={'date': "DATE(start_datetime)"}) \
+            .extra(select={'date': "DATE(created_at)"}) \
             .values('date') \
             .annotate(
                 total_success=Sum(
@@ -503,11 +503,13 @@ def get_collection_history(
             entry_date = entry["date"]
             entry["records"] = list(
                 SatelliteDateRetrievalPipelineHistory.objects.filter(
-                    query_filter, start_datetime__date=entry_date
+                    query_filter, created_at__date=entry_date
                 )
-                .order_by('-start_datetime')
-                .values("id", "vendor_name", "start_datetime", "message")
+                .order_by('-created_at')
+                .values("id", "vendor_name", "created_at", "message")
             )
+            # update ke created_at to start_datetime 
+            entry['records'] = list(map(lambda x: {**x, 'start_datetime': x['created_at']}, entry['records']))
 
 
         return {

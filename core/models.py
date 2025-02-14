@@ -146,6 +146,8 @@ class CollectionCatalog(models.Model):
     geometryCentroid_lon = models.FloatField(null=True, blank=True)
     coordinates_record_md5 = models.CharField(max_length=32, unique=False, null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    centroid_region = models.CharField(max_length=255, null=True, blank=True)
+    centroid_local = models.CharField(max_length=255, null=True, blank=True)
 
 
     class Meta:

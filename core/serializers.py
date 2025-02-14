@@ -5,6 +5,7 @@ from .models import CollectionCatalog, SatelliteDateRetrievalPipelineHistory, Sa
 from django.contrib.gis.geos import Polygon
 import hashlib
 import json
+from bungalowbe.utils import reverse_geocode_shapefile
 
 class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
     class Meta:
@@ -99,8 +100,11 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
         if isinstance(coordinates_record, dict):
             validated_data["location_polygon"] = self.validate_location_polygon(coordinates_record)
             centroid = validated_data["location_polygon"].centroid
-            validated_data["geometryCentroid_lat"] = round(centroid.y, 2)
-            validated_data["geometryCentroid_lon"] = round(centroid.x, 2)
+            x, y = centroid.x, centroid.y
+            validated_data["geometryCentroid_lat"] = round(y, 2)
+            validated_data["geometryCentroid_lon"] = round(x, 2)
+            validated_data["centroid_region"], validated_data["centroid_local"] = reverse_geocode_shapefile(y, x)
+
 
         # Generate MD5 hash of coordinates_record
         coordinates_record_md5 = hashlib.md5(json.dumps(coordinates_record, sort_keys=True).encode()).hexdigest()

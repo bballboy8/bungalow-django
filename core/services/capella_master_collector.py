@@ -246,7 +246,7 @@ def process_features(features):
                 "cloud_cover_percent": -1,
                 "offnadir": None,
                 "platform": feature["properties"]["platform"],
-                "constellation": feature["properties"]["constellation"],
+                "constellation": feature["properties"]["platform"],
                 "publication_datetime": publication_datetime,
                 "azimuth_angle": feature["properties"]["view:incidence_angle"],
                 "illumination_azimuth_angle": None,

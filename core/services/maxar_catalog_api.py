@@ -89,7 +89,7 @@ def process_features(all_features):
                 "metadata": feature,
                 "gsd": float(properties.get("gsd")),
                 "offnadir": properties.get("off_nadir_avg"),
-                "constellation": properties.get("constellation"),
+                "constellation": properties.get("platform"),
                 "platform": properties.get("platform"),
                 "publication_datetime": publication_datetime,
                 "azimuth_angle": properties.get("view:azimuth"),

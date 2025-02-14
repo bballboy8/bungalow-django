@@ -234,7 +234,7 @@ def process_features(features):
                 "coordinates_record": geometry,
                 "metadata": feature,
                 "gsd": float(properties["gsd"]),
-                "constellation": properties["provider"],
+                "constellation": properties["satellite_id"],
                 "offnadir": None,
                 "platform": properties["satellite_id"],
                 "azimuth_angle": properties.get("satellite_azimuth"),

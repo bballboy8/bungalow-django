@@ -13,7 +13,7 @@ BATCH_SIZE = 100  # Number of records per batch
 THREAD_COUNT = os.cpu_count()  # Number of threads to use (adjust based on your system's resources)
 
 
-def process_batch(offset, batch_number, total_batches, states, marine):
+def process_batch(offset, batch_number, total_batches):
     """Process a batch of records to update the centroid fields."""
     try:
         print(f"Processing batch {batch_number}/{total_batches} with offset {offset}...")
@@ -32,6 +32,17 @@ def process_batch(offset, batch_number, total_batches, states, marine):
 
             if not records:
                 return 0  # No records left to process
+            
+            base_dir = os.getcwd() # Construct absolute paths dynamically
+            states_shapefile = os.path.join(base_dir, "static", "shapesFiles", "state_provinces", "ne_10m_admin_1_states_provinces.shp")
+            marine_shapefile = os.path.join(base_dir, "static", "shapesFiles", "marine_polys", "ne_10m_geography_marine_polys.shp")
+
+            # check if the shapefiles exist
+            if not os.path.exists(states_shapefile) or not os.path.exists(marine_shapefile):
+                raise FileNotFoundError("Shapefiles not found.")
+
+            states = gpd.read_file(states_shapefile)
+            marine = gpd.read_file(marine_shapefile)
             
 
             update_data = []
@@ -91,22 +102,12 @@ def update_gsd_column_parallel():
         total_batches = (total_records + BATCH_SIZE - 1) // BATCH_SIZE
         print(f"Total records: {total_records}, Total batches: {total_batches}")
 
-        base_dir = os.getcwd() # Construct absolute paths dynamically
-        states_shapefile = os.path.join(base_dir, "static", "shapesFiles", "state_provinces", "ne_10m_admin_1_states_provinces.shp")
-        marine_shapefile = os.path.join(base_dir, "static", "shapesFiles", "marine_polys", "ne_10m_geography_marine_polys.shp")
-
-        # check if the shapefiles exist
-        if not os.path.exists(states_shapefile) or not os.path.exists(marine_shapefile):
-            raise FileNotFoundError("Shapefiles not found.")
-
-        states = gpd.read_file(states_shapefile)
-        marine = gpd.read_file(marine_shapefile)
 
         processed_records = 0
 
         with ThreadPoolExecutor(max_workers=THREAD_COUNT) as executor:
             futures = {
-                executor.submit(process_batch, offset, batch_number + 1, total_batches, states, marine): batch_number + 1
+                executor.submit(process_batch, offset, batch_number + 1, total_batches): batch_number + 1
                 for batch_number, offset in enumerate(range(0, total_records, BATCH_SIZE))
             }
 

@@ -19,7 +19,7 @@ def process_batch(offset, batch_number, total_batches):
             cursor.execute(
                 "SELECT id, platform FROM core_collectioncatalog "
                 "WHERE vendor_name IN ('maxar', 'planet', 'airbus', 'capella') "
-                "AND platform IS NOT NULL "
+                "AND platform IS NOT NULL AND platform <> constellation"
                 "LIMIT %s OFFSET %s;",
                 [BATCH_SIZE, offset]
             )
@@ -52,7 +52,7 @@ def update_constellation_parallel():
             cursor.execute(
                 "SELECT COUNT(*) FROM core_collectioncatalog "
                 "WHERE vendor_name IN ('maxar', 'planet', 'airbus', 'capella') "
-                "AND platform IS NOT NULL"
+                "AND platform IS NOT NULL AND platform <> constellation"
             )
             total_records = cursor.fetchone()[0]
 

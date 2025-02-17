@@ -100,6 +100,8 @@ def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, 
                     "gap": time_between_acquisitions,
                     "site_type": site.site_type,
                     "notification": site.notification,
+                    "coordinates": site.coordinates_record,
+
                 }
             )
 

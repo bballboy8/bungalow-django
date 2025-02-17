@@ -99,7 +99,7 @@ class GetSiteSerializer(serializers.Serializer):
     notification = serializers.BooleanField()
     most_recent_clear_info = serializers.JSONField()
     most_recent_info = serializers.JSONField()
-    coordinates_record = serializers.JSONField()
+    coordinates = serializers.JSONField()
 
 class GroupSerializer(serializers.ModelSerializer):
     subgroups = serializers.SerializerMethodField()

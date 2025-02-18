@@ -281,6 +281,7 @@ class GetPinSelectionAnalyticsAndLocation(APIView):
             latitude = request.data.get("latitude", None)
             longitude = request.data.get("longitude", None)
             distance = request.data.get("distance", None)
+            site_id = request.data.get("site_id", None)
 
             if not latitude or not longitude or not distance:
                 return Response(
@@ -295,7 +296,7 @@ class GetPinSelectionAnalyticsAndLocation(APIView):
                 f"Latitude: {latitude}, Longitude: {longitude}, Distance: {distance}"
             )
             service_response = get_pin_selection_analytics_and_location(
-                latitude=latitude, longitude=longitude, distance=distance
+                latitude=latitude, longitude=longitude, distance=distance, site_id=site_id
             )
 
             if service_response["status_code"] != 200:

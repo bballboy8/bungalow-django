@@ -18,14 +18,13 @@ from django.contrib.gis.geos import fromstr
 import shapely.wkt
 from pyproj import Geod
 from api.services.vendor_service import *
-from api.models import Site
+from api.models import Site, GroupSite
 import math
 from django.contrib.gis.db.models.functions import Distance
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from itertools import chain
 import pytz
-
 
 def get_area_from_polygon_wkt(polygon_wkt: str):
     logger.info("Inside get area from WKT service")
@@ -499,7 +498,28 @@ def calculate_counts_and_percentages(days, buffered_polygon):
     percentage_change = calculate_percentage_change(current_count, previous_count)
     return days, current_count, previous_count,  percentage_change
 
-def get_pin_selection_analytics_and_location(latitude, longitude, distance):
+def get_site_and_group_name_by_site_id(site_id:int):
+    data = {
+        "site_name": "",
+        "site_id": "",
+        "group_name": "",
+        "group_id": "",
+    }
+    try:
+        group_site = GroupSite.objects.filter(site_id=int(site_id), is_deleted=False).first()
+        if not group_site:
+            return data
+        return {
+            "site_name": group_site.site.name,
+            "site_id": group_site.site.id,
+            "group_name": group_site.group.name,
+            "group_id": group_site.group.id,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching site and group name: {str(e)}")
+        return data
+
+def get_pin_selection_analytics_and_location(latitude, longitude, distance, site_id=None):
     """
     Retrieve analytics and location information for a selected pin.
 
@@ -616,6 +636,9 @@ def get_pin_selection_analytics_and_location(latitude, longitude, distance):
             "address": address_response["data"],
             "percentages": results
         }
+
+        site_details = get_site_and_group_name_by_site_id(site_id)
+        analytics["site_details"] = site_details
 
         func_end_time = now()
         net_time = func_end_time - func_start_time

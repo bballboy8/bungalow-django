@@ -104,6 +104,7 @@ class PinSelectionAnalyticsAndLocationSerializer(serializers.Serializer):
     distance = serializers.FloatField()
     start_date = serializers.DateField()
     end_date = serializers.DateField()
+    site_id = serializers.IntegerField(required=False)
 
 class NewestInfoSerializer(serializers.Serializer):
     # id, vendor, vendor_id, acquisition_datetime, cloud_coverage

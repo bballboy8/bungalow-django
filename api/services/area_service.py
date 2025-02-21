@@ -123,19 +123,16 @@ def get_satellite_records(
     start_time = datetime.now()
 
     try:
-        captures = CollectionCatalog.objects.all()
+        captures = CollectionCatalog.objects.filter(
+            acquisition_datetime__gte=start_date,
+            acquisition_datetime__lte=end_date,
+        )
         filters = Q()
 
         if sort_by and sort_by == "cloud_cover":
             sort_by = "cloud_cover_percent"
 
         polygon_area = None
-
-        if start_date:
-            filters &= Q(acquisition_datetime__gte=start_date)
-        if end_date:
-            filters &= Q(acquisition_datetime__lte=end_date)
-
 
         if latitude and longitude and distance:
             latitude, longitude, distance = float(latitude), float(longitude), float(distance)
@@ -807,11 +804,6 @@ def get_polygon_selection_acquisition_calender_days_frequency(
 
         filters = Q()
 
-        if start_date:
-            filters &= Q(acquisition_datetime__gte=start_date)
-        if end_date:
-            filters &= Q(acquisition_datetime__lte=end_date)
-
         if vendor_id:
             filters &= Q(vendor_id=vendor_id)
 
@@ -903,6 +895,9 @@ def get_polygon_selection_acquisition_calender_days_frequency(
         # Fetch frequency data directly from the database
         frequency_data = (
             CollectionCatalog.objects.filter(
+                acquisition_datetime__gte=start_date,
+                acquisition_datetime__lte=end_date
+            ).filter(
                 filters
             )
             .annotate(date=TruncDate('acquisition_datetime'))  # Extract the date part

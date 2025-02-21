@@ -123,10 +123,14 @@ def get_satellite_records(
     start_time = datetime.now()
 
     try:
-        captures = CollectionCatalog.objects.filter(
-            acquisition_datetime__gte=start_date,
-            acquisition_datetime__lte=end_date,
-        )
+
+        if start_date and end_date:
+            captures = CollectionCatalog.objects.filter(
+                acquisition_datetime__gte=start_date,
+                acquisition_datetime__lte=end_date,
+            )
+        else:
+            captures = CollectionCatalog.objects.all()
         filters = Q()
 
         if sort_by and sort_by == "cloud_cover":

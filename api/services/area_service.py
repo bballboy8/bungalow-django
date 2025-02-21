@@ -175,15 +175,14 @@ def get_satellite_records(
 
         if min_holdback_seconds is not None and max_holdback_seconds is not None:
             min_holdback_seconds, max_holdback_seconds = int(min_holdback_seconds), int(max_holdback_seconds)
-            if(min_holdback_seconds > -1):
-                min_holdback_seconds = min_holdback_seconds * 3600
-                max_holdback_seconds = max_holdback_seconds * 3600
+            min_holdback_seconds = min_holdback_seconds * 3600
+            max_holdback_seconds = max_holdback_seconds * 3600
 
             logger.debug(f"Holdback seconds filters: {min_holdback_seconds} to {max_holdback_seconds}")
             holdback_seconds_filters = Q(holdback_seconds__gte=min_holdback_seconds, holdback_seconds__lte=max_holdback_seconds)
             filters &= holdback_seconds_filters
 
-            if min_holdback_seconds == -1:
+            if min_holdback_seconds <= -1:
                 filters |= Q(holdback_seconds__isnull=True)
 
         if user_timezone and user_duration_type:
@@ -890,13 +889,13 @@ def get_polygon_selection_acquisition_calender_days_frequency(
         if min_holdback_seconds is not None and max_holdback_seconds is not None:
             logger.debug(f"Holdback seconds filters: {min_holdback_seconds} to {max_holdback_seconds}")
             min_holdback_seconds, max_holdback_seconds = int(min_holdback_seconds), int(max_holdback_seconds)
-            if(min_holdback_seconds > -1):
-                min_holdback_seconds = min_holdback_seconds * 3600
-                max_holdback_seconds = max_holdback_seconds * 3600                
+            min_holdback_seconds = min_holdback_seconds * 3600
+            max_holdback_seconds = max_holdback_seconds * 3600
+
             holdback_seconds_filters = Q(holdback_seconds__gte=min_holdback_seconds, holdback_seconds__lte=max_holdback_seconds)
             filters &= holdback_seconds_filters
 
-            if min_holdback_seconds == -1:
+            if min_holdback_seconds <= -1:
                 filters |= Q(holdback_seconds__isnull=True)
 
         filters &= Q(location_polygon__intersects=polygon)

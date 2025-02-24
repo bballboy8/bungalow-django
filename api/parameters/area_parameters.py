@@ -92,7 +92,6 @@ satellite_capture_catalog_params = [
         name="min_cloud_cover",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum cloud cover",
     ),
     OpenApiParameter(
@@ -100,7 +99,6 @@ satellite_capture_catalog_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=100,
         description="Filter records by maximum cloud cover",
     ),
     OpenApiParameter(
@@ -108,7 +106,6 @@ satellite_capture_catalog_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=0,
         description="Filter records by minimum off nadir angle",
     ),
     OpenApiParameter(
@@ -116,21 +113,18 @@ satellite_capture_catalog_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=360,
         description="Filter records by maximum off nadir angle",
     ),
     OpenApiParameter(
         name="min_gsd",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=0,
         description="Filter records by minimum ground sample distance",
     ),
     OpenApiParameter(
         name="max_gsd",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=100,
         description="Filter records by maximum ground sample distance",
     ),
     OpenApiParameter(
@@ -155,21 +149,18 @@ satellite_capture_catalog_params = [
         name="min_azimuth_angle",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum azimuth angle",
     ),
     OpenApiParameter(
         name="max_azimuth_angle",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=360,
         description="Filter records by maximum azimuth angle",
     ),
     OpenApiParameter(
         name="min_illumination_azimuth_angle",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum illumination azimuth angle",
     ),
     OpenApiParameter(
@@ -177,14 +168,12 @@ satellite_capture_catalog_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=360,
         description="Filter records by maximum illumination azimuth angle",
     ),
     OpenApiParameter(
         name="min_illumination_elevation_angle",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum illumination elevation angle",
     ),
     OpenApiParameter(
@@ -192,21 +181,18 @@ satellite_capture_catalog_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=360,
         description="Filter records by maximum illumination elevation angle",
     ),
     OpenApiParameter(
         name="min_holdback_seconds",
         type=int,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum holdback seconds",
     ),
     OpenApiParameter(
         name="max_holdback_seconds",
         type=int,
         location=OpenApiParameter.QUERY,
-        default=5000000,
         description="Filter records by maximum holdback seconds",
     ),
 ]
@@ -230,7 +216,6 @@ calendar_params = [
         name="min_cloud_cover",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum cloud cover",
     ),
     OpenApiParameter(
@@ -238,7 +223,6 @@ calendar_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=100,
         description="Filter records by maximum cloud cover",
     ),
     OpenApiParameter(
@@ -246,7 +230,6 @@ calendar_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=0,
         description="Filter records by minimum off nadir angle",
     ),
     OpenApiParameter(
@@ -254,21 +237,18 @@ calendar_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=360,
         description="Filter records by maximum off nadir angle",
     ),
     OpenApiParameter(
         name="min_gsd",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=0,
         description="Filter records by minimum ground sample distance",
     ),
     OpenApiParameter(
         name="max_gsd",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=100,
         description="Filter records by maximum ground sample distance",
     ),
     OpenApiParameter(
@@ -287,21 +267,18 @@ calendar_params = [
         name="min_azimuth_angle",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum azimuth angle",
     ),
     OpenApiParameter(
         name="max_azimuth_angle",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=360,
         description="Filter records by maximum azimuth angle",
     ),
     OpenApiParameter(
         name="min_illumination_azimuth_angle",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum illumination azimuth angle",
     ),
     OpenApiParameter(
@@ -309,14 +286,12 @@ calendar_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=360,
         description="Filter records by maximum illumination azimuth angle",
     ),
     OpenApiParameter(
         name="min_illumination_elevation_angle",
         type=float,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum illumination elevation angle",
     ),
     OpenApiParameter(
@@ -324,21 +299,18 @@ calendar_params = [
         type=float,
         location
         =OpenApiParameter.QUERY,
-        default=360,
         description="Filter records by maximum illumination elevation angle",
     ),
     OpenApiParameter(
         name="min_holdback_seconds",
         type=int,
         location=OpenApiParameter.QUERY,
-        default=-1,
         description="Filter records by minimum holdback seconds",
     ),
     OpenApiParameter(
         name="max_holdback_seconds",
         type=int,
         location=OpenApiParameter.QUERY,
-        default=5000000,
         description="Filter records by maximum holdback seconds",
     ),
 ]

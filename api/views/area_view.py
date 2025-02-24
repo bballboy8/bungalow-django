@@ -117,6 +117,8 @@ class SatelliteCaptureCatalogView(APIView):
 
             # Request body
             wkt_polygon = request.data.get("wkt_polygon", None)
+            original_polygon = request.data.get("original_polygon", None)
+        
 
             logger.info(
                 f"Page Number: {page_number}, Page Size: {page_size}, Start Date: {start_date}, End Date: {end_date} Latitude: {latitude}, Longitude: {longitude}, Distance: {distance} Source: {source}, Vendor ID: {vendor_id} "
@@ -148,6 +150,7 @@ class SatelliteCaptureCatalogView(APIView):
                 longitude=longitude,
                 distance=distance,
                 wkt_polygon=wkt_polygon,
+                original_polygon=original_polygon,
                 source=source,
                 vendor_id=vendor_id,
                 request=request,

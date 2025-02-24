@@ -91,6 +91,7 @@ def get_satellite_records(
     start_date: str = None,
     end_date: str = None,
     wkt_polygon: str = None,
+    original_polygon: str = None,
     latitude: float = None,
     longitude: float = None,
     distance: float = None,

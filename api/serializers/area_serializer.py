@@ -27,6 +27,7 @@ def get_area(geometry):
 
 class SatelliteCatalogFilterSerializer(serializers.Serializer):
     wkt_polygon = serializers.CharField(default="")
+    original_polygon = serializers.CharField(default="")
 
 
 class GeoJSONToWKTSerializer(serializers.Serializer):

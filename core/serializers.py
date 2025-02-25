@@ -101,8 +101,8 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
             validated_data["location_polygon"] = self.validate_location_polygon(coordinates_record)
             centroid = validated_data["location_polygon"].centroid
             x, y = centroid.x, centroid.y
-            validated_data["geometryCentroid_lat"] = round(y, 2)
-            validated_data["geometryCentroid_lon"] = round(x, 2)
+            validated_data["geometryCentroid_lat"] = round(y, 8)
+            validated_data["geometryCentroid_lon"] = round(x, 8)
             validated_data["centroid_region"], validated_data["centroid_local"] = reverse_geocode_shapefile(y, x)
 
 

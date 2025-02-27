@@ -6,6 +6,8 @@ from django.contrib.gis.geos import Polygon
 import hashlib
 import json
 from bungalowbe.utils import reverse_geocode_shapefile
+from django.db.models import Q
+
 
 class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
     class Meta:
@@ -110,18 +112,21 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
         coordinates_record_md5 = hashlib.md5(json.dumps(coordinates_record, sort_keys=True).encode()).hexdigest()
         validated_data["coordinates_record_md5"] = coordinates_record_md5
 
-        # Check for duplicate record before saving
+        acquisition_datetime = validated_data["acquisition_datetime"]
+        vendor_id = validated_data.get("vendor_id")
+        # Optimize: Single query using `Q` object for both conditions
         existing_record = CollectionCatalog.objects.filter(
-            acquisition_datetime=validated_data["acquisition_datetime"],
-            coordinates_record_md5=coordinates_record_md5
-        ).first()
+            Q(acquisition_datetime=acquisition_datetime, coordinates_record_md5=coordinates_record_md5) |
+            Q(vendor_id=vendor_id)
+        ).only("id", "vendor_id").first()  # Reduce data fetched
 
         if existing_record:
-            raise serializers.ValidationError(f"A record with this acquisition_datetime and coordinates_record already exists. ID: {existing_record.id} {validated_data.get('vendor_id')}")
-        
-        # check for duplicate vendor_id
-        vendor_id = validated_data.get("vendor_id")
-        if vendor_id and CollectionCatalog.objects.filter(vendor_id=vendor_id).exists():
-            raise serializers.ValidationError(f"A record with this vendor_id already exists. {vendor_id}")
-            
+            if existing_record.acquisition_datetime == acquisition_datetime and existing_record.coordinates_record_md5 == coordinates_record_md5:
+                raise serializers.ValidationError(
+                    f"A record with this acquisition_datetime and coordinates_record already exists. ID: {existing_record.id} {vendor_id}"
+                )
+            if vendor_id and existing_record.vendor_id == vendor_id:
+                raise serializers.ValidationError(f"A record with this vendor_id already exists. {vendor_id}")
+
+        # Save record
         return super().create(validated_data)

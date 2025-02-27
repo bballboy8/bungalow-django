@@ -45,7 +45,6 @@ from bungalowbe.utils import convert_iso_to_datetime
 from core.models import CollectionCatalog
 from django.db import transaction
 import time
-
 def process_database_catalog(features, start_time, end_time, vendor_name, is_bulk= False):
     """
         Process the database catalog for the given features
@@ -55,36 +54,22 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
         valid_features = 0
         invalid_features = 0
         valid_records = []
-        errors = []
 
         for feature in features:
-            start_time = time.time()
             try:
                 serializer = CollectionCatalogSerializer(data=feature)
                 if serializer.is_valid():
-                    valid_records.append(serializer.create(serializer.validated_data))  # Call create() explicitly
+                    serializer.save()
                     valid_features += 1
+                    valid_records.append(serializer.data)
                 else:
-                    errors.append(serializer.errors)
+                    print(f"Error in serializer: {serializer.errors}")
                     invalid_features += 1
             except Exception as e:
-                errors.append(str(e))
+                print(f"Error in checking serialzer: {e}")
                 invalid_features += 1
-            print(time.time() - start_time, "end")
-
-        # Perform bulk insert if there are valid records
-        try:
-            if valid_records:
-                with transaction.atomic():  # Ensure atomicity
-                    print(f"Inserting {len(valid_records)} records")
-                    CollectionCatalog.objects.bulk_create(valid_records, ignore_conflicts=True)
-        except Exception as e:
-            print(f"Error in bulk insert: {e}")
-
-        print(f"Total: {len(features)}, Valid: {valid_features}, Invalid: {invalid_features}")
-
-        if errors:
-            print(f"Some errors: {errors[:5]}")  # Show only the first 5 errors
+        
+        print(f"Total records: {len(features)}, Valid records: {(valid_features)}, Invalid records: {(invalid_features)}")
 
         if is_bulk:
             return "Bulk Inserted"
@@ -115,8 +100,11 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
                 return "Error in history serializer"
 
 
+        # sort the valid records based on acquisition datetime
+        valid_features = sorted(valid_records, key=lambda x: x["acquisition_datetime"])
+
         try:
-            last_acquisition_datetime = valid_features[0]["acquisition_datetime"]
+            last_acquisition_datetime = valid_records[0]["acquisition_datetime"]
             last_acquisition_datetime = datetime.strftime(
                 last_acquisition_datetime, "%Y-%m-%d %H:%M:%S%z"
             )

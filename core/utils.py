@@ -42,6 +42,8 @@ from core.serializers import (
 )
 from datetime import datetime
 from bungalowbe.utils import convert_iso_to_datetime
+from core.models import CollectionCatalog
+from django.db import transaction
 
 def process_database_catalog(features, start_time, end_time, vendor_name, is_bulk= False):
     """
@@ -51,21 +53,27 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
     try:
         valid_features = 0
         invalid_features = 0
+        valid_records = []
+        errors = []
 
         for feature in features:
-            try:
-                serializer = CollectionCatalogSerializer(data=feature)
-                if serializer.is_valid():
-                    serializer.save()
-                    valid_features += 1
-                else:
-                    print(f"Error in serializer: {serializer.errors}")
-                    invalid_features += 1
-            except Exception as e:
-                print(f"Error in checking serialzer: {e}")
+            serializer = CollectionCatalogSerializer(data=feature)
+            if serializer.is_valid():
+                valid_records.append(serializer.create(serializer.validated_data))  # Call create() explicitly
+                valid_features += 1
+            else:
+                errors.append(serializer.errors)
                 invalid_features += 1
-        
-        print(f"Total records: {len(features)}, Valid records: {(valid_features)}, Invalid records: {(invalid_features)}")
+
+        # Perform bulk insert if there are valid records
+        if valid_records:
+            with transaction.atomic():  # Ensure atomicity
+                CollectionCatalog.objects.bulk_create(valid_records, ignore_conflicts=True)
+
+        print(f"Total: {len(features)}, Valid: {valid_features}, Invalid: {invalid_features}")
+
+        if errors:
+            print(f"Some errors: {errors[:5]}")  # Show only the first 5 errors
 
         if is_bulk:
             return "Bulk Inserted"

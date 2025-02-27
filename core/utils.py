@@ -57,18 +57,26 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
         errors = []
 
         for feature in features:
-            serializer = CollectionCatalogSerializer(data=feature)
-            if serializer.is_valid():
-                valid_records.append(serializer.create(serializer.validated_data))  # Call create() explicitly
-                valid_features += 1
-            else:
-                errors.append(serializer.errors)
+            try:
+                serializer = CollectionCatalogSerializer(data=feature)
+                if serializer.is_valid():
+                    valid_records.append(serializer.create(serializer.validated_data))  # Call create() explicitly
+                    valid_features += 1
+                else:
+                    errors.append(serializer.errors)
+                    invalid_features += 1
+            except Exception as e:
+                errors.append(str(e))
                 invalid_features += 1
 
         # Perform bulk insert if there are valid records
-        if valid_records:
-            with transaction.atomic():  # Ensure atomicity
-                CollectionCatalog.objects.bulk_create(valid_records, ignore_conflicts=True)
+        try:
+            if valid_records:
+                with transaction.atomic():  # Ensure atomicity
+                    print(f"Inserting {len(valid_records)} records")
+                    CollectionCatalog.objects.bulk_create(valid_records, ignore_conflicts=True)
+        except Exception as e:
+            print(f"Error in bulk insert: {e}")
 
         print(f"Total: {len(features)}, Valid: {valid_features}, Invalid: {invalid_features}")
 

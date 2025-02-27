@@ -44,6 +44,7 @@ from datetime import datetime
 from bungalowbe.utils import convert_iso_to_datetime
 from core.models import CollectionCatalog
 from django.db import transaction
+import time
 
 def process_database_catalog(features, start_time, end_time, vendor_name, is_bulk= False):
     """
@@ -57,6 +58,7 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
         errors = []
 
         for feature in features:
+            start_time = time.time()
             try:
                 serializer = CollectionCatalogSerializer(data=feature)
                 if serializer.is_valid():
@@ -68,6 +70,7 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
             except Exception as e:
                 errors.append(str(e))
                 invalid_features += 1
+            print(time.time() - start_time, "end")
 
         # Perform bulk insert if there are valid records
         try:

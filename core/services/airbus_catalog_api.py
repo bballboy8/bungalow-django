@@ -7,7 +7,7 @@ import shutil
 from decouple import config
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -18,6 +18,7 @@ from bungalowbe.utils import get_utc_time
 from core.models import SatelliteDateRetrievalPipelineHistory
 import pytz
 from core.services.utils import calculate_area_from_geojson
+
 
 # Get the terminal size
 columns = shutil.get_terminal_size().columns
@@ -61,54 +62,75 @@ def calculate_withhold(acquisition_datetime, publication_datetime):
         logging.error(f"Failed to calculate holdback hours: {e}")
         return -1
 
+def process_single_feature(feature):
+    try:
+        properties = feature.get("properties", {})
+        geometry = feature.get("geometry", {})
+        acquisition_datetime = datetime.fromisoformat(
+            properties.get("acquisitionDate").replace("Z", "+00:00")
+        ).replace(microsecond=0)
+        publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
+        if not geometry.get("type") == "Polygon":
+            return None, None
+        centroid_dict = get_centroid_and_region_and_location_polygon(geometry)
+        
+        model_params = {
+            "acquisition_datetime": acquisition_datetime,
+            "cloud_cover_percent": properties.get("cloudCover", ""),
+            "vendor_id": properties.get("id"),
+            "vendor_name": "airbus",
+            "sensor": properties.get("sensorType"),
+            "area": calculate_area_from_geojson(geometry, properties.get("id")),
+            "sun_elevation": properties.get("azimuthAngle"),
+            "resolution": f"{properties.get('resolution')}m",
+            "location_polygon": geometry,
+            "coordinates_record": geometry,
+            "metadata": feature,
+            "gsd": float(properties.get("resolution")),
+            "offnadir": float(properties.get("incidenceAngle")),
+            "constellation": properties.get("platform"),
+            "platform": properties.get("platform"),
+            "azimuth_angle": properties.get("azimuthAngle"),
+            "illumination_azimuth_angle": properties.get("illuminationAzimuthAngle"),
+            "illumination_elevation_angle": properties.get("illuminationElevationAngle"),
+            "publication_datetime": publication_datetime,
+            "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
+            **centroid_dict
+        }
+
+        download_thumbnails_dict = {
+            "url": feature.get("_links", {}).get("thumbnail", {}).get("href"),
+            "id": properties.get("id"),
+            "geometry": geometry,
+        }
+
+        return model_params, download_thumbnails_dict
+
+    except Exception as e:
+        logging.error(f"Failed to process feature: {e}")
+        return None, None
 
 
 def process_features(all_features):
-    thumbnail_urls = []
     converted_features = []
-    for feature in all_features:
-        try:
-            properties = feature.get("properties", {})
-            geometry = feature.get("geometry", {})
-            acquisition_datetime = datetime.fromisoformat(
-                    properties.get("acquisitionDate").replace("Z", "+00:00")
-                ).replace(microsecond=0)
-            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
-            model_params = {
-                "acquisition_datetime": acquisition_datetime,
-                "cloud_cover_percent": properties.get("cloudCover", ""),
-                "vendor_id": properties.get("id"),
-                "vendor_name": "airbus",
-                "sensor": properties.get("sensorType"),
-                "area": calculate_area_from_geojson(geometry, properties.get("id")),
-                "sun_elevation": properties.get("azimuthAngle"),
-                "resolution": f"{properties.get("resolution")}m",
-                "location_polygon": geometry,
-                "coordinates_record": geometry,
-                "metadata": feature,
-                "gsd": float(properties.get("resolution")),
-                'offnadir': float(properties.get("incidenceAngle")),
-                "constellation": properties.get("platform"),
-                "platform": properties.get("platform"),
-                "azimuth_angle": properties.get("azimuthAngle"),
-                "illumination_azimuth_angle": properties.get("illuminationAzimuthAngle"),
-                "illumination_elevation_angle": properties.get("illuminationElevationAngle"),
-                "publication_datetime": publication_datetime,
-                "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
-            }
-            converted_features.append(model_params)
-            download_thumbnails_dict = {
-                "url": feature.get("_links", {}).get("thumbnail", {}).get("href"),
-                "id": feature.get("properties").get("id"),
-                "geometry": feature.get("geometry"),
-            }
-            thumbnail_urls.append(download_thumbnails_dict)
-        except Exception as e:
-            logging.error(f"Failed to process feature: {e}")
-            pass
-    converted_features = sorted(
-        converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
-    )
+    thumbnail_urls = []
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(process_single_feature, feature): feature
+            for feature in all_features
+        }
+
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                model_params, download_thumbnails_dict = result
+                converted_features.append(model_params)
+                thumbnail_urls.append(download_thumbnails_dict)
+
+    converted_features.sort(key=lambda x: x["acquisition_datetime"], reverse=True)
+    # add reverse geocoding to all the processed features
+    converted_features = get_centroid_region_and_local(converted_features)
     return converted_features[::-1], thumbnail_urls
 
 def upload_to_s3(feature, access_token, folder="thumbnails"):
@@ -267,6 +289,7 @@ def search_images(bbox, start_date, end_date, is_bulk=False):
                 current_page += 1
             current_date += timedelta(days=BATCH_SIZE)
         
+        print("Total Items: ", len(all_features))
         data, images = process_features(all_features)
         # download_and_upload_images(images, access_token, "airbus/thumbnails")
         process_database_catalog(data, start_date.isoformat(), end_date.isoformat(), "airbus", is_bulk)
@@ -301,8 +324,8 @@ def run_airbus_catalog_api():
 
 def run_airbus_catalog_api_bulk():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
+    START_DATE = datetime(2021, 1, 5, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2021, 2, 2, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

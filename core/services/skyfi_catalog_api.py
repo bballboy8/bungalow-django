@@ -37,7 +37,7 @@ from decouple import config
 from datetime import datetime, timezone
 from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, get_holdback_seconds, process_database_catalog
+from core.utils import save_image_in_s3_and_get_url, get_holdback_seconds, process_database_catalog, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -186,43 +186,64 @@ def download_and_upload_images(features, path, max_workers=5):
                 print(f"Exception occurred for feature {feature.get('vendor_id')}: {e}")
 
 
+def process_single_feature(feature):
+    try:
+        location_polygon = wkt_to_geojson(feature["footprint"])
+        utc_time = convert_to_utc(feature["captureTimestamp"])
+        publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
+        centroid_dict = get_centroid_and_region_and_location_polygon(location_polygon)
+
+        model_params = {
+            "acquisition_datetime": utc_time,
+            "cloud_cover_percent": -1,
+            "vendor_id": feature["archiveId"],
+            "vendor_name": f"skyfi-{feature['provider'].lower()}",
+            "sensor": feature["constellation"],
+            "area": feature["totalAreaSquareKm"],
+            "sun_elevation": estimate_sun_angles(
+                feature["captureTimestamp"], feature["footprint"]
+            ),
+            "resolution": f"{feature['gsd']}m",
+            "thumbnail_url": feature["thumbnailUrls"],
+            "location_polygon": location_polygon,
+            "coordinates_record": location_polygon,
+            "metadata": feature,
+            "gsd": float(feature["gsd"]) / 100,
+            "offnadir": feature.get("offNadirAngle"),
+            "constellation": feature["constellation"],
+            "platform": feature["provider"],
+            "azimuth_angle": None,
+            "illumination_azimuth_angle": None,
+            "illumination_elevation_angle": None,
+            "holdback_seconds": get_holdback_seconds(utc_time, publication_datetime),
+            "publication_datetime": publication_datetime,
+            **centroid_dict,
+        }
+        return model_params
+    except Exception as e:
+        print(e)
+        return None
+
+
 def convert_to_model_params(features):
-    response = []
-    for feature in features:
-        try:
-            location_polygon = wkt_to_geojson(feature["footprint"])
-            utc_time = convert_to_utc(feature["captureTimestamp"])
-            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
-            model_params = {
-                "acquisition_datetime": utc_time,
-                "cloud_cover_percent": -1,
-                "vendor_id": feature["archiveId"],
-                "vendor_name": f"skyfi-{feature['provider'].lower()}",
-                "sensor": feature["constellation"],
-                "area": feature["totalAreaSquareKm"],
-                "sun_elevation": estimate_sun_angles(
-                    feature["captureTimestamp"], feature["footprint"]
-                ),
-                "resolution": f"{feature['gsd']}m",
-                "thumbnail_url": feature["thumbnailUrls"],
-                "location_polygon": location_polygon,
-                "coordinates_record": location_polygon,
-                "metadata": feature,
-                "gsd": float(feature["gsd"]) / 100,
-                "offnadir": feature.get("offNadirAngle"),
-                "constellation": feature["constellation"],
-                "platform": feature["provider"],
-                "azimuth_angle": None,
-                "illumination_azimuth_angle": None,
-                "illumination_elevation_angle": None,
-                "holdback_seconds": get_holdback_seconds(utc_time, publication_datetime),
-                "publication_datetime": publication_datetime,
-            }
-            response.append(model_params)
-        except Exception as e:
-            print(e)
-    response = sorted(response, key=lambda x: x["acquisition_datetime"], reverse=True)
-    return response[::-1]
+    converted_features = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(process_single_feature, feature): feature
+            for feature in features
+        }
+
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                model_params = result
+                converted_features.append(model_params)
+
+    converted_features = sorted(
+        converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
+    )
+    converted_features = get_centroid_region_and_local(converted_features)
+    return converted_features[::-1]
 
 
 # Function to search the SkyFi archive with pagination
@@ -305,7 +326,6 @@ def skyfi_executor(START_DATE, END_DATE, LAND_POLYGONS_WKT,IS_BULK):
 
     print("Total records: ", len(results))
     converted_features = convert_to_model_params(results)
-    print(converted_features[:2])
     # download_and_upload_images(converted_features, "skyfi/thumbnails")
     process_database_catalog(
         converted_features, START_DATE.isoformat(), end_date.isoformat(), "skyfi-umbra", IS_BULK
@@ -334,7 +354,6 @@ def run_skyfi_catalog_api():
     land_polygons_wkt = []
     with open("core/services/land_polygons.json", "r") as file:
         land_polygons_wkt = json.load(file)
-    land_polygons_wkt = land_polygons_wkt[61:]
     response = skyfi_executor(START_DATE, END_DATE, land_polygons_wkt, False)
     return response
 

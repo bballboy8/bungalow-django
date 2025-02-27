@@ -11,7 +11,7 @@ from core.models import SatelliteDateRetrievalPipelineHistory
 from core.serializers import SatelliteDateRetrievalPipelineHistorySerializer, SatelliteCaptureCatalogSerializer, CollectionCatalog
 import pytz
 from core.services.utils import calculate_area_from_geojson
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local
 from botocore.exceptions import NoCredentialsError
 from PIL import Image
 import io
@@ -61,49 +61,63 @@ def calculate_withhold(acquisition_datetime, publication_datetime):
         print(f"Failed to calculate holdback hours: {e}")
         return -1
 
+def process_single_feature(feature):
+    try:
+        properties = feature.get("properties", {})
+        geometry = feature.get("geometry", {})
+        assets = feature.get("assets", {})
+        acquisition_datetime = datetime.fromisoformat(
+                properties.get("datetime").replace("Z", "+00:00")
+            ).replace(microsecond=0)
+        publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
+        centroid_dict = get_centroid_and_region_and_location_polygon(feature["geometry"])
+        model_params = {
+            "acquisition_datetime": acquisition_datetime,
+            "cloud_cover_percent": properties.get("eo:cloud_cover", ""),
+            "vendor_id": f"{feature.get('id')}-{feature.get('collection')}",
+            "vendor_name": "maxar",
+            "sensor": properties.get("instruments")[0] if properties.get("instruments") and len(properties.get("instruments")) > 0 else None,
+            "area": calculate_area_from_geojson(geometry, properties.get("id")),
+            "sun_elevation": properties.get("view:sun_azimuth"),
+            "resolution": f"{properties.get("gsd")}m",
+            "location_polygon": geometry,
+            "coordinates_record": geometry,
+            "assets": assets,
+            "metadata": feature,
+            "gsd": float(properties.get("gsd")),
+            "offnadir": properties.get("off_nadir_avg"),
+            "constellation": properties.get("platform"),
+            "platform": properties.get("platform"),
+            "publication_datetime": publication_datetime,
+            "azimuth_angle": properties.get("view:azimuth"),
+            "illumination_azimuth_angle": properties.get("view:sun_azimuth"),
+            "illumination_elevation_angle" : properties.get("view:sun_elevation"),
+            "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
+            **centroid_dict
+        }
+        return model_params
+    except Exception as e:
+        return None
+
 
 def process_features(all_features):
     converted_features = []
-    for feature in all_features:
-        try:
-            properties = feature.get("properties", {})
-            geometry = feature.get("geometry", {})
-            assets = feature.get("assets", {})
-            acquisition_datetime = datetime.fromisoformat(
-                    properties.get("datetime").replace("Z", "+00:00")
-                ).replace(microsecond=0)
-            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(process_single_feature, feature): feature
+            for feature in all_features
+        }
 
-            model_params = {
-                "acquisition_datetime": acquisition_datetime,
-                "cloud_cover_percent": properties.get("eo:cloud_cover", ""),
-                "vendor_id": f"{feature.get('id')}-{feature.get('collection')}",
-                "vendor_name": "maxar",
-                "sensor": properties.get("instruments")[0] if properties.get("instruments") and len(properties.get("instruments")) > 0 else None,
-                "area": calculate_area_from_geojson(geometry, properties.get("id")),
-                "sun_elevation": properties.get("view:sun_azimuth"),
-                "resolution": f"{properties.get("gsd")}m",
-                "location_polygon": geometry,
-                "coordinates_record": geometry,
-                "assets": assets,
-                "metadata": feature,
-                "gsd": float(properties.get("gsd")),
-                "offnadir": properties.get("off_nadir_avg"),
-                "constellation": properties.get("platform"),
-                "platform": properties.get("platform"),
-                "publication_datetime": publication_datetime,
-                "azimuth_angle": properties.get("view:azimuth"),
-                "illumination_azimuth_angle": properties.get("view:sun_azimuth"),
-                "illumination_elevation_angle" : properties.get("view:sun_elevation"),
-                "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
-            }
-            converted_features.append(model_params)
-        except Exception as e:
-            pass
-    # sort by acquisition_datetime
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                model_params = result
+                converted_features.append(model_params)
+
     converted_features = sorted(
         converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
     )
+    converted_features = get_centroid_region_and_local(converted_features)
     return converted_features[::-1]
 
 
@@ -253,8 +267,8 @@ def run_maxar_catalog_api():
 
 def run_maxar_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 1, 2, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

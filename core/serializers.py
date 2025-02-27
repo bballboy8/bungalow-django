@@ -5,10 +5,9 @@ from .models import CollectionCatalog, SatelliteDateRetrievalPipelineHistory, Sa
 from django.contrib.gis.geos import Polygon
 import hashlib
 import json
-from bungalowbe.utils import reverse_geocode_shapefile
 from django.db.models import Q
 
-
+import time
 class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
     class Meta:
         model = CollectionCatalog
@@ -70,13 +69,6 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
         model = CollectionCatalog
         fields = '__all__'
 
-    def validate_location_polygon(self, value):
-        if isinstance(value, dict) and value.get("type") == "Polygon":
-            try:
-                return Polygon(value["coordinates"][0])
-            except (TypeError, ValueError):
-                raise serializers.ValidationError("Invalid coordinates for Polygon.")
-        raise serializers.ValidationError("location_polygon must be a valid GeoJSON Polygon.")
     
     def format_top_level_floats(self, data, decimal_places=2):
         """
@@ -84,7 +76,7 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
         """
         for key, value in data.items():
             try:
-                if isinstance(value, float):
+                if isinstance(value, float) and key not in ["geometryCentroid_lat", "geometryCentroid_lon"]:
                     data[key] = round(value, decimal_places)
             except Exception:
                 pass
@@ -98,35 +90,19 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def create(self, validated_data):
-        coordinates_record = validated_data.get("coordinates_record")
-        if isinstance(coordinates_record, dict):
-            validated_data["location_polygon"] = self.validate_location_polygon(coordinates_record)
-            centroid = validated_data["location_polygon"].centroid
-            x, y = centroid.x, centroid.y
-            validated_data["geometryCentroid_lat"] = round(y, 8)
-            validated_data["geometryCentroid_lon"] = round(x, 8)
-            validated_data["centroid_region"], validated_data["centroid_local"] = reverse_geocode_shapefile(y, x)
-
-
-        # Generate MD5 hash of coordinates_record
-        coordinates_record_md5 = hashlib.md5(json.dumps(coordinates_record, sort_keys=True).encode()).hexdigest()
-        validated_data["coordinates_record_md5"] = coordinates_record_md5
+        coordinates_record_md5 = validated_data.get("coordinates_record_md5")
 
         acquisition_datetime = validated_data["acquisition_datetime"]
         vendor_id = validated_data.get("vendor_id")
         # Optimize: Single query using `Q` object for both conditions
+        start_time = time.time()
         existing_record = CollectionCatalog.objects.filter(
             Q(acquisition_datetime=acquisition_datetime, coordinates_record_md5=coordinates_record_md5) |
             Q(vendor_id=vendor_id)
-        ).only("id", "vendor_id", "acquisition_datetime", "coordinates_record_md5").first()  # Reduce data fetched
+        ).exists()  # Reduce data fetched
+        # print(time.time()-start_time, "end")
 
         if existing_record:
-            if existing_record.acquisition_datetime == acquisition_datetime and existing_record.coordinates_record_md5 == coordinates_record_md5:
-                raise serializers.ValidationError(
-                    f"A record with this acquisition_datetime and coordinates_record already exists. ID: {existing_record.id} {vendor_id}"
-                )
-            if vendor_id and existing_record.vendor_id == vendor_id:
-                raise serializers.ValidationError(f"A record with this vendor_id already exists. {vendor_id}")
-
+            raise serializers.ValidationError(f"A record with this acquisition_datetime and coordinates_record already exists. {vendor_id}")
         # Save record
         return super().create(validated_data)

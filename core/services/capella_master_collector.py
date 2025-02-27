@@ -12,7 +12,7 @@ from decouple import config
 from datetime import datetime
 from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -213,54 +213,66 @@ def query_api_with_retries(access_token, bbox, start_datetime, end_datetime):
         import traceback
         traceback.print_exc()
 
+def process_single_feature(feature):
+    try:
+        feature_id = feature["id"]
+        datetime_str = feature["properties"]["datetime"]
+        acquisition_datetime = datetime.fromisoformat(
+            datetime_str.replace("Z", "+00:00")
+        )
+        publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
+        thumbnail_url = feature["assets"]["thumbnail"]["href"]
+        centroid_dict = get_centroid_and_region_and_location_polygon(feature["geometry"])
+        model_params = {
+            "id": feature_id,
+            "acquisition_datetime": acquisition_datetime,
+            "vendor_id": feature_id,
+            "vendor_name": "capella",
+            "sensor": feature["properties"]["instruments"][0] if feature["properties"]["instruments"] else "",
+            "area": calculate_area_from_geojson(feature["geometry"], feature_id),
+            "sun_elevation": feature["properties"]["view:incidence_angle"],
+            "resolution": f"{feature['properties']['capella:resolution_ground_range']}m",
+            "location_polygon": feature["geometry"],
+            "coordinates_record": feature["geometry"],
+            "thumbnail_url": thumbnail_url,
+            "geometry": feature["geometry"],
+            "metadata": feature,
+            "gsd": float(feature['properties']['capella:resolution_ground_range']),
+            "cloud_cover_percent": -1,
+            "offnadir": None,
+            "platform": feature["properties"]["platform"],
+            "constellation": feature["properties"]["platform"],
+            "publication_datetime": publication_datetime,
+            "azimuth_angle": feature["properties"]["view:incidence_angle"],
+            "illumination_azimuth_angle": None,
+            "illumination_elevation_angle": None,
+            "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
+            **centroid_dict
+        }
+        return model_params
+    except Exception as e:
+        logging.error(f"Error processing feature: {e}")
+        return None
 
 
 def process_features(features):
-    response = []
-    for feature in features:
-        try:
-            feature_id = feature["id"]
-            if "SP_GEO" not in feature_id:
-                continue
-            datetime_str = feature["properties"]["datetime"]
-            acquisition_datetime = datetime.fromisoformat(
-                datetime_str.replace("Z", "+00:00")
-            )
-            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
-            thumbnail_url = feature["assets"]["thumbnail"]["href"]
-            model_params = {
-                "id": feature_id,
-                "acquisition_datetime": acquisition_datetime,
-                "vendor_id": feature_id,
-                "vendor_name": "capella",
-                "sensor": feature["properties"]["instruments"][0] if feature["properties"]["instruments"] else "",
-                "area": calculate_area_from_geojson(feature["geometry"], feature_id),
-                "sun_elevation": feature["properties"]["view:incidence_angle"],
-                "resolution": f"{feature['properties']['capella:resolution_ground_range']}m",
-                "location_polygon": feature["geometry"],
-                "coordinates_record": feature["geometry"],
-                "thumbnail_url": thumbnail_url,
-                "geometry": feature["geometry"],
-                "metadata": feature,
-                "gsd": float(feature['properties']['capella:resolution_ground_range']),
-                "cloud_cover_percent": -1,
-                "offnadir": None,
-                "platform": feature["properties"]["platform"],
-                "constellation": feature["properties"]["platform"],
-                "publication_datetime": publication_datetime,
-                "azimuth_angle": feature["properties"]["view:incidence_angle"],
-                "illumination_azimuth_angle": None,
-                "illumination_elevation_angle": None,
-                "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
-            }
-            response.append(model_params)
+    converted_features = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(process_single_feature, feature): feature
+            for feature in features
+        }
 
-        except Exception as e:
-            logging.error(f"Error processing feature: {e}")
-            continue
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                model_params = result
+                converted_features.append(model_params)
+
     converted_features = sorted(
-        response, key=lambda x: x["acquisition_datetime"], reverse=True
+        converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
     )
+    converted_features = get_centroid_region_and_local(converted_features)
     return converted_features[::-1]
 
 
@@ -333,8 +345,8 @@ def run_capella_catalog_api():
 
 def run_capella_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 1, 2, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

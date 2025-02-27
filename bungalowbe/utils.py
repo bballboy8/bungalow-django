@@ -19,7 +19,7 @@ def convert_iso_to_datetime(iso_string):
 
 
 
-def reverse_geocode_shapefile(lat, lon):
+def reverse_geocode_shapefile(lat, lon, states, marine):
     """
     Reverse geocodes a (lat, lon) point using shapefiles.
 
@@ -28,18 +28,7 @@ def reverse_geocode_shapefile(lat, lon):
     :return: (region, local) tuple.
     """
     try:
-        base_dir = os.getcwd() 
         lat, lon = float(lat), float(lon)
-        # Construct absolute paths dynamically
-        states_shapefile = os.path.join(base_dir, "static", "shapesFiles", "state_provinces", "ne_10m_admin_1_states_provinces.shp")
-        marine_shapefile = os.path.join(base_dir, "static", "shapesFiles", "marine_polys", "ne_10m_geography_marine_polys.shp")
-
-        # check if the shapefiles exist
-        if not os.path.exists(states_shapefile) or not os.path.exists(marine_shapefile):
-            raise FileNotFoundError("Shapefiles not found.")
-        
-        states = gpd.read_file(states_shapefile)
-        marine = gpd.read_file(marine_shapefile)
 
         point = Point(lon, lat)
 

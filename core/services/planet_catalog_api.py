@@ -26,7 +26,7 @@ from rasterio.transform import from_bounds
 from decouple import config
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -207,50 +207,64 @@ def calculate_withhold(acquisition_datetime, publication_datetime):
         print(f"Failed to calculate holdback hours: {e}")
         return -1
 
+def process_single_feature(feature):
+    """Process a single feature from the Planet API."""
+    try:
+        properties = feature.get("properties", {})
+        geometry = feature.get("geometry", {})
+        acquisition_datetime = datetime.fromisoformat(
+            properties["acquired"].replace("Z", "+00:00")
+        )
+        publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
+        centroid_dict = get_centroid_and_region_and_location_polygon(feature["geometry"])
+
+        model_params = {
+            "acquisition_datetime": acquisition_datetime,
+            "cloud_cover_percent": properties["cloud_percent"],
+            "vendor_id": feature["id"],
+            "vendor_name": "planet",
+            "sensor": properties["item_type"],
+            "area": calculate_area_from_geojson(geometry, feature["id"]),
+            "sun_elevation": properties["sun_azimuth"],
+            "resolution": f"{properties['gsd']}m",
+            "location_polygon": geometry,
+            "coordinates_record": geometry,
+            "metadata": feature,
+            "gsd": float(properties["gsd"]),
+            "constellation": properties["satellite_id"],
+            "offnadir": None,
+            "platform": properties["satellite_id"],
+            "azimuth_angle": properties.get("satellite_azimuth"),
+            "illumination_azimuth_angle": properties.get("sun_azimuth"),
+            "illumination_elevation_angle": properties.get("sun_elevation"),
+            "holdback_seconds": calculate_withhold(acquisition_datetime, publication_datetime),
+            "publication_datetime": publication_datetime,
+            **centroid_dict,
+        }
+        return model_params
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+
 def process_features(features):
-    response = []
+    converted_features = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(process_single_feature, feature): feature
+            for feature in features
+        }
 
-    for feature in features:
-        try:
-            if not str(feature["id"]).endswith("u0001"):
-                continue
-            properties = feature.get('properties', {})
-            geometry = feature.get('geometry', {})
-            acquisition_datetime = datetime.fromisoformat(
-                properties["acquired"].replace("Z", "+00:00")
-            )
-            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
-
-            model_params = {
-                "acquisition_datetime": acquisition_datetime,
-                "cloud_cover_percent": properties["cloud_percent"],
-                "vendor_id": feature["id"],
-                "vendor_name": "planet",
-                "sensor": properties["item_type"],
-                "area": calculate_area_from_geojson(geometry, feature["id"]),
-                "sun_elevation": properties["sun_azimuth"],
-                "resolution": f"{properties['gsd']}m",
-                "location_polygon": geometry,
-                "coordinates_record": geometry,
-                "metadata": feature,
-                "gsd": float(properties["gsd"]),
-                "constellation": properties["satellite_id"],
-                "offnadir": None,
-                "platform": properties["satellite_id"],
-                "azimuth_angle": properties.get("satellite_azimuth"),
-                "illumination_azimuth_angle": properties.get("sun_azimuth"),
-                "illumination_elevation_angle": properties.get("sun_elevation"),
-                "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
-                "publication_datetime": publication_datetime,
-            }
-            response.append(model_params)
-        except Exception as e:
-            print(f"Error: {e}")
-            continue
-    response = sorted(
-        response, key=lambda x: x["acquisition_datetime"], reverse=True
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                model_params = result
+                converted_features.append(model_params)
+    converted_features = sorted(
+        converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
     )
-    return response[::-1]
+    converted_features = get_centroid_region_and_local(converted_features)
+    return converted_features[::-1]
 
 def main(START_DATE, END_DATE, BBOX, is_bulk):
     bboxes = [BBOX]
@@ -341,8 +355,8 @@ def run_planet_catalog_api():
 def run_planet_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
     BBOX = bbox_to_geojson(BBOX)
-    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 1, 2, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

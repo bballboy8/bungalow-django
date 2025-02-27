@@ -2,7 +2,10 @@ import boto3
 from botocore.exceptions import NoCredentialsError
 from decouple import config
 from core.models import SatelliteDateRetrievalPipelineHistory
-
+from bungalowbe.utils import reverse_geocode_shapefile
+from django.contrib.gis.geos import Polygon
+import hashlib
+import json
 
 bucket_name = config("AWS_STORAGE_BUCKET_NAME")
 AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
@@ -143,4 +146,19 @@ def get_holdback_seconds(acquisition_datetime, publication_datetime):
         print(f"Error in get_time_difference: {e}")
         return None
 
- 
+def get_centroid_and_region_and_location_polygon(coordinates_record, states, marine):
+    try:
+        data = {}
+        if isinstance(coordinates_record, dict) and coordinates_record.get("type") == "Polygon":
+            data["location_polygon"] =  Polygon(coordinates_record["coordinates"][0])
+            centroid = data["location_polygon"].centroid
+            x, y = centroid.x, centroid.y
+            data["geometryCentroid_lat"] = round(y, 8)
+            data["geometryCentroid_lon"] = round(x, 8)
+            data["centroid_region"], data["centroid_local"] = reverse_geocode_shapefile(y, x, states, marine)
+            coordinates_record_md5 = hashlib.md5(json.dumps(coordinates_record, sort_keys=True).encode()).hexdigest()
+            data["coordinates_record_md5"] = coordinates_record_md5
+        return data
+    except Exception as e:
+        print(f"Error in get_centroid_and_region: {e}")
+        return {}

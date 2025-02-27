@@ -118,7 +118,7 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
         existing_record = CollectionCatalog.objects.filter(
             Q(acquisition_datetime=acquisition_datetime, coordinates_record_md5=coordinates_record_md5) |
             Q(vendor_id=vendor_id)
-        ).only("id", "vendor_id").first()  # Reduce data fetched
+        ).only("id", "vendor_id", "acquisition_datetime", "coordinates_record_md5").first()  # Reduce data fetched
 
         if existing_record:
             if existing_record.acquisition_datetime == acquisition_datetime and existing_record.coordinates_record_md5 == coordinates_record_md5:

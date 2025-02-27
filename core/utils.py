@@ -105,7 +105,7 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
 
 
         # sort the valid records based on acquisition datetime
-        valid_features = sorted(valid_records, key=lambda x: x["acquisition_datetime"])
+        valid_records = sorted(valid_records, key=lambda x: x["acquisition_datetime"])
 
         try:
             last_acquisition_datetime = valid_records[0]["acquisition_datetime"]

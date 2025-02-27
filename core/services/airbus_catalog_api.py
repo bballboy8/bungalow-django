@@ -7,7 +7,7 @@ import shutil
 from decouple import config
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -63,7 +63,7 @@ def calculate_withhold(acquisition_datetime, publication_datetime):
         logging.error(f"Failed to calculate holdback hours: {e}")
         return -1
 
-def process_single_feature(feature, states, marine):
+def process_single_feature(feature):
     try:
         properties = feature.get("properties", {})
         geometry = feature.get("geometry", {})
@@ -71,7 +71,9 @@ def process_single_feature(feature, states, marine):
             properties.get("acquisitionDate").replace("Z", "+00:00")
         ).replace(microsecond=0)
         publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
-        centroid_dict = get_centroid_and_region_and_location_polygon(geometry, states, marine)
+        if not geometry.get("type") == "Polygon":
+            return None, None
+        centroid_dict = get_centroid_and_region_and_location_polygon(geometry)
         
         model_params = {
             "acquisition_datetime": acquisition_datetime,
@@ -114,28 +116,22 @@ def process_features(all_features):
     converted_features = []
     thumbnail_urls = []
 
-    base_dir = os.getcwd() 
-    # Construct absolute paths dynamically
-    states_shapefile = os.path.join(base_dir, "static", "shapesFiles", "state_provinces", "ne_10m_admin_1_states_provinces.shp")
-    marine_shapefile = os.path.join(base_dir, "static", "shapesFiles", "marine_polys", "ne_10m_geography_marine_polys.shp")
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(process_single_feature, feature): feature
+            for feature in all_features
+        }
 
-    # check if the shapefiles exist
-    if not os.path.exists(states_shapefile) or not os.path.exists(marine_shapefile):
-        raise FileNotFoundError("Shapefiles not found.")
-    
-    states = gpd.read_file(states_shapefile)
-    marine = gpd.read_file(marine_shapefile)
-
-    with ThreadPoolExecutor() as executor:
-        results = list(executor.map(process_single_feature, all_features, states, marine))
-
-    for model_params, download_thumbnails_dict in results:
-        if model_params:
-            converted_features.append(model_params)
-        if download_thumbnails_dict:
-            thumbnail_urls.append(download_thumbnails_dict)
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                model_params, download_thumbnails_dict = result
+                converted_features.append(model_params)
+                thumbnail_urls.append(download_thumbnails_dict)
 
     converted_features.sort(key=lambda x: x["acquisition_datetime"], reverse=True)
+    # add reverse geocoding to all the processed features
+    converted_features = get_centroid_region_and_local(converted_features)
     return converted_features[::-1], thumbnail_urls
 
 def upload_to_s3(feature, access_token, folder="thumbnails"):
@@ -297,8 +293,7 @@ def search_images(bbox, start_date, end_date, is_bulk=False):
         print("Total Items: ", len(all_features))
         data, images = process_features(all_features)
         # download_and_upload_images(images, access_token, "airbus/thumbnails")
-        print(data[:1])
-        # process_database_catalog(data, start_date.isoformat(), end_date.isoformat(), "airbus", is_bulk)
+        process_database_catalog(data, start_date.isoformat(), end_date.isoformat(), "airbus", is_bulk)
         print("Completed Processing Airbus: Total Items: {}".format(total_items))
     else:
         logging.error(f"Failed to authenticate")
@@ -330,8 +325,8 @@ def run_airbus_catalog_api():
 
 def run_airbus_catalog_api_bulk():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2021, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2021, 1, 2, tzinfo=pytz.utc)
+    START_DATE = datetime(2021, 1, 5, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2021, 2, 2, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

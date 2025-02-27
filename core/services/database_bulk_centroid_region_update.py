@@ -3,7 +3,6 @@ from django.db import connections
 from django.conf import settings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
-from bungalowbe.utils import reverse_geocode_shapefile
 from shapely.geometry import Polygon
 import json
 import geopandas as gpd

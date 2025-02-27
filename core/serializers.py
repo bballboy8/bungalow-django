@@ -7,7 +7,7 @@ import hashlib
 import json
 from django.db.models import Q
 
-
+import time
 class SatelliteCaptureCatalogSerializer(serializers.ModelSerializer):
     class Meta:
         model = CollectionCatalog
@@ -76,7 +76,7 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
         """
         for key, value in data.items():
             try:
-                if isinstance(value, float):
+                if isinstance(value, float) and key not in ["geometryCentroid_lat", "geometryCentroid_lon"]:
                     data[key] = round(value, decimal_places)
             except Exception:
                 pass
@@ -95,10 +95,12 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
         acquisition_datetime = validated_data["acquisition_datetime"]
         vendor_id = validated_data.get("vendor_id")
         # Optimize: Single query using `Q` object for both conditions
+        start_time = time.time()
         existing_record = CollectionCatalog.objects.filter(
             Q(acquisition_datetime=acquisition_datetime, coordinates_record_md5=coordinates_record_md5) |
             Q(vendor_id=vendor_id)
         ).exists()  # Reduce data fetched
+        # print(time.time()-start_time, "end")
 
         if existing_record:
             raise serializers.ValidationError(f"A record with this acquisition_datetime and coordinates_record already exists. {vendor_id}")

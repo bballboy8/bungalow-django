@@ -6,6 +6,8 @@ from bungalowbe.utils import reverse_geocode_shapefile
 from django.contrib.gis.geos import Polygon
 import hashlib
 import json
+import os
+import geopandas as gpd
 
 bucket_name = config("AWS_STORAGE_BUCKET_NAME")
 AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
@@ -69,7 +71,6 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
                     print(f"Error in serializer: {serializer.errors}")
                     invalid_features += 1
             except Exception as e:
-                print(f"Error in checking serialzer: {e}")
                 invalid_features += 1
         
         print(f"Total records: {len(features)}, Valid records: {(valid_features)}, Invalid records: {(invalid_features)}")
@@ -146,7 +147,7 @@ def get_holdback_seconds(acquisition_datetime, publication_datetime):
         print(f"Error in get_time_difference: {e}")
         return None
 
-def get_centroid_and_region_and_location_polygon(coordinates_record, states, marine):
+def get_centroid_and_region_and_location_polygon(coordinates_record):
     try:
         data = {}
         if isinstance(coordinates_record, dict) and coordinates_record.get("type") == "Polygon":
@@ -155,10 +156,36 @@ def get_centroid_and_region_and_location_polygon(coordinates_record, states, mar
             x, y = centroid.x, centroid.y
             data["geometryCentroid_lat"] = round(y, 8)
             data["geometryCentroid_lon"] = round(x, 8)
-            data["centroid_region"], data["centroid_local"] = reverse_geocode_shapefile(y, x, states, marine)
             coordinates_record_md5 = hashlib.md5(json.dumps(coordinates_record, sort_keys=True).encode()).hexdigest()
             data["coordinates_record_md5"] = coordinates_record_md5
         return data
     except Exception as e:
         print(f"Error in get_centroid_and_region: {e}")
         return {}
+
+def get_centroid_region_and_local(features):
+    try:
+        base_dir = os.getcwd() 
+        states_shapefile = os.path.join(base_dir, "static", "shapesFiles", "state_provinces", "ne_10m_admin_1_states_provinces.shp")
+        marine_shapefile = os.path.join(base_dir, "static", "shapesFiles", "marine_polys", "ne_10m_geography_marine_polys.shp")
+
+        if not os.path.exists(states_shapefile) or not os.path.exists(marine_shapefile):
+            raise FileNotFoundError("Shapefiles not found.")
+
+        batch_size = 50
+        for i in range(0, len(features), batch_size):
+            try:
+                states = gpd.read_file(states_shapefile)
+                marine = gpd.read_file(marine_shapefile)
+
+                batch = features[i:i + batch_size]
+                for feature in batch:
+                    feature["centroid_region"], feature["centroid_local"] = reverse_geocode_shapefile(
+                        feature["geometryCentroid_lat"], feature["geometryCentroid_lon"], states, marine
+                    )
+            except Exception as e:
+                print(f"Error in get_centroid_region_and_local: {e}")
+                continue
+        return features
+    except Exception as e:
+        return []

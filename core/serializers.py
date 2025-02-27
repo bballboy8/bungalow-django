@@ -125,8 +125,3 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"A record with this vendor_id already exists. {vendor_id}")
             
         return super().create(validated_data)
-
-    def validate_vendor_id(self, value):
-        if CollectionCatalog.objects.filter(vendor_id=value).exists():
-            raise serializers.ValidationError(f"A record with this vendor_id already exists. {value}")
-        return value

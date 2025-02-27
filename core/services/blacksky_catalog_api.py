@@ -7,7 +7,7 @@ from decouple import config
 from datetime import datetime
 from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -154,45 +154,64 @@ def download_and_upload_images(features, path, max_workers=5):
             except Exception as e:
                 print(f"Exception occurred for feature {feature.get('id')}: {e}")
 
+def process_single_feature(feature):
+    try:
+        acquisition_datetime = datetime.fromisoformat(
+            feature["properties"]["datetime"].replace("Z", "+00:00")
+        )
+        # Make the current time the publication time
+        publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
+        if not feature["geometry"].get("type") == "Polygon":
+            return None, None
+        centroid_dict = get_centroid_and_region_and_location_polygon(feature["geometry"])
+
+        model_params = {
+            "acquisition_datetime": acquisition_datetime,
+            "cloud_cover_percent": feature["properties"]["cloudPercent"],
+            "vendor_id": feature["id"],
+            "vendor_name": "blacksky",
+            "sensor": feature["properties"]["sensorId"],
+            "area": calculate_area_from_geojson(feature["geometry"], feature["id"]),
+            "sun_elevation": feature["properties"]["sunAzimuth"],
+            "resolution": f"{feature['properties']['gsd']}m",
+            "georeferenced": feature["properties"]["georeferenced"],
+            "location_polygon": feature["geometry"],
+            "coordinates_record": feature["geometry"],
+            "metadata": feature,
+            "gsd": float(feature["properties"]["gsd"]),
+            "constellation": str(feature["id"])[:7],
+            "platform": feature["properties"]["vendorId"],
+            "offnadir" : feature["properties"]["offNadirAngle"],
+            "azimuth_angle" : None,
+            "illumination_azimuth_angle": feature["properties"]["sunAzimuth"],
+            "illumination_elevation_angle": None,
+            "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
+            "publication_datetime": publication_datetime,
+            **centroid_dict
+        }
+        return model_params
+    except Exception as e:
+        print(e)
+
 
 def convert_to_model_params(features):
-    response = []
-    for feature in features:
-        try:
-            acquisition_datetime = datetime.fromisoformat(
-                feature["properties"]["datetime"].replace("Z", "+00:00")
-            )
-            # Make the current time the publication time
-            publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
-            model_params = {
-                "acquisition_datetime": acquisition_datetime,
-                "cloud_cover_percent": feature["properties"]["cloudPercent"],
-                "vendor_id": feature["id"],
-                "vendor_name": "blacksky",
-                "sensor": feature["properties"]["sensorId"],
-                "area": calculate_area_from_geojson(feature["geometry"], feature["id"]),
-                "sun_elevation": feature["properties"]["sunAzimuth"],
-                "resolution": f"{feature['properties']['gsd']}m",
-                "georeferenced": feature["properties"]["georeferenced"],
-                "location_polygon": feature["geometry"],
-                "coordinates_record": feature["geometry"],
-                "metadata": feature,
-                "gsd": float(feature["properties"]["gsd"]),
-                "constellation": str(feature["id"])[:7],
-                "platform": feature["properties"]["vendorId"],
-                "offnadir" : feature["properties"]["offNadirAngle"],
-                "azimuth_angle" : None,
-                "illumination_azimuth_angle": feature["properties"]["sunAzimuth"],
-                "illumination_elevation_angle": None,
-                "holdback_seconds": get_holdback_seconds(acquisition_datetime, publication_datetime),
-                "publication_datetime": publication_datetime,
-            }
-            response.append(model_params)
-        except Exception as e:
-            print(e)
+    converted_features = []
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(process_single_feature, feature): feature
+            for feature in features
+        }
+
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                model_params = result
+                converted_features.append(model_params)
     converted_features = sorted(
-        response, key=lambda x: x["acquisition_datetime"], reverse=True
+        converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
     )
+    converted_features = get_centroid_region_and_local(converted_features)
     return converted_features[::-1]
 
 
@@ -293,8 +312,8 @@ def run_blacksky_catalog_api():
 
 def run_blacksky_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2025, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2025, 2, 8, tzinfo=pytz.utc)
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2024, 1, 2, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

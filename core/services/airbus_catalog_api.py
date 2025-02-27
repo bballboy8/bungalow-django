@@ -18,8 +18,7 @@ from bungalowbe.utils import get_utc_time
 from core.models import SatelliteDateRetrievalPipelineHistory
 import pytz
 from core.services.utils import calculate_area_from_geojson
-import os
-import geopandas as gpd
+
 
 # Get the terminal size
 columns = shutil.get_terminal_size().columns

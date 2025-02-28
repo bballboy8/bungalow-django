@@ -128,6 +128,7 @@ def process_features(all_features):
                 converted_features.append(model_params)
                 thumbnail_urls.append(download_thumbnails_dict)
 
+    converted_features = [feature for feature in converted_features if feature]
     converted_features.sort(key=lambda x: x["acquisition_datetime"], reverse=True)
     # add reverse geocoding to all the processed features
     converted_features = get_centroid_region_and_local(converted_features)
@@ -324,8 +325,8 @@ def run_airbus_catalog_api():
 
 def run_airbus_catalog_api_bulk():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2021, 1, 5, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2021, 2, 2, tzinfo=pytz.utc)
+    START_DATE = datetime(2021, 5, 18, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2021, 5, 19, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

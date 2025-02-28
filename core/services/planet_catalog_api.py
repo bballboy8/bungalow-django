@@ -260,6 +260,7 @@ def process_features(features):
             if result:
                 model_params = result
                 converted_features.append(model_params)
+    converted_features = [feature for feature in converted_features if feature]
     converted_features = sorted(
         converted_features, key=lambda x: x["acquisition_datetime"], reverse=True
     )

@@ -217,6 +217,9 @@ def process_single_feature(feature):
     try:
         feature_id = feature["id"]
         datetime_str = feature["properties"]["datetime"]
+
+        if "Z" not in datetime_str:
+            datetime_str = datetime_str + "Z"
         acquisition_datetime = datetime.fromisoformat(
             datetime_str.replace("Z", "+00:00")
         )
@@ -345,8 +348,8 @@ def run_capella_catalog_api():
 
 def run_capella_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2024, 1, 2, tzinfo=pytz.utc)
+    START_DATE = datetime(2021, 1, 16, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2021, 1, 17, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

@@ -97,6 +97,8 @@ class CollectionCatalogSerializer(serializers.ModelSerializer):
         # Optimize: Single query using `Q` object for both conditions
         start_time = time.time()
         existing_record = CollectionCatalog.objects.filter(
+                vendor_name=validated_data['vendor_name']
+        ).filter(
             Q(acquisition_datetime=acquisition_datetime, coordinates_record_md5=coordinates_record_md5) |
             Q(vendor_id=vendor_id)
         ).exists()  # Reduce data fetched

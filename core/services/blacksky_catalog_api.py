@@ -313,8 +313,8 @@ def run_blacksky_catalog_api():
 
 def run_blacksky_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2024, 1, 2, tzinfo=pytz.utc)
+    START_DATE = datetime(2021, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2021, 1, 2, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

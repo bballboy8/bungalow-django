@@ -319,6 +319,7 @@ def run_airbus_catalog_api():
         print(f"From DB: {START_DATE}")
 
     END_DATE = get_utc_time()
+    START_DATE = START_DATE.replace(hour=0, minute=0, second=0, microsecond=0)
     print(f"Start Date: {START_DATE}, End Date: {END_DATE}")
     response = search_images(BBOX, START_DATE, END_DATE, False)
     return response

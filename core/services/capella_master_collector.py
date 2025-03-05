@@ -295,7 +295,7 @@ def filter_duplicate_records_based_on_capella_collect_id(features):
     filtered_features = []
     # print first record of the dict
     for collect_id, feature_list in collect_id_dict.items():
-        feature_list = sorted(feature_list, key=lambda x:float(x['properties']['capella:image_length']), reverse=True)
+        feature_list = sorted(feature_list,key=lambda x: float(x['properties'].get('capella:image_length', x['properties'].get('capella:resolution_ground_range', 0))), reverse=True)
         filtered_features.append(feature_list[0])
     return filtered_features
 
@@ -371,8 +371,8 @@ def run_capella_catalog_api():
 
 def run_capella_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2025, 1, 16, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2025, 1, 17, tzinfo=pytz.utc)
+    START_DATE = datetime(2024, 1, 1, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2025, 3, 5, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

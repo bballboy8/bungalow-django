@@ -278,6 +278,26 @@ def process_features(features):
     converted_features = get_centroid_region_and_local(converted_features)
     return converted_features[::-1]
 
+def filter_duplicate_records_based_on_capella_collect_id(features):
+    # group by collect id from feature['properties']['capella:collect_id]
+    collect_id_dict = {}
+    for feature in features:
+        try:
+            collect_id = feature['properties']['capella:collect_id']
+            if collect_id in collect_id_dict:
+                collect_id_dict[collect_id].append(feature)
+            else:
+                collect_id_dict[collect_id] = [feature]
+        except Exception as e:
+            logging.error(f"Error processing feature: {e}")
+    
+    # get the record with highest image length
+    filtered_features = []
+    # print first record of the dict
+    for collect_id, feature_list in collect_id_dict.items():
+        feature_list = sorted(feature_list, key=lambda x:float(x['properties']['capella:image_length']), reverse=True)
+        filtered_features.append(feature_list[0])
+    return filtered_features
 
 def search_images(start_date, end_date, bbox, is_bulk):
     bboxes = [bbox]
@@ -318,6 +338,8 @@ def search_images(start_date, end_date, bbox, is_bulk):
         current_date += timedelta(days=BATCH_SIZE)
 
     print("Total Records: ", len(total_records))
+    total_records = filter_duplicate_records_based_on_capella_collect_id(total_records)
+    print("Unique Records: ", len(total_records))
     converted_records = process_features(total_records)
     # download_and_upload_images(converted_records, "capella/thumbnails")
     process_database_catalog(converted_records, start_date.isoformat(), end_date.isoformat(), 'capella', is_bulk)
@@ -349,8 +371,8 @@ def run_capella_catalog_api():
 
 def run_capella_catalog_bulk_api():
     BBOX = "-180,-90,180,90"
-    START_DATE = datetime(2021, 1, 16, tzinfo=pytz.utc)
-    END_LIMIT = datetime(2021, 1, 17, tzinfo=pytz.utc)
+    START_DATE = datetime(2025, 1, 16, tzinfo=pytz.utc)
+    END_LIMIT = datetime(2025, 1, 17, tzinfo=pytz.utc)
 
     import time
     while START_DATE < END_LIMIT:

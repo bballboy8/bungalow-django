@@ -240,6 +240,7 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
         # Now go through each group and calculate the total surface area
         total_surface_area = 0
         total_objects = 0
+        site_updates_count = 0
         site_objects_count = {}
         for group in all_groups:
             sites = GroupSite.objects.filter(group=group, is_deleted=False)
@@ -252,9 +253,10 @@ def total_surface_area_of_group_and_its_subgroups(group_id):
                 count = CollectionCatalog.objects.filter(location_polygon__intersects=polygon).count()
                 total_objects += count
                 site_objects_count[site.site.id] = count
+                site_updates_count += site.site.new_updates_count
         
         return {
-            "data": {"total_surface_area": total_surface_area, "total_objects": total_objects, "site_objects_count": site_objects_count},
+            "data": {"total_surface_area": total_surface_area, "total_objects": total_objects, "site_objects_count": site_objects_count, "site_updates_count": site_updates_count},
             "message": "Total surface area calculated successfully",
             "status_code": 200,
         }
@@ -288,7 +290,7 @@ def get_parent_groups_with_details(user_id, group_name=None):
                     "created_at": group.created_at,
                     "surface_area": area_response["data"]["total_surface_area"],
                     "total_objects": area_response["data"]["total_objects"],
-                    "new_updates_count": group.new_updates_count,
+                    "new_updates_count": area_response["data"]["site_updates_count"],
                     "notification": group.notification,
                 }
             )
@@ -692,6 +694,7 @@ def check_updates_in_notification_enabled_groups(user_id):
                         {
                             "type": "send_notification",
                             "message": {
+                                "type": "site_update",
                                 "site_name": site.name,
                                 "site_id": site.id,
                                 "new_updates": most_recent_capture_count,

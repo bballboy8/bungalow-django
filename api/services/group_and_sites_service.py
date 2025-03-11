@@ -12,7 +12,6 @@ from django.db.models.functions import TruncDate
 from django.db.models import Q
 from api.serializers import SiteSerializer, NewestInfoSerializer
 from api.services.utils import generate_hexagon_geojson
-from django.db.models import F
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
@@ -684,9 +683,6 @@ def check_updates_in_notification_enabled_groups(user_id):
                 if most_recent_capture_count > 0:
                     print("Most recent capture count: ", most_recent_capture_count, "for site ", site.name, "for site id ", site.id)
                     site.new_updates_count += most_recent_capture_count
-                    Group.objects.filter(id=group.id).update(
-                        new_updates_count=F("new_updates_count") + most_recent_capture_count
-                    )
                     site.last_notification_count_updated = end_date
                     site.save()
 
@@ -733,17 +729,8 @@ def reset_site_updates_count(user_id, site_id):
                 "status_code": 404,
             }
 
-        sites_current_count = site.new_updates_count
         site.new_updates_count = 0
         site.save()
-        # Fetch the associated group
-        group_site = GroupSite.objects.filter(site=site).select_related("group").first()
-        if group_site and group_site.group:
-            # Decrease the new updates count for the parent group
-            Group.objects.filter(id=group_site.group_id).update(
-                new_updates_count=F("new_updates_count") - sites_current_count
-            )
-
         return {
             "message": "New updates count reset successfully",
             "status_code": 200,

@@ -13,6 +13,8 @@ from django.db.models import Q
 from api.serializers import SiteSerializer, NewestInfoSerializer
 from api.services.utils import generate_hexagon_geojson
 from django.db.models import F
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, site_id=None, group_id=None):
@@ -638,11 +640,48 @@ def check_updates_in_notification_enabled_groups(user_id):
     """
     try:
         current_time = datetime.now(pytz.utc)
-        print(current_time)
         logger.info("Checking updates in notification-enabled groups")
         groups = Group.objects.filter(notification=True, is_deleted=False, user__id=user_id)
+        channel_layer = get_channel_layer()
+
         for group in groups:
-            print(group)
+            # Get the group sites
+            group_sites = GroupSite.objects.filter(group=group, is_deleted=False)
+            for group_site in group_sites:
+                site = group_site.site
+                end_date = current_time
+                start_date = site.last_notification_count_updated
+                
+                most_recent_capture_count = CollectionCatalog.objects.filter(
+                    location_polygon__intersects=site.location_polygon,
+                    acquisition_datetime__gte=start_date,
+                    acquisition_datetime__lt=end_date,
+                ).count()
+
+                if most_recent_capture_count > 0:
+                    print("Most recent capture count: ", most_recent_capture_count, "for site ", site.name, "for site id ", site.id)
+                    site.new_updates_count += most_recent_capture_count
+                    Group.objects.filter(id=group.id).update(
+                        new_updates_count=F("new_updates_count") + most_recent_capture_count
+                    )
+                    site.last_notification_count_updated = end_date
+                    site.save()
+
+                    # Send WebSocket event
+                    async_to_sync(channel_layer.group_send)(
+                        f"{user_id}-SELF",
+                        {
+                            "type": "send_notification",
+                            "message": {
+                                "site_name": site.name,
+                                "site_id": site.id,
+                                "new_updates": most_recent_capture_count,
+                                "time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+                            },
+                        },
+                    )
+
+                
         return {
             "message": "Updates checked in notification-enabled groups",
             "status_code": 200,

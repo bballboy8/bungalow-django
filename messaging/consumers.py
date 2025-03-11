@@ -36,6 +36,9 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         if self.scope["user"].is_authenticated:
             await self.remove_user_from_online_list(self.scope["user"])
 
+    async def send_notification(self, event):
+        await self.send_json(event["message"])
+
     async def receive_json(self, content):
         content["sender"] = self.scope["user"].id
         if content["type"] == "text":

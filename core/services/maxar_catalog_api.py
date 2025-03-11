@@ -23,7 +23,7 @@ columns = shutil.get_terminal_size().columns
 AUTH_TOKEN = config("MAXAR_API_KEY")
 MAXAR_BASE_URL = "https://api.maxar.com/discovery/v1"
 MAX_THREADS = 9
-BATCH_SIZE = 28
+BATCH_SIZE = 1
 
 
 def get_maxar_collections(

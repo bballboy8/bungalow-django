@@ -1,6 +1,7 @@
 from api.models.group_and_sites_models import *
 from logging_module import logger
 import shapely.wkt
+import pytz
 from pyproj import Geod
 from api.services import convert_geojson_to_wkt
 from core.models import CollectionCatalog
@@ -11,6 +12,8 @@ from django.db.models.functions import TruncDate
 from django.db.models import Q
 from api.serializers import SiteSerializer, NewestInfoSerializer
 from api.services.utils import generate_hexagon_geojson
+from django.db.models import F
+
 
 def get_all_sites(user_id, name=None, page_number: int = 1, per_page: int = 10, site_id=None, group_id=None):
     logger.info("Fetching all sites")
@@ -283,6 +286,8 @@ def get_parent_groups_with_details(user_id, group_name=None):
                     "created_at": group.created_at,
                     "surface_area": area_response["data"]["total_surface_area"],
                     "total_objects": area_response["data"]["total_objects"],
+                    "new_updates_count": group.new_updates_count,
+                    "notification": group.notification,
                 }
             )
         return {
@@ -624,4 +629,67 @@ def add_sites_to_group_in_bulk(sites_info, group_id, user_id):
             "message": f"Error adding sites to group in bulk {e}",
             "status_code": 500,
             "error": f"Error adding sites to group in bulk: {str(e)}",
+        }
+
+
+def check_updates_in_notification_enabled_groups(user_id):
+    """
+    Check for updates in all groups with notifications enabled.
+    """
+    try:
+        current_time = datetime.now(pytz.utc)
+        print(current_time)
+        logger.info("Checking updates in notification-enabled groups")
+        groups = Group.objects.filter(notification=True, is_deleted=False, user__id=user_id)
+        for group in groups:
+            print(group)
+        return {
+            "message": "Updates checked in notification-enabled groups",
+            "status_code": 200,
+        }
+    except Exception as e:
+        logger.error(f"Error checking updates in notification-enabled groups: {str(e)}")
+        return {
+            "data": None,
+            "message": f"Error checking updates in notification-enabled groups {e}",
+            "status_code": 500,
+            "error": f"Error checking updates in notification-enabled groups: {str(e)}",
+        }
+
+def reset_site_updates_count(user_id, site_id):
+    """
+    Reset the new updates count for a single site.
+    """
+    try:
+        logger.info(f"Resetting new updates count for site: {site_id}")
+
+        site = Site.objects.filter(id=site_id, user_id=user_id).first()
+        if not site:
+            return {
+                "message": "Site not found",
+                "status_code": 404,
+            }
+
+        sites_current_count = site.new_updates_count
+        site.new_updates_count = 0
+        site.save()
+        # Fetch the associated group
+        group_site = GroupSite.objects.filter(site=site).select_related("group").first()
+        if group_site and group_site.group:
+            # Decrease the new updates count for the parent group
+            Group.objects.filter(id=group_site.group_id).update(
+                new_updates_count=F("new_updates_count") - sites_current_count
+            )
+
+        return {
+            "message": "New updates count reset successfully",
+            "status_code": 200,
+        }
+    except Exception as e:
+        logger.error(f"Error resetting new updates count: {str(e)}", exc_info=True)
+        return {
+            "data": None,
+            "message": f"Error resetting new updates count: {e}",
+            "status_code": 500,
+            "error": str(e),
         }

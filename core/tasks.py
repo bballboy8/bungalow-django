@@ -6,6 +6,7 @@ from core.services.planet_catalog_api import run_planet_catalog_api, run_planet_
 from core.services.capella_master_collector import run_capella_catalog_api, run_capella_catalog_bulk_api_for_last_35_days_from_now
 from core.services.skyfi_catalog_api import run_skyfi_catalog_api, run_skfyfi_catalog_api_bulk_for_last_35_days_from_now
 from core.services.maxar_catalog_api import run_maxar_catalog_api, run_maxar_catalog_bulk_api_for_last_35_days_from_now
+from api.services.group_and_sites_service import check_updates_in_notification_enabled_groups_for_active_users
 
 
 
@@ -36,11 +37,20 @@ def run_all_catalogs():
     except Exception as e:
         print(f"Error occurred while running Maxar API: {e}")
 
+    try:
+        run_skyfi_catalog_api()
+    except Exception as e:
+        print(f"Error occurred while running SkyFi API: {e}")
+
+    try:
+        check_updates_in_notification_enabled_groups_for_active_users()
+    except Exception as e:
+        print(f"Error occurred while checking updates in notification enabled groups: {e}")
 
 @shared_task
 def run_skyfi_umbra_catalog():
     try:
-        run_skyfi_catalog_api()
+        pass
     except Exception as e:
         print(f"Error occurred while running SkyFi API: {e}")
 
@@ -75,4 +85,9 @@ def run_all_catalogs_bulk_last_35_days():
         run_skfyfi_catalog_api_bulk_for_last_35_days_from_now()
     except Exception as e:
         print(f"Error occurred while running SkyFi API: {e}")
+
+    try:
+        check_updates_in_notification_enabled_groups_for_active_users()
+    except Exception as e:
+        print(f"Error occurred while checking updates in notification enabled groups: {e}")
     

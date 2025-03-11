@@ -632,7 +632,26 @@ def add_sites_to_group_in_bulk(sites_info, group_id, user_id):
             "status_code": 500,
             "error": f"Error adding sites to group in bulk: {str(e)}",
         }
+    
 
+
+def check_updates_in_notification_enabled_groups_for_active_users():
+    try:
+        active_users = User.objects.filter(is_active=True)
+        for user in active_users:
+            check_updates_in_notification_enabled_groups(user.id)
+        return {
+            "message": "Updates checked in notification-enabled groups for active users",
+            "status_code": 200,
+        }
+    except Exception as e:
+        logger.error(f"Error checking updates in notification-enabled groups for active users: {str(e)}")
+        return {
+            "data": None,
+            "message": f"Error checking updates in notification-enabled groups for active users {e}",
+            "status_code": 500,
+            "error": f"Error checking updates in notification-enabled groups for active users: {str(e)}",
+        }
 
 def check_updates_in_notification_enabled_groups(user_id):
     """

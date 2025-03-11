@@ -465,6 +465,7 @@ def get_full_hierarchy_by_group(group):
                 "site_type": site.site.site_type,
                 "date": site.site.created_at,
                 "count": area_response["data"]["site_objects_count"].get(site.site.id, 0),
+                "new_updates": site.site.new_updates_count,
             }
         )
 
@@ -478,6 +479,7 @@ def get_full_hierarchy_by_group(group):
         "surface_area": area_response["data"]["total_surface_area"],
         "total_objects": area_response["data"]["total_objects"],
         "subgroups": [get_full_hierarchy(child) for child in children],
+        "new_updates_count": area_response["data"]["site_updates_count"],
     }
 
 def get_groups_list_without_nesting(search:str):

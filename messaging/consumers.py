@@ -8,6 +8,7 @@ from urllib.parse import parse_qs
 
 User = get_user_model()
 
+
 class ConversationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         await self.accept()
@@ -43,10 +44,30 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         content["sender"] = self.scope["user"].id
         if content["type"] == "text":
             await self.channel_layer.group_send(
-                content["channel_id"],
+                f"{content['receiver']}-SELF",
                 {
                     "type": "peer.text",
                     "data": content,
+                },
+            )
+        elif content["type"] == "site_update":
+            await self.channel_layer.group_send(
+                f"{self.scope['user'].id}-SELF",
+                {
+                    "type": "site_update",
+                    "site_name": "",
+                    "site_id": "",
+                    "new_updates": "",
+                    "time": "",
+                },
+            )
+        elif content["type"] == "new_records":
+            await self.channel_layer.group_send(
+                f"{self.scope['user'].id}-SELF",
+                {
+                    "type": "new_records",
+                    "vendor_name": "vendor_name",
+                    "new_updates": 0,
                 },
             )
         else:
@@ -55,6 +76,12 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
             )
 
     async def peer_text(self, event):
+        await self.send_json(event)
+
+    async def site_update(self, event):
+        await self.send_json(event)
+
+    async def new_records(self, event):
         await self.send_json(event)
 
     @database_sync_to_async

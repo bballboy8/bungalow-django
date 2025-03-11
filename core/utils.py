@@ -8,6 +8,8 @@ import hashlib
 import json
 import os
 import geopandas as gpd
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 bucket_name = config("AWS_STORAGE_BUCKET_NAME")
 AWS_ACCESS_KEY_ID = config("AWS_ACCESS_KEY_ID")
@@ -98,6 +100,22 @@ def process_database_catalog(features, start_time, end_time, vendor_name, is_bul
                 )
                 if history_serializer.is_valid():
                     history_serializer.save()
+
+                    # Send WebSocket event
+                    channel_layer = get_channel_layer()
+                    # Send WebSocket event
+                    async_to_sync(channel_layer.group_send)(
+                        f"1-SELF",
+                        {
+                            "type": "send_notification",
+                            "message": {
+                                "type": "new_records",
+                                "vendor_name": vendor_name,
+                                "new_updates": valid_features,
+                            },
+                        },
+                    )
+                    
                 return "No records Found"
             except Exception as e:
                 print(f"Error in history serializer: {e}")

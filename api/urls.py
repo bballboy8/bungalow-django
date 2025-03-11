@@ -66,6 +66,8 @@ urlpatterns = [
     path("get-nested-group-and-sites-by-group-id", GetGroupSiteByGroupIdView.as_view(), name="get-group-sites-by-group-id"),
     path("get-groups-list-without-nesting", GetGroupstListWithoutNestingView.as_view(), name="get-groups-list-without-nesting"),
     path("remove-group-and-its-sites", RemoveGroupsandItsNestedGroupAndSitesView.as_view(), name="remove-group-and-its-sites"),
-    path("upload-sites-to-group-csv", SitesFileUploadView.as_view(), name="upload-sites-to-group-csv"), 
+    path("upload-sites-to-group-csv", SitesFileUploadView.as_view(), name="upload-sites-to-group-csv"),
+    path("check-updates-in-notification-enabled-groups", CheckUpdatesInNotificationEnabledGroupsView.as_view(), name="check-updates-in-notification-enabled-groups"),
+    path("reset-site-updates-count", ResetSiteUpdatesCountView.as_view(), name="reset-site-updates-count"),
 
 ]

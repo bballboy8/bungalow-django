@@ -739,3 +739,72 @@ class SitesFileUploadView(APIView):
         
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+class CheckUpdatesInNotificationEnabledGroupsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Check updates in notification enabled Groups",
+        responses={
+            200: OpenApiResponse(
+                description="Updates checked successfully.",
+            ),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def get(self, request):
+        try:
+            logger.info("Checking updates in notification enabled Groups")
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
+            response = check_updates_in_notification_enabled_groups(user_id)
+            return Response(response, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error checking updates in notification enabled Groups: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class ResetSiteUpdatesCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        description="Reset site updates count",
+        request=ResetSiteNewUpdatesCountSerializer,
+        responses={
+            200: OpenApiResponse(
+                description="Site updates count reset successfully.",
+            ),
+            500: OpenApiResponse(description="Internal server error"),
+        },
+        tags=["Group and Sites"],
+    )
+    def put(self, request):
+        try:
+            logger.info("Resetting site updates count")
+            auth = get_user_id_from_token(request)
+            if auth["status"] != "success":
+                return Response(
+                    auth, status=status.HTTP_401_UNAUTHORIZED
+                )
+            user_id = auth["user_id"] 
+
+            site_id = request.data.get("site_id")
+            
+            if not site_id:
+                return Response({"error": "Site ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            response = reset_site_updates_count(user_id=user_id, site_id=site_id)
+            return Response(response, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error resetting site updates count: {str(e)}")
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

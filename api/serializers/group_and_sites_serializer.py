@@ -135,6 +135,8 @@ class ParentGroupSerializer(serializers.Serializer):
     created_at = serializers.DateTimeField()
     surface_area = serializers.FloatField()
     total_objects = serializers.IntegerField()
+    notification = serializers.BooleanField()
+    new_updates_count = serializers.IntegerField()
 
 
 class GroupSiteSerializer(serializers.ModelSerializer):
@@ -204,3 +206,6 @@ class UploadCSVResponseSerializer(serializers.Serializer):
     row_name = serializers.CharField()
     status = serializers.CharField()
     reason = serializers.CharField(required=False)
+
+class ResetSiteNewUpdatesCountSerializer(serializers.Serializer):
+    site_id = serializers.IntegerField()

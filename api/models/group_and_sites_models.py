@@ -23,6 +23,8 @@ class Site(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=1)
     is_deleted = models.BooleanField(default=False)
     notification = models.BooleanField(default=False)
+    new_updates_count = models.IntegerField(default=0)
+    last_notification_count_updated = models.DateTimeField(auto_now=True)
 
 
     def __str__(self):
@@ -44,6 +46,7 @@ class Group(plane_models.Model):
     user = plane_models.ForeignKey(User, on_delete=plane_models.CASCADE, default=1)
     is_deleted = plane_models.BooleanField(default=False)
     notification = plane_models.BooleanField(default=False)
+    new_updates_count = models.IntegerField(default=0)
 
     def __str__(self):
         return self.name

@@ -21,6 +21,9 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         else:
             await self.close()
 
+        # send welcome message to user
+        await self.send_json({"message": "Welcome to the chat!"})
+
     async def users_online(self, event):
         message = f"{event["data"]['display_name']} is online."
         await self.send_json(

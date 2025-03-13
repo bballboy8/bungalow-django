@@ -40,13 +40,11 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == "refs/heads/env-setup" ]]; then
             echo "Setting production environment"
-            echo "SSH_KEY=${{ secrets.PROD_SSH_KEY }}" >> $GITHUB_ENV
             echo "USERNAME=${{ secrets.PROD_USERNAME }}" >> $GITHUB_ENV
             echo "HOST=${{ secrets.PROD_BE_HOST }}" >> $GITHUB_ENV
             echo "SECURITY_GROUP_ID=${{ secrets.PROD_SECURITY_GROUP_ID }}" >> $GITHUB_ENV
           elif [[ "$GITHUB_REF" == "refs/heads/staging" ]]; then
             echo "Setting staging environment"
-            echo "SSH_KEY=${{ secrets.STAGING_SSH_KEY }}" >> $GITHUB_ENV
             echo "USERNAME=${{ secrets.STAGING_USERNAME }}" >> $GITHUB_ENV
             echo "HOST=${{ secrets.STAGING_HOST }}" >> $GITHUB_ENV
             echo "SECURITY_GROUP_ID=${{ secrets.STAGING_SECURITY_GROUP_ID }}" >> $GITHUB_ENV
@@ -63,7 +61,11 @@ jobs:
       - name: Set up SSH connection
         uses: webfactory/ssh-agent@v0.5.3
         with:
-          ssh-private-key: ${{ env.SSH_KEY }}
+          ssh-private-key: |
+            ${{ (github.ref == 'refs/heads/production' && secrets.PROD_SSH_KEY) || 
+                (github.ref == 'refs/heads/staging' && secrets.STAGING_SSH_KEY) || 
+                (github.ref == 'refs/heads/env-setup' && secrets.ENV_SSH_KEY) || 
+                secrets.DEFAULT_SSH_KEY }}
 
       - name: Deploy Application
         run: |

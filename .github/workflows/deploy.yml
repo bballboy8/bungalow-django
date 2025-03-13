@@ -5,7 +5,6 @@ on:
     branches:
       - production
       - staging
-      - env-setup
 
 jobs:
   deploy:
@@ -38,7 +37,7 @@ jobs:
 
       - name: Set environment variables based on branch
         run: |
-          if [[ "$GITHUB_REF" == "refs/heads/env-setup" ]]; then
+          if [[ "$GITHUB_REF" == "refs/heads/production" ]]; then
             echo "Setting production environment"
             echo "USERNAME=${{ secrets.PROD_USERNAME }}" >> $GITHUB_ENV
             echo "HOST=${{ secrets.PROD_BE_HOST }}" >> $GITHUB_ENV
@@ -63,8 +62,7 @@ jobs:
         with:
           ssh-private-key: |
             ${{ (github.ref == 'refs/heads/production' && secrets.PROD_SSH_KEY) || 
-                (github.ref == 'refs/heads/staging' && secrets.STAGING_SSH_KEY) || 
-                (github.ref == 'refs/heads/env-setup' && secrets.PROD_SSH_KEY) }}
+                (github.ref == 'refs/heads/staging' && secrets.STAGING_SSH_KEY) }}
 
       - name: Deploy Application
         run: |

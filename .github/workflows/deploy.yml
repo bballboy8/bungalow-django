@@ -64,8 +64,7 @@ jobs:
           ssh-private-key: |
             ${{ (github.ref == 'refs/heads/production' && secrets.PROD_SSH_KEY) || 
                 (github.ref == 'refs/heads/staging' && secrets.STAGING_SSH_KEY) || 
-                (github.ref == 'refs/heads/env-setup' && secrets.ENV_SSH_KEY) || 
-                secrets.DEFAULT_SSH_KEY }}
+                (github.ref == 'refs/heads/env-setup' && secrets.PROD_SSH_KEY) }}
 
       - name: Deploy Application
         run: |

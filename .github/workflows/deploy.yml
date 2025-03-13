@@ -91,12 +91,14 @@ jobs:
 
             echo "Restarting services using PM2..."
 
-            for SERVICE_ID in 0 1 2; do
-              echo "Restarting PM2 process $SERVICE_ID..."
-              pm2 restart $SERVICE_ID
+            PM2_SERVICES=("django-app" "celery-worker" "celery-beat")
 
-              echo "Capturing logs for PM2 process $SERVICE_ID..."
-              (setsid pm2 logs $SERVICE_ID &) && sleep 5 && pkill -f "pm2 logs $SERVICE_ID"
+            for SERVICE_NAME in "${PM2_SERVICES[@]}"; do
+              echo "Restarting PM2 process: $SERVICE_NAME"
+              pm2 restart "$SERVICE_NAME"
+
+              echo "Capturing logs for PM2 process: $SERVICE_NAME"
+              (setsid pm2 logs "$SERVICE_NAME" &) && sleep 5 && pkill -f "pm2 logs $SERVICE_NAME"
             done
 
             echo "Deployment of branch $BRANCH completed successfully!"

@@ -4,33 +4,106 @@ on:
   push:
     branches:
       - production
+      - staging
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up SSH connection
-      uses: webfactory/ssh-agent@v0.5.3
-      with:
-        ssh-private-key: ${{ secrets.SSH }}
+      - name: Fetch GitHub Actions runner IP
+        run: |
+          echo "Fetching runner IP..."
+          RUNNER_IP=$(curl -s http://checkip.amazonaws.com)
+          if [[ -z "$RUNNER_IP" ]]; then
+            echo "Failed to fetch runner IP" >&2
+            exit 1
+          fi
+          echo "Runner IP is $RUNNER_IP"
+          echo "RUNNER_IP=$RUNNER_IP" >> $GITHUB_ENV
 
-    - name: Change directory and pull repository
-      run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'cd /home/ubuntu/bungalow-django && git pull origin production || (echo "Error encountered during git pull. Stashing changes before retrying." && git stash && git pull origin production)'
-        
-      
-    - name: SERVER and Logs
-      run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'cd /home/ubuntu/bungalow-django && source venv/bin/activate && pip install -r requirements.txt && pm2 list && pm2 restart 0 && (setsid pm2 logs 0 &) && sleep 5 && pkill -f "pm2 logs 0"'
+      - name: Set up AWS CLI
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws --version
+          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+          aws configure set region $AWS_REGION
 
-    - name:  Celery-worker and Logs
-      run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'pm2 list && pm2 restart 1 && (setsid pm2 logs 1 &) && sleep 5 && pkill -f "pm2 logs 1"'
+      - name: Set environment variables based on branch
+        run: |
+          if [[ "$GITHUB_REF" == "refs/heads/production" ]]; then
+            echo "Setting production environment"
+            echo "USERNAME=${{ secrets.PROD_USERNAME }}" >> $GITHUB_ENV
+            echo "HOST=${{ secrets.PROD_BE_HOST }}" >> $GITHUB_ENV
+            echo "SECURITY_GROUP_ID=${{ secrets.PROD_SECURITY_GROUP_ID }}" >> $GITHUB_ENV
+          elif [[ "$GITHUB_REF" == "refs/heads/staging" ]]; then
+            echo "Setting staging environment"
+            echo "USERNAME=${{ secrets.STAGING_USERNAME }}" >> $GITHUB_ENV
+            echo "HOST=${{ secrets.STAGING_HOST }}" >> $GITHUB_ENV
+            echo "SECURITY_GROUP_ID=${{ secrets.STAGING_SECURITY_GROUP_ID }}" >> $GITHUB_ENV
+          else
+            echo "Unsupported branch" >&2
+            exit 1
+          fi
 
-    - name: Celery-beat and Logs
-      run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }} 'pm2 list && pm2 restart 2 && (setsid pm2 logs 2 &) && sleep 5 && pkill -f "pm2 logs 2"'
-                
+      - name: Allow SSH access from GitHub Actions runner IP
+        run: |
+          echo "Security Group ID: $SECURITY_GROUP_ID"
+          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr $RUNNER_IP/32 || echo "SSH rule already exists."
+
+      - name: Set up SSH connection
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: |
+            ${{ (github.ref == 'refs/heads/production' && secrets.PROD_SSH_KEY) || 
+                (github.ref == 'refs/heads/staging' && secrets.STAGING_SSH_KEY) }}
+
+      - name: Deploy Application
+        run: |
+          # Extract branch name from GITHUB_REF
+          BRANCH=$(echo $GITHUB_REF | sed 's/refs\/heads\///')
+
+          echo "Deploying branch: $BRANCH"
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
+            set -e  # Exit immediately if any command fails
+
+            echo "Changing to the project directory..."
+            cd /home/ubuntu/bungalow-django
+
+            echo "Pulling the latest code from branch: $BRANCH"
+            git pull origin $BRANCH || (
+              echo "Git pull failed. Stashing changes and retrying..." &&
+              git stash &&
+              git pull origin $BRANCH
+            )
+
+            echo "Activating virtual environment and installing dependencies..."
+            source venv/bin/activate
+            pip install -r requirements.txt
+
+            echo "Restarting services using PM2..."
+
+            PM2_SERVICES=("django-app" "celery-worker" "celery-beat")
+
+            for SERVICE_NAME in "${PM2_SERVICES[@]}"; do
+              echo "Restarting PM2 process: $SERVICE_NAME"
+              pm2 restart "$SERVICE_NAME"
+
+              echo "Capturing logs for PM2 process: $SERVICE_NAME"
+              (setsid pm2 logs "$SERVICE_NAME" &) && sleep 5 && pkill -f "pm2 logs $SERVICE_NAME"
+            done
+
+            echo "Deployment of branch $BRANCH completed successfully!"
+          EOF
+
+      - name: Revert AWS Security Group rule
+        if: always()
+        run: |
+          echo "Reverting SSH rule in AWS security group."
+          aws ec2 revoke-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr $RUNNER_IP/32 || echo "SSH rule already removed."

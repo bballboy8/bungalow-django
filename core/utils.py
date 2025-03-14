@@ -207,3 +207,39 @@ def get_centroid_region_and_local(features):
         return features
     except Exception as e:
         return []
+
+def remove_z_from_geometry(geometry):
+    """
+    Removes the Z dimension from a GeoJSON-style geometry dictionary.
+
+    :param geometry: A dictionary with 'type' and 'coordinates' fields (GeoJSON format).
+    :return: A modified geometry dictionary with only X, Y coordinates.
+    """
+    def strip_z(coords):
+        """Recursively remove the Z dimension from nested coordinate lists."""
+        if isinstance(coords[0], list):  # If the element is a list, recurse
+            return [strip_z(sublist) for sublist in coords]
+        return coords[:2]  # If it's a coordinate tuple, strip the Z value
+
+    return {
+        "type": geometry["type"],
+        "coordinates": strip_z(geometry["coordinates"])
+    }
+
+
+def mark_record_as_purchased(features):
+    """
+    Mark the records as purchased
+    """
+    try:
+        for feature in features:
+            try:
+                record = CollectionCatalog.objects.get(vendor_id=feature["vendor_id"])
+                if record.is_purchased:
+                    continue
+                record.is_purchased = True
+                record.save()
+            except Exception as e:
+                print(f"Error in mark_record_as_purchased: {e}")
+    except Exception as e:
+        print(f"Error in mark_record_as_purchased: {e}")

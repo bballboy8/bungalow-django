@@ -1,21 +1,18 @@
 import requests
 from datetime import datetime, timedelta
-from tqdm import tqdm
 import math
 import shutil
 from decouple import config
 from datetime import datetime
-from django.contrib.gis.geos import Polygon
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local,remove_z_from_geometry, mark_record_as_purchased
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
 from rasterio.io import MemoryFile
 from io import BytesIO
 from PIL import Image
-from bungalowbe.utils import get_utc_time, convert_iso_to_datetime
-from django.db.utils import IntegrityError
+from bungalowbe.utils import get_utc_time
 from core.models import SatelliteDateRetrievalPipelineHistory, CollectionCatalog
 import pytz
 from core.services.utils import calculate_area_from_geojson
@@ -57,6 +54,23 @@ def get_blacksky_collections(
         print(f"An error occurred: {err}")
 
     return None
+
+def get_blacksky_products_collection(auth_token, url=None):
+    """
+        Fetches Purchased Products from the BlackSky API.
+    """
+    if not url:
+        url = f"{BLACKSKY_BASE_URL}/v1/products/stac/search"
+    headers = {"Accept": "application/json", "Authorization": auth_token}
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        final_response = response.json()
+        return final_response
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")
+    except Exception as err:
+        print(f"An error occurred: {err}")
 
 
 
@@ -163,7 +177,7 @@ def process_single_feature(feature):
         publication_datetime = datetime.now(pytz.utc).replace(microsecond=0)
         if not feature["geometry"].get("type") == "Polygon":
             return None, None
-        centroid_dict = get_centroid_and_region_and_location_polygon(feature["geometry"])
+        centroid_dict = get_centroid_and_region_and_location_polygon(remove_z_from_geometry(feature["geometry"]))
 
         model_params = {
             "acquisition_datetime": acquisition_datetime,
@@ -171,12 +185,12 @@ def process_single_feature(feature):
             "vendor_id": feature["id"],
             "vendor_name": "blacksky",
             "sensor": feature["properties"]["sensorId"],
-            "area": calculate_area_from_geojson(feature["geometry"], feature["id"]),
+            "area": calculate_area_from_geojson(remove_z_from_geometry(feature["geometry"]), feature["id"]),
             "sun_elevation": feature["properties"]["sunAzimuth"],
             "resolution": f"{feature['properties']['gsd']}m",
             "georeferenced": feature["properties"]["georeferenced"],
-            "location_polygon": feature["geometry"],
-            "coordinates_record": feature["geometry"],
+            "location_polygon": remove_z_from_geometry(feature["geometry"]),
+            "coordinates_record": remove_z_from_geometry(feature["geometry"]),
             "metadata": feature,
             "gsd": float(feature["properties"]["gsd"]),
             "constellation": str(feature["id"])[:7],
@@ -248,6 +262,32 @@ def fetch_and_process_records(auth_token, bbox, start_time, end_time, last_scene
     return len(all_records)
 
 
+def fetch_and_process_products_records():
+    """Fetches records from the BlackSky API and processes them."""
+    all_records = []
+    url = None
+    while True:
+        records = get_blacksky_products_collection(AUTH_TOKEN, url)
+        all_records.extend(records.get("features", []))
+        if not records.get("links"):
+            break
+        next_record = next(
+            (record for record in records["links"] if record["rel"] == "next"), None
+        )
+        if not next_record:
+            break
+        url = next_record["href"]
+
+    if not all_records:
+        return 0
+    print(len(all_records))
+    # download_and_upload_images(all_records, "blacksky/thumbnails")
+    converted_features = convert_to_model_params(all_records)
+    process_database_catalog(converted_features, "Product", "Product", "blacksky", True)
+    mark_record_as_purchased(converted_features)
+    return len(all_records)
+
+
 def main(START_DATE, END_DATE, BBOX, last_scene_id, is_bulk):
     bboxes = [BBOX]
     current_date = START_DATE
@@ -257,7 +297,6 @@ def main(START_DATE, END_DATE, BBOX, last_scene_id, is_bulk):
     if date_difference < BATCH_SIZE:
         BATCH_SIZE = date_difference
     duration = math.ceil(date_difference / BATCH_SIZE)
-    print("-" * columns)
     print("-" * columns)
     print("Batch Size: ", BATCH_SIZE, ", days: ", date_difference)
     print("Duration :", duration, "batch")

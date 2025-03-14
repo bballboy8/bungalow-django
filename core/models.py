@@ -148,6 +148,7 @@ class CollectionCatalog(models.Model):
     is_active = models.BooleanField(default=True)
     centroid_region = models.CharField(max_length=255, null=True, blank=True)
     centroid_local = models.CharField(max_length=255, null=True, blank=True)
+    is_purchased = models.BooleanField(default=False)
 
 
     class Meta:

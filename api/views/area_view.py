@@ -107,6 +107,7 @@ class SatelliteCaptureCatalogView(APIView):
             max_illumination_elevation_angle = (request.query_params.get("max_illumination_elevation_angle"))
             min_holdback_seconds = (request.query_params.get("min_holdback_seconds"))
             max_holdback_seconds = (request.query_params.get("max_holdback_seconds"))
+            is_purchased = request.query_params.get("is_purchased")
 
 
             if user_duration_type:
@@ -174,7 +175,8 @@ class SatelliteCaptureCatalogView(APIView):
                 min_illumination_elevation_angle=min_illumination_elevation_angle,
                 max_illumination_elevation_angle=max_illumination_elevation_angle,
                 min_holdback_seconds=min_holdback_seconds,
-                max_holdback_seconds=max_holdback_seconds
+                max_holdback_seconds=max_holdback_seconds,
+                is_purchased=is_purchased
             )
 
             if service_response["status_code"] != 200:
@@ -412,6 +414,8 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             min_holdback_seconds = (request.query_params.get("min_holdback_seconds"))
             max_holdback_seconds = (request.query_params.get("max_holdback_seconds"))
 
+            is_purchased = (request.query_params.get("is_purchased"))
+
             if not polygon_wkt:
                 return Response(
                     {
@@ -443,7 +447,8 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
                 min_illumination_elevation_angle=min_illumination_elevation_angle,
                 max_illumination_elevation_angle=max_illumination_elevation_angle,
                 min_holdback_seconds=min_holdback_seconds,
-                max_holdback_seconds=max_holdback_seconds
+                max_holdback_seconds=max_holdback_seconds,
+                is_purchased=is_purchased
             )
 
             if service_response["status_code"] != 200:

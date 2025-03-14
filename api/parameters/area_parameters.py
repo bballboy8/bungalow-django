@@ -195,6 +195,12 @@ satellite_capture_catalog_params = [
         location=OpenApiParameter.QUERY,
         description="Filter records by maximum holdback seconds",
     ),
+    OpenApiParameter(
+        name="is_purchased",
+        type=bool,
+        location=OpenApiParameter.QUERY,
+        description="Filter records by is purchased"
+    )
 ]
 
 
@@ -313,6 +319,12 @@ calendar_params = [
         location=OpenApiParameter.QUERY,
         description="Filter records by maximum holdback seconds",
     ),
+    OpenApiParameter(
+        name="is_purchased",
+        type=bool,
+        location=OpenApiParameter.QUERY,
+        description="Filter records by is purchased"
+    )
 ]
 
 collection_history_params = [

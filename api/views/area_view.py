@@ -109,6 +109,10 @@ class SatelliteCaptureCatalogView(APIView):
             max_holdback_seconds = (request.query_params.get("max_holdback_seconds"))
             is_purchased = request.query_params.get("is_purchased")
 
+            if is_purchased:
+                if is_purchased.lower() in ["true", "false"]:
+                    is_purchased = is_purchased.lower() == "true"
+
 
             if user_duration_type:
                 for duration in str(user_duration_type).split(","):
@@ -415,6 +419,10 @@ class GetPolygonSelectionAcquisitionCalenderDaysFrequencyView(APIView):
             max_holdback_seconds = (request.query_params.get("max_holdback_seconds"))
 
             is_purchased = (request.query_params.get("is_purchased"))
+
+            if is_purchased:
+                if is_purchased.lower() in ["true", "false"]:
+                    is_purchased = is_purchased.lower() == "true"
 
             if not polygon_wkt:
                 return Response(

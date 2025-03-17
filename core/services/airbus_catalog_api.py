@@ -7,7 +7,7 @@ import shutil
 from decouple import config
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local
+from core.utils import save_image_in_s3_and_get_url, process_database_catalog, get_holdback_seconds, get_centroid_and_region_and_location_polygon, get_centroid_region_and_local, mark_record_as_purchased
 from botocore.exceptions import NoCredentialsError
 import numpy as np
 from rasterio.transform import from_bounds
@@ -62,7 +62,7 @@ def calculate_withhold(acquisition_datetime, publication_datetime):
         logging.error(f"Failed to calculate holdback hours: {e}")
         return -1
 
-def process_single_feature(feature):
+def process_single_feature(feature, is_purchased=False):
     try:
         properties = feature.get("properties", {})
         geometry = feature.get("geometry", {})
@@ -75,6 +75,7 @@ def process_single_feature(feature):
         centroid_dict = get_centroid_and_region_and_location_polygon(geometry)
         
         model_params = {
+            "is_purchased": is_purchased,
             "acquisition_datetime": acquisition_datetime,
             "cloud_cover_percent": properties.get("cloudCover", ""),
             "vendor_id": properties.get("id"),
@@ -111,13 +112,13 @@ def process_single_feature(feature):
         return None, None
 
 
-def process_features(all_features):
+def process_features(all_features, is_purchased=False):
     converted_features = []
     thumbnail_urls = []
 
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = {
-            executor.submit(process_single_feature, feature): feature
+            executor.submit(process_single_feature, feature, is_purchased): feature
             for feature in all_features
         }
 
@@ -250,6 +251,55 @@ def airbus_catalog_api(bbox, start_date, end_date, current_page, access_token):
     except Exception as e:
         logging.error(f"Failed to fetch images: {e}")
         return False
+    
+
+def fetch_and_process_airbus_products_records():
+    access_token = get_acces_token()
+    page = 1
+    all_records = []
+    if access_token:
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "accept": "application/json",
+        }
+        while True:
+            API_ENDPOINT = "https://data.api.oneatlas.airbus.com/api/v1/orders?page={}&itemsPerPage={}".format(page, ITEMS_PER_PAGE)
+            response = requests.get(API_ENDPOINT, headers=headers)
+            if response.status_code == 200:
+                response_data = response.json()
+                all_records.extend(response_data.get("items", []))
+                if response_data.get("totalResults", 0) <= (page * ITEMS_PER_PAGE):
+                    break
+                page += 1
+            else:
+                break
+    print("Total Orders: ", len(all_records))
+    features = []
+    for record in all_records:
+        try:
+            deliveries = record.get("deliveries", [])
+            if len(deliveries) == 0:
+                continue
+            delivery = deliveries[0]
+            catalogUrl = delivery.get("_links", {}).get("catalogItem", {}).get("href")
+            print(catalogUrl)
+            if not catalogUrl:
+                continue
+            response = requests.get(catalogUrl, headers=headers)
+            if response.status_code == 200:
+                response_data = response.json()
+                features.extend(response_data.get("features", []))
+            else:
+                print("Failed to fetch catalog")
+        except Exception as e:
+            print("Failed to fetch catalog: ", e)
+    print("Total Features: ", len(features))
+    # sanitize the features
+    data, images = process_features(features, True)
+    process_database_catalog(data, "", "", "airbus", True)
+    print("Completed Processing Airbus Orders")
+    mark_record_as_purchased(features)
+    return features
 
 
 def search_images(bbox, start_date, end_date, is_bulk=False):

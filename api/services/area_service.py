@@ -119,6 +119,7 @@ def get_satellite_records(
     max_illumination_elevation_angle: float = None,
     min_holdback_seconds: int = None,
     max_holdback_seconds: int = None,
+    is_purchased: bool = False,
 ):
     logger.info("Inside get satellite records service")
     start_time = datetime.now()
@@ -183,6 +184,9 @@ def get_satellite_records(
             logger.debug(f"Holdback seconds filters: {min_holdback_seconds} to {max_holdback_seconds}")
             holdback_seconds_filters = Q(holdback_seconds__gte=min_holdback_seconds, holdback_seconds__lte=max_holdback_seconds)
             filters &= holdback_seconds_filters
+
+        if isinstance(is_purchased, bool):
+            filters &= Q(is_purchased=is_purchased)
 
 
         if user_timezone and user_duration_type:
@@ -782,6 +786,7 @@ def get_polygon_selection_acquisition_calender_days_frequency(
     max_illumination_elevation_angle: float = None,
     min_holdback_seconds: int = None,
     max_holdback_seconds: int = None,
+    is_purchased: bool = None
 
 ):
     """
@@ -815,6 +820,9 @@ def get_polygon_selection_acquisition_calender_days_frequency(
             filters &= Q(vendor_name__in=vendor_names)
         elif vendor_name:
             filters &= Q(vendor_name=vendor_name)
+
+        if isinstance(is_purchased, bool):
+            filters &= Q(is_purchased=is_purchased)
 
         if user_timezone and user_duration_type:
             selected_durations = [d.strip() for d in user_duration_type.split(",") if d.strip()]

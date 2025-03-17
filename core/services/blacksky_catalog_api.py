@@ -328,7 +328,9 @@ def hq_product_artifacts_png(feature):
             artifacts = response.json()["data"]
             for artifact in artifacts:
                 if artifact["format"] == "PNG":
-                    download_product_artifacts(product_id, artifact["id"], feature["id"])
+                    print(artifact)
+                    response = download_product_artifacts(product_id, artifact["id"], feature["id"])
+                    print(response)
                     break
     except Exception as e:
         print(e)

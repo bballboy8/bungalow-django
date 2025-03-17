@@ -283,10 +283,55 @@ def fetch_and_process_products_records():
     print(len(all_records))
     # download_and_upload_images(all_records, "blacksky/thumbnails")
     converted_features = convert_to_model_params(all_records)
+    for feature in converted_features:
+        try:
+            feature_id = feature["vendor_id"]
+            if not CollectionCatalog.objects.filter(vendor_id=feature_id, vendor_name="blacksky", is_purchased=True).exists():
+                hq_product_artifacts_png(feature)
+        except Exception as e:
+            print(e)
+
     process_database_catalog(converted_features, "Product", "Product", "blacksky", True)
     mark_record_as_purchased(converted_features)
     return len(all_records)
 
+def retrieve_product_artificats(product_id):
+    url = f"{BLACKSKY_BASE_URL}/v1/products/{product_id}/artifacts"
+    headers = { "Authorization": AUTH_TOKEN, "Accept": "application/json" }
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to download {url}: {e}")
+
+def download_product_artifacts(product_id, artifact_id, vendor_id):
+
+    url = f"{BLACKSKY_BASE_URL}/v1/products/{product_id}/artifacts/{artifact_id}/download"
+    headers = { "Authorization" : AUTH_TOKEN }
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        content = response.content
+        filename = vendor_id
+        print("uploading to s3")
+        response_url = save_image_in_s3_and_get_url(content, filename, "blacksky/thumbnails")
+        return response_url
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to download {url}: {e}")
+
+def hq_product_artifacts_png(feature):
+    try:
+        product_id = feature["properties"]["productId"]
+        response = retrieve_product_artificats(product_id)
+        if response:
+            artifacts = response.json()["data"]
+            for artifact in artifacts:
+                if artifact["format"] == "PNG":
+                    download_product_artifacts(product_id, artifact["id"], feature["id"])
+                    break
+    except Exception as e:
+        print(e)
 
 def main(START_DATE, END_DATE, BBOX, last_scene_id, is_bulk):
     bboxes = [BBOX]

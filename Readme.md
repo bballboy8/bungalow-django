@@ -1,4 +1,4 @@
-- Bungalow Staging Backend
+- Bungalow Staging
 
 ## Clone Project
 

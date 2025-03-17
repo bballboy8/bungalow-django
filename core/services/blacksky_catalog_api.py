@@ -315,7 +315,7 @@ def download_product_artifacts(product_id, artifact_id, vendor_id):
         content = response.content
         filename = vendor_id
         print("uploading to s3")
-        response_url = save_image_in_s3_and_get_url(content, filename, "blacksky/thumbnails")
+        response_url = save_image_in_s3_and_get_url(content, filename, "blacksky")
         return response_url
     except requests.exceptions.RequestException as e:
         print(f"Failed to download {url}: {e}")

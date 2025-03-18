@@ -69,11 +69,6 @@ def get_airbus_record_images_by_ids(ids: List[str]):
                 content = response.content
                 url = save_image_in_s3_and_get_url(content, record_id, "airbus")
 
-                # Check if image is already uploaded
-                instance = CollectionCatalog.objects.filter(vendor_id=record_id).first()
-                if instance and instance.image_uploaded:
-                    return None
-
                 CollectionCatalog.objects.filter(vendor_id=record_id).update(
                     image_uploaded=True
                 )
@@ -168,12 +163,6 @@ def get_blacksky_record_images_by_ids(ids: List[str]):
                 response.raise_for_status()
 
                 s3_url = save_image_in_s3_and_get_url(response.content, feature_id, "blacksky")
-
-                # check if image is already uploaded
-
-                instance = CollectionCatalog.objects.filter(vendor_id=feature_id).first()
-                if instance and instance.image_uploaded:
-                    return None
 
                 CollectionCatalog.objects.filter(vendor_id=feature_id).update(
                     image_uploaded=True

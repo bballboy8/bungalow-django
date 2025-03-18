@@ -285,9 +285,7 @@ def fetch_and_process_products_records():
     converted_features = convert_to_model_params(all_records)
     for feature in converted_features:
         try:
-            feature_id = feature["vendor_id"]
-            if not CollectionCatalog.objects.filter(vendor_id=feature_id, vendor_name="blacksky", is_purchased=True).exists():
-                hq_product_artifacts_png(feature)
+            hq_product_artifacts_png(feature)
         except Exception as e:
             print(e)
 

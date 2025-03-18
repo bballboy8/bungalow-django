@@ -62,7 +62,7 @@ def get_airbus_record_images_by_ids(ids: List[str]):
             try:
                 url = image.get("url") + "?width=2000"
                 response = requests.get(
-                    image.get("url"), headers=headers, stream=True
+                    image.get("url"), headers=headers
                 )
                 response.raise_for_status()
                 record_id = image.get("id")

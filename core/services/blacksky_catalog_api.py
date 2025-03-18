@@ -320,14 +320,14 @@ def download_product_artifacts(product_id, artifact_id, vendor_id):
 
 def hq_product_artifacts_png(feature):
     try:
-        product_id = feature["properties"]["productId"]
+        product_id = feature['metadata']["properties"]["productId"]
         response = retrieve_product_artificats(product_id)
         if response:
             artifacts = response.json()["data"]
             for artifact in artifacts:
                 if artifact["format"] == "PNG":
                     print(artifact)
-                    response = download_product_artifacts(product_id, artifact["id"], feature["id"])
+                    response = download_product_artifacts(product_id, artifact["id"], feature["vendor_id"])
                     print(response)
                     break
     except Exception as e:

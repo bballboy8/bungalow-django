@@ -3,7 +3,7 @@ from drf_spectacular.utils import OpenApiParameter
 get_proxy_images_parameters = [
     OpenApiParameter(
         name="vendor_id",
-        type=int,
+        type=str,
         location
         =OpenApiParameter.QUERY,
         description="Vendor ID",

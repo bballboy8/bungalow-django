@@ -60,9 +60,9 @@ def get_airbus_record_images_by_ids(ids: List[str]):
         def process_image(image):
             headers = {"Authorization": "Bearer " + access_token}
             try:
-                url = image.get("url") + "?width=512"
+                url = image.get("url") + "?width=2000"
                 response = requests.get(
-                    image.get("url"), headers=headers, stream=True, timeout=(10, 30)
+                    image.get("url"), headers=headers, stream=True
                 )
                 response.raise_for_status()
                 record_id = image.get("id")
